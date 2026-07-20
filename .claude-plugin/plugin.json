@@ -1,0 +1,24 @@
+{
+  "name": "hochwasser",
+  "version": "0.1.0",
+  "description": "German flood-warning intelligence skills powered by the hochwasserzentralen-cli (LHP-PublicAPI / hochwasserzentralen.de).",
+  "author": {
+    "name": "Sebastian Schürmann",
+    "email": "sebs@2xs.org"
+  },
+  "license": "AGPL-3.0-or-later",
+  "repository": "https://github.com/maschinenlesbar-org/hochwasserzentralen-cli",
+  "homepage": "https://github.com/maschinenlesbar-org/hochwasserzentralen-cli#readme",
+  "keywords": [
+    "hochwasser",
+    "hochwasserzentralen",
+    "lhp",
+    "flood",
+    "flood-warning",
+    "cap",
+    "pegel",
+    "geojson",
+    "germany",
+    "bund.dev"
+  ]
+}
