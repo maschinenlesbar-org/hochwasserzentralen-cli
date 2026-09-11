@@ -13,7 +13,7 @@
 
 import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { HochwasserzentralenValidationError } from "./errors.js";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import {
   STATE_CODES,
   type AlertsParams,
@@ -27,6 +27,23 @@ export const ENDPOINTS = {
   alerts: "/data/alerts",
   stations: "/data/stations",
 } as const;
+
+/**
+ * `data` is typed as an array (AlertArea[] / Station[]), but that's only a
+ * compile-time cast over whatever JSON the API actually returned — nothing
+ * upstream checks the runtime shape. Callers (both CLI commands and library
+ * consumers) iterate `res.data` immediately, so a malformed/unexpected body
+ * would otherwise surface as a raw "X is not iterable" TypeError deep inside
+ * unrelated aggregation code. Fail fast at the client boundary instead, with
+ * a typed error that names the endpoint and the field.
+ */
+function assertDataArray(value: unknown, endpoint: string): asserts value is unknown[] {
+  if (!Array.isArray(value)) {
+    throw new HochwasserzentralenParseError(
+      `Expected "data" to be an array in the response from ${endpoint}, got ${typeof value}`,
+    );
+  }
+}
 
 /**
  * Normalise and validate a list of state codes: trims, upper-cases, de-duplicates
@@ -72,9 +89,11 @@ export class HochwasserzentralenClient {
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
     if (params.cap === true) query["cap"] = true;
-    return this.engine.getJson<AlertsResponse>(ENDPOINTS.alerts, query, {
+    const res = await this.engine.getJson<AlertsResponse>(ENDPOINTS.alerts, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
+    assertDataArray(res.data, ENDPOINTS.alerts);
+    return res;
   }
 
   /**
@@ -85,8 +104,10 @@ export class HochwasserzentralenClient {
   async stations(params: StationsParams = {}): Promise<StationsResponse> {
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
-    return this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
+    const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
+    assertDataArray(res.data, ENDPOINTS.stations);
+    return res;
   }
 }

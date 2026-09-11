@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HochwasserzentralenClient, normalizeStates } from "../src/client/client.js";
-import { HochwasserzentralenValidationError } from "../src/client/errors.js";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
 import { makeMockTransport, jsonResponse, queryOf } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -60,6 +60,24 @@ test("an unknown state code is rejected client-side — no request is made", asy
     (err) => err instanceof HochwasserzentralenValidationError && /XX/.test(err.message),
   );
   assert.equal(mt.calls.length, 0);
+});
+
+test("stations() throws HochwasserzentralenParseError when the response's data is not an array", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ ...fx.stationsJson, data: { message: "maintenance" } }));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(
+    () => c.stations(),
+    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*data\/stations/.test(err.message),
+  );
+});
+
+test("alerts() throws HochwasserzentralenParseError when the response's data is not an array", async () => {
+  const mt = makeMockTransport(() => jsonResponse({ ...fx.alertsJson, data: null }));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(
+    () => c.alerts(),
+    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*data\/alerts/.test(err.message),
+  );
 });
 
 test("normalizeStates upper-cases, trims and de-duplicates", () => {
