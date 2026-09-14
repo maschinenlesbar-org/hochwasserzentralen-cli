@@ -1,6 +1,6 @@
 {
   "name": "@maschinenlesbar.org/hochwasserzentralen-cli",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "TypeScript API client and CLI for the LHP-PublicAPI of hochwasserzentralen.de — current regional flood alerts and the flood classification at ~1200 German gauges",
   "type": "module",
   "bin": {
