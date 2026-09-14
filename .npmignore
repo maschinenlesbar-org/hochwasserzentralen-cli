@@ -23,3 +23,6 @@ out/
 dist-artifacts/
 *.log
 .DS_Store
+
+# Website (Jekyll source; built into GitHub Pages by docs.yml)
+site/

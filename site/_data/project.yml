@@ -1,0 +1,16 @@
+# The only repo-specific texts of the website. Everything else comes from the
+# repository: the English intro from README.md, the commands from the built CLI.
+
+# How the API is accessed: open | key (env: VAR) | account (token, user, password: VARs)
+access:
+  type: open
+
+de:
+  # German version of the README's intro paragraph. Keep it in step with README.md.
+  intro: >-
+    Die amtlichen Hochwasserwarnungen und die Hochwasserlage an rund 1200 Pegeln in
+    Deutschland direkt im Terminal prüfen. `hochwasser` ist ein Kommandozeilen-Tool für die
+    offizielle **LHP-PublicAPI** (`api.hochwasserzentralen.de`) des [Länderübergreifenden
+    Hochwasserportals (LHP)](https://www.hochwasserzentralen.de) – des gemeinsamen
+    Hochwasserportals der Bundesländer – als sauberes JSON, das Sie direkt an
+    [`jq`](https://jqlang.github.io/jq/) weitergeben können, oder als kartenfertiges GeoJSON.
