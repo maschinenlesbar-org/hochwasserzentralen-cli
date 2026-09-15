@@ -41,6 +41,12 @@ An **empty `data` array is the happy answer**: no active official flood
 warnings for that scope. Say so plainly — it is a valid, reassuring result, not
 an error. (Exit code 0 either way; exit 2 means a bad state code.)
 
+An **exit 1 saying "The API answered /data/alerts with its GeoJSON
+representation"** (older CLI versions: `Expected "data" to be an array in the
+response from /data/alerts, got undefined`) is not an answer either way: the
+API's cache now and then serves the wrong representation. Wait about a
+minute and retry once; never report it as "no warnings".
+
 ## Step 2 — Read the alerts
 
 Each entry in `.data[]` is an **AlertArea**:
@@ -65,6 +71,8 @@ Each entry in `.data[]` is an **AlertArea**:
 >   or parse deliberately.
 > - `--states` codes are validated; a typo exits 2 with the allowed list —
 >   fix the code, don't retry blindly.
+> - The API's cache also ignores the language: `--lang en` can come back in German.
+>   The response's `lang` field says which one you got.
 > - Production often has **zero alerts**. For a demo of what alerts look like,
 >   use the fixed-data test system:
 >   `hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts --cap`
@@ -79,9 +87,12 @@ Offer the `alertLink` for authoritative detail.
 
 **Attribution is mandatory (CC BY 4.0):** close with
 "Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de —
-Stand: …" using the response's `updated` field for the timestamp. For safety
-decisions, point the user to the state portal (`alertLink`) and official
-emergency channels — this data is unverified raw data.
+Stand: …" using the response's `updated` field for the timestamp. `updated`
+always carries a `+01:00` offset, also in summer: convert it to German local
+time (`2026-09-15T16:47:47+01:00` is 17:47:47 MESZ), or quote it with its
+offset. For safety decisions, point the user to the state portal
+(`alertLink`) and official emergency channels — this data is unverified raw
+data.
 
 For "how bad is it at the gauges" follow-ups, use the station-situation skill
 (`hochwasser stations` / `situation`); for a map, the geojson-export skill.
