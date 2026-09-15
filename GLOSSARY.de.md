@@ -25,7 +25,11 @@ Die zwei Arten von Einträgen der API:
   die aktuelle Zahl als `totalStations`). **Keine Wasserstände** – das LHP veröffentlicht nur die
   Klasse. Gemessene Wasserstände liefert
   [pegel-online-cli](https://github.com/maschinenlesbar-org/pegel-online-cli)
-  (viele `stationLink`s verweisen sogar auf pegelonline.wsv.de).
+  (viele `stationLink`s verweisen sogar auf pegelonline.wsv.de). Ein Pegel an einer Landesgrenze
+  kann doppelt aufgeführt sein, einmal je meldendem Land, mit denselben Koordinaten und
+  unterschiedlichen IDs (z. B. `HE_25700100` und `RP_25700100`, Kaub). `stateClassName` ist die
+  eigene Bezeichnung des Landes für die Klasse: `--lang en` übersetzt sie nicht, und
+  Rheinland-Pfalz liefert sie mit einer HTML-Entität (`&#60;` für `<`).
 
 ## lhpClass – zwei verschiedene Skalen!
 
@@ -43,6 +47,11 @@ und `situation` verwendet):
 | `1` | Kleines Hochwasser |
 | `0` | Kein Hochwasser |
 | `-1` | Derzeit keine Daten |
+| `null` | Ohne Hochwasser-Einstufung |
+
+`null` steht nicht in der `legend`, kommt live aber vor (216 von 1.573 Pegeln am 15.09.2026, die
+meisten in MV). `situation` zählt diese Pegel im Bucket `"-1"`, `--min-class` filtert sie
+unabhängig vom Wert heraus, und der GeoJSON-Export lässt bei ihnen die Eigenschaft `lhpClass` weg.
 
 **Warnskala** (`alerts`, `lhpClass` ist ein **String**, z. B. `"4"`):
 
@@ -105,8 +114,12 @@ jeweiligen Hochwasserportal des Landes zu.
 Jede Antwort verpackt ihr `data` in einen Envelope mit `source` / `sourceName` (das LHP),
 `licence` / `licenceName` (CC BY 4.0), `updated` (der **Zeitstempel der Daten** – zeigen Sie
 ihn an, die Lizenz verlangt es), `lastModified`, einer `legend` und einer `bbox`
-(in der Live-API `[west, north, east, south]`). Diese CLI entfernt diese Felder nie, und ihr
-GeoJSON-Export übernimmt sie als Foreign Members.
+(in der Live-API `[west, north, east, south]`, ein fester Rahmen um Deutschland, unabhängig vom
+Filter). `updated` und `lastModified` tragen immer den Offset `+01:00`, auch im Sommer; der
+Zeitpunkt stimmt, rechnen Sie ihn also vor der Anzeige in deutsche Ortszeit um. Diese CLI
+entfernt diese Felder nie. Ihr GeoJSON-Export übernimmt die Namensnennung und `updated` als
+Foreign Members und berechnet eine eigene `bbox` aus den exportierten Features, in der
+Reihenfolge nach RFC 7946 `[west, south, east, north]`.
 
 ## Pegel / Wasserstand (was diese API NICHT hat)
 

@@ -26,7 +26,12 @@ The API's two kinds of items:
   2026-09-15; `situation` reports the current count as `totalStations`). **No water
   levels** — the LHP publishes only the class. For measured levels use
   [pegel-online-cli](https://github.com/maschinenlesbar-org/pegel-online-cli)
-  (many `stationLink`s even point to pegelonline.wsv.de).
+  (many `stationLink`s even point to pegelonline.wsv.de). A gauge on a state
+  border can be listed twice, once per reporting state, with the same
+  coordinates and different ids (e.g. `HE_25700100` and `RP_25700100`, Kaub).
+  `stateClassName` is the state's own label for the class: it is not
+  translated by `--lang en`, and Rheinland-Pfalz sends it with an HTML entity
+  (`&#60;` for `<`).
 
 ## lhpClass — two different scales!
 
@@ -44,6 +49,12 @@ and `situation`):
 | `1` | Kleines Hochwasser (small flood) |
 | `0` | Kein Hochwasser (no flood) |
 | `-1` | Derzeit keine Daten (currently no data) |
+| `null` | Ohne Hochwasser-Einstufung (gauge without a flood classification) |
+
+`null` is not in the `legend`, but it occurs live (216 of 1573 gauges on
+2026-09-15, most of them in MV). `situation` counts these gauges in its `"-1"`
+bucket, `--min-class` drops them whatever the value, and the GeoJSON export
+leaves out the `lhpClass` property for them.
 
 **Alert scale** (`alerts`, `lhpClass` is a **string**, e.g. `"4"`):
 
@@ -105,8 +116,13 @@ ids to each state's own flood portal.
 Every response wraps its `data` in an envelope with `source` / `sourceName`
 (the LHP), `licence` / `licenceName` (CC BY 4.0), `updated` (the **data
 timestamp** — display it, the licence requires it), `lastModified`, a `legend`,
-and a `bbox` (`[west, north, east, south]` in the live API). This CLI never
-strips these fields, and its GeoJSON export carries them as foreign members.
+and a `bbox` (`[west, north, east, south]` in the live API, a fixed box around
+Germany whatever the filter). `updated` and `lastModified` always carry a
+`+01:00` offset, also in summer; the instant is right, so convert it to German
+local time before you display it. This CLI never strips these fields. Its
+GeoJSON export carries the attribution and `updated` as foreign members, and
+computes its own `bbox` from the exported features in the RFC 7946 order
+`[west, south, east, north]`.
 
 ## Pegel / water level (what this API does NOT have)
 
