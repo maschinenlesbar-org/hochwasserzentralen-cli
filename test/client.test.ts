@@ -120,6 +120,27 @@ test("stationsToGeoJson skips stations without usable coordinates", () => {
   assert.equal(fc.features.length, 1);
 });
 
+test("stationsToGeoJson computes an RFC 7946 bbox [west, south, east, north] from the exported points", () => {
+  // The API envelope's bbox is a fixed Germany box in [west, north, east, south]
+  // order; it must not be copied into the export.
+  const fc = stationsToGeoJson(fx.stationsJson);
+  assert.deepEqual(fc.bbox, [11.5581, 48.1421, 13.574, 52.4303]);
+  const oneStation = { ...fx.stationsJson, data: [fx.stationsJson.data[2]!] };
+  assert.deepEqual(stationsToGeoJson(oneStation).bbox, [12.1211, 49.0342, 12.1211, 49.0342]);
+});
+
+test("the GeoJSON export omits bbox when no feature is exported", () => {
+  const fc = stationsToGeoJson({ ...fx.stationsJson, data: [] });
+  assert.equal(fc.features.length, 0);
+  assert.equal("bbox" in fc, false);
+  assert.equal("bbox" in alertsToGeoJson({ ...fx.alertsJson, data: [] }), false);
+});
+
+test("alertsToGeoJson computes the bbox over every polygon vertex", () => {
+  const fc = alertsToGeoJson(fx.alertsJson);
+  assert.deepEqual(fc.bbox, [12.1, 48.9, 13.6, 51.1]);
+});
+
 test("alertsToGeoJson uses the alert geometry verbatim and keeps the CAP block", () => {
   const fc = alertsToGeoJson(fx.alertsJson);
   assert.equal(fc.features.length, 2);

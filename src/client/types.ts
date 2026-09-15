@@ -85,7 +85,10 @@ export interface ResponseEnvelope {
   lastModified?: string;
   eTag?: string;
   legend?: Legend;
-  /** [west, north, east, south] per the live API. */
+  /**
+   * [west, north, east, south] per the live API (not the RFC 7946 order), a
+   * fixed box around Germany whatever the `states` filter.
+   */
   bbox?: number[];
 }
 

@@ -197,6 +197,14 @@ test("stations --geojson --min-class filters before export", async () => {
   assert.equal(fc.features.length, 2);
 });
 
+test("stations --geojson --water sets the bbox to the filtered points, south before north", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["stations", "--geojson", "--water", "havel"], cli.deps), 0);
+  const fc = JSON.parse(cli.out.join("\n")) as { bbox: number[]; features: unknown[] };
+  assert.equal(fc.features.length, 1);
+  assert.deepEqual(fc.bbox, [13.1239, 52.4303, 13.1239, 52.4303]);
+});
+
 test("DEL and C1 control characters in server data are escaped in the JSON and GeoJSON output", async () => {
   const controls = String.fromCharCode(0x7f, 0x85, 0x9b) + "2J";
   const esc = String.fromCharCode(0x1b) + "[31m";

@@ -5,6 +5,11 @@
 // GeoJSON *foreign members* (`source`, `sourceName`, `licence`, `licenceName`,
 // `updated`) — RFC 7946 §6.1 allows them and CC BY 4.0 requires showing source
 // and timestamp when the data is passed on (see DATA_LICENSE.md).
+//
+// The API's own envelope `bbox` is NOT copied: it is a fixed box around Germany
+// in [west, north, east, south] order, whatever the filter. The collection's
+// `bbox` is computed from the exported features instead, in the RFC 7946 §5
+// order [west, south, east, north].
 
 import type { AlertsResponse, StationsResponse } from "./types.js";
 
@@ -35,9 +40,45 @@ function prune(props: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/** Call `visit` for every [x, y, …] position nested anywhere in a GeoJSON `coordinates` value. */
+function eachPosition(coords: unknown, visit: (x: number, y: number) => void): void {
+  if (!Array.isArray(coords)) return;
+  if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+    visit(coords[0], coords[1]);
+    return;
+  }
+  for (const c of coords) eachPosition(c, visit);
+}
+
+/**
+ * The RFC 7946 §5 bounding box [west, south, east, north] of the features'
+ * geometries, or undefined when they hold no position (e.g. zero features).
+ */
+export function featuresBbox(features: readonly GeoJsonFeature[]): number[] | undefined {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+  for (const f of features) {
+    const geometry = f.geometry as { coordinates?: unknown } | null | undefined;
+    eachPosition(geometry?.coordinates, (x, y) => {
+      west = Math.min(west, x);
+      east = Math.max(east, x);
+      south = Math.min(south, y);
+      north = Math.max(north, y);
+    });
+  }
+  return west <= east ? [west, south, east, north] : undefined;
+}
+
+/** A FeatureCollection: `bbox` from the features, then the envelope's attribution members. */
+function collection(res: AlertsResponse | StationsResponse, features: GeoJsonFeature[]): GeoJsonFeatureCollection {
+  const bbox = featuresBbox(features);
+  return { type: "FeatureCollection", ...(bbox !== undefined ? { bbox } : {}), ...envelopeMembers(res), features };
+}
+
 function envelopeMembers(res: AlertsResponse | StationsResponse): Partial<GeoJsonFeatureCollection> {
   return prune({
-    ...(res.bbox !== undefined ? { bbox: res.bbox } : {}),
     source: res.source,
     sourceName: res.sourceName,
     licence: res.licence,
@@ -71,7 +112,7 @@ export function alertsToGeoJson(res: AlertsResponse): GeoJsonFeatureCollection {
       }),
     });
   }
-  return { type: "FeatureCollection", ...envelopeMembers(res), features };
+  return collection(res, features);
 }
 
 /**
@@ -101,5 +142,5 @@ export function stationsToGeoJson(res: StationsResponse): GeoJsonFeatureCollecti
       }),
     });
   }
-  return { type: "FeatureCollection", ...envelopeMembers(res), features };
+  return collection(res, features);
 }
