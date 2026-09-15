@@ -184,7 +184,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
 | `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system) |
-| `--timeout <ms>` | Per-request timeout in milliseconds (default `30000`) |
+| `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; `0` = none) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses, honouring `Retry-After` (default `2`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
