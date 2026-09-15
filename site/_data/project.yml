@@ -8,7 +8,7 @@ access:
 de:
   # German version of the README's intro paragraph. Keep it in step with README.md.
   intro: >-
-    Die amtlichen Hochwasserwarnungen und die Hochwasserlage an rund 1200 Pegeln in
+    Die amtlichen Hochwasserwarnungen und die Hochwasserlage an rund 1600 Pegeln in
     Deutschland direkt im Terminal prüfen. `hochwasser` ist ein Kommandozeilen-Tool für die
     offizielle **LHP-PublicAPI** (`api.hochwasserzentralen.de`) des [Länderübergreifenden
     Hochwasserportals (LHP)](https://www.hochwasserzentralen.de) – des gemeinsamen
