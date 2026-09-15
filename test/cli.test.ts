@@ -301,6 +301,17 @@ test("a control character in --user-agent is rejected (exit 2), no request", asy
   assert.equal(cli.mt.calls.length, 0);
 });
 
+test("--timeout accepts up to the largest timer Node supports", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["--timeout", "2147483647", "stations"], cli.deps), 0);
+  assert.equal(cli.mt.last().timeoutMs, 2_147_483_647);
+
+  const over = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["--timeout", "2147483648", "stations"], over.deps), 2);
+  assert.equal(over.mt.calls.length, 0);
+  assert.match(over.err.join("\n"), /Must be <= 2147483647/);
+});
+
 test("a bare invocation prints help and exits 0", async () => {
   const cli = makeCli(() => jsonResponse(fx.alertsJson));
   const code = await run([], cli.deps);

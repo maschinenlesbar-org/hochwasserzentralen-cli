@@ -4,7 +4,7 @@ export { HochwasserzentralenClient, ENDPOINTS, normalizeStates } from "./client.
 export type { HochwasserzentralenClientOptions } from "./client.js";
 export { RequestEngine, DEFAULT_BASE_URL, TEST_BASE_URL, parseRetryAfter } from "./engine.js";
 export type { EngineOptions, RawResponse, RequestOptions } from "./engine.js";
-export { nodeHttpTransport } from "./http.js";
+export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
 export type { QueryParams, QueryValue } from "./query.js";
