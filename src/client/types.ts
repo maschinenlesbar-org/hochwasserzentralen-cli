@@ -171,7 +171,12 @@ export interface Station {
   water?: string;
   /** Local German time, e.g. "2026-07-13 11:15:00". */
   timestamp?: string;
+  /**
+   * Station-scale class 4..-1. Live data also has `null` for gauges without a
+   * flood classification (`stateClassName` "Ohne Hochwasser-Einstufung").
+   */
   lhpClass: number;
+  /** The state's own label for the class; not translated by `lang`. */
   stateClassName?: string;
   stationLink?: string;
   /** ISO 3166-2 id of the reporting state, e.g. "DE-BE". */

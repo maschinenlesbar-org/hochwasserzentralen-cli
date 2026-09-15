@@ -85,7 +85,8 @@ hochwasser --compact situation | jq -r '"\(.worstClassName) (Stand: \(.updated))
 # All alert areas as polygons
 hochwasser alerts --geojson -o alerts.geojson
 
-# Bavarian gauges as points, only those with data
+# Bavarian gauges as points, only those classified 0 or higher
+# (drops "no data" (-1) and unclassified (lhpClass null) gauges)
 hochwasser stations --states BY --min-class 0 --geojson -o bayern-pegel.geojson
 ```
 
@@ -97,8 +98,11 @@ Wrote 243 features (130359 bytes) to bayern-pegel.geojson
 ```
 
 Open the file at https://geojson.io or load it into Leaflet/QGIS. Coordinates
-are `[longitude, latitude]` (RFC 7946). The collection's top-level `source`,
-`licence` and `updated` members are your attribution — keep them.
+are `[longitude, latitude]` (RFC 7946), and the collection's `bbox` is
+`[west, south, east, north]` around the exported features. The collection's
+top-level `source`, `licence` and `updated` members are your attribution — keep
+them. `updated` always carries a `+01:00` offset, also in summer; convert it to
+German local time before you show it.
 
 ## "Demo it without a flood" (test system)
 

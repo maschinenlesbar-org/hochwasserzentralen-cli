@@ -49,6 +49,16 @@ endpoints flatten differently (verified live 2026-07-13):
   `data`. The wrapped Feature form (under `features`) only appears in the
   `application/geo+json` representation.
 
+**Cache mix-up (upstream, transient).** Responses carry
+`Cache-Control: max-age=60` but `Vary: Accept-Encoding` only, and a cache in
+front of the API serves one representation for all `Accept` and
+`Accept-Language` values of a URL. So a request for `application/json` can get
+the `application/geo+json` body (seen live 2026-09-15: `Content-Type:
+application/geo+json`, `Age: 21`), and `Accept-Language: en` can get `lang: "de"`.
+`assertDataArray` in [`src/client/client.ts`](src/client/client.ts) turns the
+first case into a `HochwasserzentralenParseError` that says so and suggests a
+retry; the client does not convert the GeoJSON body.
+
 The types in [`src/client/types.ts`](src/client/types.ts) model the plain-JSON
 shapes. The CLI's `--geojson` flag does **not** switch the Accept header — it
 rebuilds a `FeatureCollection` locally via
@@ -193,7 +203,9 @@ exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
 
 **GeoJSON converters.** [`src/client/geojson.ts`](src/client/geojson.ts) — pure
 functions `alertsToGeoJson` / `stationsToGeoJson` producing RFC-7946
-FeatureCollections (`[lon, lat]`), skipping items without usable geometry and
+FeatureCollections (`[lon, lat]`), skipping items without usable geometry,
+computing `bbox` (`[west, south, east, north]`) from the exported features
+rather than copying the API's `[west, north, east, south]` Germany box, and
 carrying attribution + `updated` as foreign members.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI

@@ -88,7 +88,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | `--states <codes>` | comma-separated state codes (validated) |
 | `--lang <de\|en>` | response language |
 | `--water <name>` | only stations whose water (river) name contains this text, case-insensitive |
-| `--min-class <n>` | only stations with `lhpClass >= n` (`-1` no data … `4` sehr großes Hochwasser) |
+| `--min-class <n>` | only stations with `lhpClass >= n` (`-1` no data … `4` sehr großes Hochwasser); gauges without a class (`lhpClass: null`) never match |
 | `--geojson` | output the stations as a GeoJSON `FeatureCollection` of points |
 
 ### `situation` options
@@ -116,7 +116,11 @@ hochwasser stations --states BY --geojson -o bayern-pegel.geojson
 
 The exported collection carries `source`, `licence` and `updated` as top-level
 foreign members — keep them: the data is CC BY 4.0 and requires attribution and
-the data timestamp when passed on (see below).
+the data timestamp when passed on (see below). Its `bbox` is computed from the
+exported features in RFC 7946 order (`[west, south, east, north]`) and left out
+when no feature is written; the API's own envelope `bbox` is a fixed box around
+Germany in `[west, north, east, south]` order and stays only in the plain JSON
+output.
 
 ## Output & scripting
 
@@ -175,6 +179,11 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
   `https://api.hochwasserzentralen.de/public/v1`.
 - **Exit `6` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise `--timeout 60000`.
+- **Exit `1` / "The API answered … with its GeoJSON representation"** — the
+  API's HTTP cache varies only on `Accept-Encoding`, so for a minute or so it can
+  hand out the GeoJSON body someone else asked for. Retry after about a minute.
+  The same cache can answer `--lang en` in German; the response's `lang` field
+  tells you which language you got.
 
 ## Global options
 

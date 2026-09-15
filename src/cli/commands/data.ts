@@ -97,7 +97,8 @@ export function aggregateSituation(res: StationsResponse): {
     }
     entry.stations += 1;
     // Clamp anything outside the documented -1..4 scale into "-1" (no data)
-    // rather than inventing new buckets.
+    // rather than inventing new buckets. That includes `lhpClass: null`
+    // ("Ohne Hochwasser-Einstufung"), which occurs live — see GLOSSARY.md.
     const cls = Number.isInteger(s.lhpClass) && s.lhpClass >= -1 && s.lhpClass <= 4 ? s.lhpClass : -1;
     entry.classes[String(cls)] = (entry.classes[String(cls)] ?? 0) + 1;
     if (cls > entry.worstClass) {
@@ -157,7 +158,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     )
     .option(
       "--min-class <n>",
-      "only stations with lhpClass >= n (-1 no data .. 4 sehr großes Hochwasser)",
+      "only stations with lhpClass >= n (-1 no data .. 4 sehr großes Hochwasser; gauges without a class are dropped)",
       parseMinClass,
     )
     .option("--geojson", "output the stations as a GeoJSON FeatureCollection of points")
