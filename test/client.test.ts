@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { HochwasserzentralenClient, normalizeStates } from "../src/client/client.js";
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
-import { makeMockTransport, jsonResponse, queryOf } from "./helpers.js";
+import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
 test("alerts() GETs /data/alerts with no query by default", async () => {
@@ -77,6 +77,37 @@ test("alerts() throws HochwasserzentralenParseError when the response's data is 
   await assert.rejects(
     () => c.alerts(),
     (err) => err instanceof HochwasserzentralenParseError && /data.*array.*data\/alerts/.test(err.message),
+  );
+});
+
+test("a GeoJSON representation served in place of plain JSON gets a transient-cache error message", async () => {
+  // Live 2026-09-15: the API's cache varies only on Accept-Encoding and now and
+  // then answers `Accept: application/json` with the geo+json body.
+  const { data: _data, ...envelope } = fx.stationsJson;
+  const geo = { ...envelope, type: "FeatureCollection", features: [] };
+  const mt = makeMockTransport(() => rawResponse(JSON.stringify(geo), "application/geo+json; charset=UTF-8"));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(
+    () => c.stations(),
+    (err) =>
+      err instanceof HochwasserzentralenParseError &&
+      /GeoJSON representation/.test(err.message) &&
+      /\/data\/stations/.test(err.message) &&
+      /transient/.test(err.message) &&
+      /retry/.test(err.message),
+  );
+  await assert.rejects(
+    () => c.alerts(),
+    (err) => err instanceof HochwasserzentralenParseError && /\/data\/alerts.*transient/.test(err.message),
+  );
+});
+
+test("a non-object JSON body is still a HochwasserzentralenParseError", async () => {
+  const mt = makeMockTransport(() => jsonResponse("null"));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(
+    () => c.stations(),
+    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*got undefined/.test(err.message),
   );
 });
 

@@ -36,13 +36,26 @@ export const ENDPOINTS = {
  * would otherwise surface as a raw "X is not iterable" TypeError deep inside
  * unrelated aggregation code. Fail fast at the client boundary instead, with
  * a typed error that names the endpoint and the field.
+ *
+ * One known cause is upstream and transient: the API's HTTP cache varies only
+ * on Accept-Encoding, so for about a minute after anyone requests
+ * `application/geo+json` it may serve that representation (a FeatureCollection
+ * with `features`, no `data`) to our `Accept: application/json` request. The
+ * error names that case so it is not mistaken for a CLI bug.
  */
-function assertDataArray(value: unknown, endpoint: string): asserts value is unknown[] {
-  if (!Array.isArray(value)) {
+function assertDataArray(res: unknown, endpoint: string): void {
+  const body = typeof res === "object" && res !== null ? (res as Record<string, unknown>) : {};
+  if (Array.isArray(body["data"])) return;
+  if (body["type"] === "FeatureCollection" && Array.isArray(body["features"])) {
     throw new HochwasserzentralenParseError(
-      `Expected "data" to be an array in the response from ${endpoint}, got ${typeof value}`,
+      `The API answered ${endpoint} with its GeoJSON representation ("features") instead of plain JSON ` +
+        `("data"). This is a transient mix-up in the API's cache that usually clears within a minute or ` +
+        `two; retry then.`,
     );
   }
+  throw new HochwasserzentralenParseError(
+    `Expected "data" to be an array in the response from ${endpoint}, got ${typeof body["data"]}`,
+  );
 }
 
 /**
@@ -92,7 +105,7 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<AlertsResponse>(ENDPOINTS.alerts, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res.data, ENDPOINTS.alerts);
+    assertDataArray(res, ENDPOINTS.alerts);
     return res;
   }
 
@@ -107,7 +120,7 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res.data, ENDPOINTS.stations);
+    assertDataArray(res, ENDPOINTS.stations);
     return res;
   }
 }
