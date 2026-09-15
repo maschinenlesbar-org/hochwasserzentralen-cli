@@ -86,8 +86,9 @@ export function parseRetryAfter(value: string | string[] | undefined): number | 
  * `detail` snippet that ends up in a HochwasserzentralenApiError.message printed
  * raw to stderr by run.ts. Without this, a hostile / MITM'd / spoofed-`--base-url`
  * endpoint could drive ANSI/OSC escape sequences (display spoofing, terminal
- * title changes) into the user's terminal via a non-2xx reply. The success path
- * is already safe (JSON.stringify escapes these), so this only covers error text.
+ * title changes) into the user's terminal via a non-2xx reply. This only covers
+ * error text: the CLI's JSON/GeoJSON output is escaped separately (escapeControlChars
+ * in cli/shared.ts), since JSON.stringify alone leaves DEL and the C1 range raw.
  *
  * Written as a char-code filter so no raw control byte ever appears in this source.
  */

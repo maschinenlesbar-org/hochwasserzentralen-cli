@@ -197,6 +197,31 @@ test("stations --geojson --min-class filters before export", async () => {
   assert.equal(fc.features.length, 2);
 });
 
+test("DEL and C1 control characters in server data are escaped in the JSON and GeoJSON output", async () => {
+  const controls = String.fromCharCode(0x7f, 0x85, 0x9b) + "2J";
+  const esc = String.fromCharCode(0x1b) + "[31m";
+  const served = { ...fx.stationsJson, data: [{ ...fx.stationsJson.data[0]!, name: `Pfaueninsel${controls}`, water: esc }] };
+  const rawControls = (text: string) =>
+    [...text].filter((c) => c.charCodeAt(0) < 0x20 ? c !== "\n" : c.charCodeAt(0) >= 0x7f && c.charCodeAt(0) <= 0x9f);
+  for (const format of [[], ["--compact"]]) {
+    const cli = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "stations"], cli.deps), 0);
+    const text = cli.out.join("\n");
+    assert.deepEqual(rawControls(text), [], format.join(" "));
+    assert.match(text, /Pfaueninsel\\u007f\\u0085\\u009b2J/);
+    assert.deepEqual(JSON.parse(text), served);
+
+    const geo = makeCli(() => jsonResponse(served));
+    assert.equal(await run([...format, "stations", "--geojson"], geo.deps), 0);
+    const geoText = geo.out.join("\n");
+    assert.deepEqual(rawControls(geoText), [], `--geojson ${format.join(" ")}`);
+    assert.match(geoText, /Pfaueninsel\\u007f\\u0085\\u009b2J/);
+    const fc = JSON.parse(geoText) as { features: Array<{ properties: Record<string, unknown> }> };
+    assert.equal(fc.features[0]!.properties["name"], `Pfaueninsel${controls}`);
+    assert.equal(fc.features[0]!.properties["water"], esc);
+  }
+});
+
 test("-o refuses to overwrite an existing file without --force (exit 2)", async () => {
   const cli = makeCli(() => jsonResponse(fx.stationsJson), ["/tmp/exists.geojson"]);
   const code = await run(["stations", "--geojson", "-o", "/tmp/exists.geojson"], cli.deps);
