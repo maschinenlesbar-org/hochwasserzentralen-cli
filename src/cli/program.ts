@@ -46,7 +46,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       "CLI for the LHP-PublicAPI of hochwasserzentralen.de (Länderübergreifendes " +
         "Hochwasserportal). No API key needed. `alerts` shows the states' current " +
         "regional flood alerts (optionally with CAP detail); `stations` the flood " +
-        "classification at ~1200 gauges (classification only — measured water levels " +
+        "classification at the LHP gauges (classification only — measured water levels " +
         "live in pegel-online-cli); `situation` a per-state aggregate overview. " +
         "Data: CC BY 4.0 — outputs keep the source and `updated` timestamp fields " +
         "(see DATA_LICENSE.md).",

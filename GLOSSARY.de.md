@@ -21,8 +21,9 @@ Die zwei Arten von Einträgen der API:
   Landes dafür: Überschrift, Link zum Portal des Landes, Warnklasse, optional ein vollständiger
   **CAP**-Block. Null Warngebiete = keine aktiven Warnungen.
 - **Station** (`hochwasser stations`) – ein einzelner *Pegel* mit seiner aktuellen
-  Hochwasser-**Einstufung**. Rund 1.200 Pegel bundesweit. **Keine Wasserstände** – das LHP
-  veröffentlicht nur die Klasse. Gemessene Wasserstände liefert
+  Hochwasser-**Einstufung**. Rund 1.600 Pegel bundesweit (1.573 am 15.09.2026; `situation` nennt
+  die aktuelle Zahl als `totalStations`). **Keine Wasserstände** – das LHP veröffentlicht nur die
+  Klasse. Gemessene Wasserstände liefert
   [pegel-online-cli](https://github.com/maschinenlesbar-org/pegel-online-cli)
   (viele `stationLink`s verweisen sogar auf pegelonline.wsv.de).
 

@@ -22,7 +22,8 @@ The API's two kinds of items:
   flood warning for it: headline, link to the state's portal, warning class,
   optionally a full **CAP** block. Zero alert areas = no active warnings.
 - **Station** (`hochwasser stations`) — a single *gauge* (Pegel) with its
-  current flood **classification**. ~1200 stations nationwide. **No water
+  current flood **classification**. About 1600 stations nationwide (1573 on
+  2026-09-15; `situation` reports the current count as `totalStations`). **No water
   levels** — the LHP publishes only the class. For measured levels use
   [pegel-online-cli](https://github.com/maschinenlesbar-org/pegel-online-cli)
   (many `stationLink`s even point to pegelonline.wsv.de).

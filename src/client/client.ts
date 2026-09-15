@@ -110,7 +110,7 @@ export class HochwasserzentralenClient {
   }
 
   /**
-   * The current flood situation at the ~1200 LHP gauges — classification only
+   * The current flood situation at the LHP gauges (1573 on 2026-09-15) — classification only
    * (lhpClass 4..-1), NO water levels. For measured levels use PEGELONLINE
    * (pegel-online-cli).
    */

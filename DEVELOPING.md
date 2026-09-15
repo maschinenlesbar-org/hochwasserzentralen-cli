@@ -23,7 +23,8 @@ This repo wraps the **official LHP-PublicAPI v1** announced by the LHP:
 
 - Base URL: `https://api.hochwasserzentralen.de/public/v1`
 - Two GET endpoints: `/data/alerts` (regional flood alerts, optional `cap=true`
-  CAP detail) and `/data/stations` (flood classification at ~1200 gauges).
+  CAP detail) and `/data/stations` (flood classification at ~1600 gauges;
+  1573 on 2026-09-15).
 - Content negotiation: `Accept: application/geo+json` (server default),
   `application/json`, `text/xml`; `Accept-Language: de` (default) or `en`.
 - A **test system** with fixed canned data lives at

@@ -14,8 +14,9 @@ userInvocable: true
 
 # Station Flood-Situation Check (LHP)
 
-Answer "how bad is the flood situation?" from the ~1200 LHP gauges — as a
-per-state overview or a per-river drill-down — using the harmonised nationwide
+Answer "how bad is the flood situation?" from the LHP gauges (about 1600;
+`situation` reports the live count as `totalStations`) — as a per-state
+overview or a per-river drill-down — using the harmonised nationwide
 classification, and report it with the data timestamp.
 
 ## Tooling

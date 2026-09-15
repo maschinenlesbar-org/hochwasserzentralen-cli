@@ -74,8 +74,9 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 >   separately; never merge them into one colour ramp.
 > - Stations without coordinates are skipped by the export automatically; the
 >   reported feature count is the count actually written.
-> - The full national station layer is ~1200 points — fine as a map layer, but
->   warn before pasting the raw GeoJSON inline as text; offer https://geojson.io.
+> - The full national station layer is about 1600 points (1573 on 2026-09-15) —
+>   fine as a map layer, but warn before pasting the raw GeoJSON inline as
+>   text; offer https://geojson.io.
 
 ## Step 3 — Attribution on the map (required)
 

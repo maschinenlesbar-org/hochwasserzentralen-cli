@@ -6,7 +6,7 @@
 
 **Website:** [English](https://maschinenlesbar-org.github.io/hochwasserzentralen-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/hochwasserzentralen-cli/de/) — command reference, guides and API docs
 
-Check Germany's official flood warnings and the flood situation at ~1200 gauges
+Check Germany's official flood warnings and the flood situation at ~1600 gauges
 from your terminal. `hochwasser` is a command-line tool over the official
 **LHP-PublicAPI** (`api.hochwasserzentralen.de`) of the
 [Länderübergreifendes Hochwasserportal (LHP)](https://www.hochwasserzentralen.de)
@@ -18,7 +18,7 @@ straight into [`jq`](https://jqlang.github.io/jq/), or as ready-to-map GeoJSON.
   with full CAP (Common Alerting Protocol) detail per alert.
 - **Gauge classification** — the flood class (lhpClass) at every LHP gauge, with
   client-side filters by river and severity.
-- **Offline aggregation** — `situation` condenses ~1200 gauges into a per-state
+- **Offline aggregation** — `situation` condenses ~1600 gauges into a per-state
   overview: station counts per class + each state's worst class.
 - **GeoJSON export** — `--geojson` on alerts/stations emits a valid
   `FeatureCollection` for geojson.io / Leaflet / QGIS.
@@ -68,7 +68,7 @@ hochwasser situation
 
 ```text
 alerts      current regional flood alerts (Hochwasser-Warnungen) of the states
-stations    flood classification at the ~1200 LHP gauges (no water levels)
+stations    flood classification at the LHP gauges (no water levels)
 situation   per-state aggregate: station count per lhpClass + worst class
 ```
 

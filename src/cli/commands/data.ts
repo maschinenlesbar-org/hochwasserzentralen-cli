@@ -147,7 +147,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
 
   program
     .command("stations")
-    .description("Flood classification at the ~1200 LHP gauges (no water levels — see pegel-online-cli)")
+    .description("Flood classification at the LHP gauges (no water levels — see pegel-online-cli)")
     .addOption(statesOption())
     .addOption(langOption())
     .option(
