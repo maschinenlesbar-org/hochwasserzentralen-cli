@@ -61,7 +61,16 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
   don't "fix" it);
 - alert features are Polygons with `properties.areaDesc` / `.lhpClass` (string
   scale 6..1); station features are Points with `properties.name` / `.water` /
-  `.lhpClass` (numeric scale 4..-1).
+  `.lhpClass` (numeric scale 4..-1). Gauges without a flood classification
+  (`lhpClass: null` in the API, `stateClassName` "Ohne Hochwasser-Einstufung")
+  have **no `lhpClass` property** — style them as unclassified, not as `0` or
+  `-1`;
+- `bbox` is `[west, south, east, north]` around the written features, so
+  `bbox[1] <= bbox[3]`, and it is absent when nothing was written.
+  hochwasser 0.0.3 and older copied the API's fixed Germany box in
+  `[west, north, east, south]` order instead. If `bbox[1] > bbox[3]`, write a
+  copy without it under a new, confirmed name
+  (`jq 'del(.bbox)' in.geojson > out.geojson`) before handing the file on.
 
 > **Traps.**
 > - **Zero features is a valid export** when there are no active alerts (or the
@@ -74,6 +83,17 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 >   separately; never merge them into one colour ramp.
 > - Stations without coordinates are skipped by the export automatically; the
 >   reported feature count is the count actually written.
+> - **Border gauges are exported twice**, once per reporting state, as two
+>   points on the same spot with different ids (e.g. Worms, Mainz, Kaub as
+>   `HE_…` and `RP_…`). On 2026-09-15 the Rhine export had 24 features for 21
+>   sites. Say so when you report the feature count.
+> - Rheinland-Pfalz labels carry an HTML entity: `stateClassName` "Kein
+>   Hochwasser bzw. &#60; 2-jährliches Hochwasser" (`&#60;` is `<`). Mind it
+>   when you use that property as a map label.
+> - **Exit 1 saying "The API answered … with its GeoJSON representation"**
+>   (older CLI versions: `Expected "data" to be an array … got undefined`) is a
+>   transient mix-up in the API's cache. Nothing was written; wait a minute
+>   and retry once.
 > - The full national station layer is about 1600 points (1573 on 2026-09-15) —
 >   fine as a map layer, but warn before pasting the raw GeoJSON inline as
 >   text; offer https://geojson.io.
@@ -85,6 +105,10 @@ The export carries `source`, `sourceName`, `licence`, `licenceName` and
 file**, and put the credit on any rendered map (CC BY 4.0):
 
 > Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de — Stand: [the `updated` value]
+
+`updated` always carries a `+01:00` offset, also in summer: on the map, write
+it as German local time (`2026-09-15T16:47:47+01:00` is 17:47:47 MESZ) or with
+its offset.
 
 Offer follow-ups: colour points by `lhpClass` for a severity map, or combine
 both layers (alerts polygons under station points) into one view.
