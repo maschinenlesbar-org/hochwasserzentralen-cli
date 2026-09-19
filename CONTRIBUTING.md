@@ -2,12 +2,12 @@
 
 **This project does not accept external code contributions.**
 
-`hochwasserzentralen-cli` is dual-licensed under the AGPL-3.0-or-later and a
-separate commercial license (see [LICENSING.md](LICENSING.md)). Offering a
-commercial license requires the copyright in the codebase to be owned by a single
-party. To keep that ownership unambiguous, all code is authored solely by the
-copyright holder: we do **not** merge pull requests from third parties and do
-**not** operate a Contributor License Agreement (CLA).
+`hochwasserzentralen-cli` is dual-licensed under the AGPL-3.0-or-later and a separate
+commercial license (see [LICENSING.md](LICENSING.md)). Offering a commercial
+license requires the copyright in the codebase to be owned by a single party.
+To keep that ownership unambiguous, all code is authored solely by the copyright
+holder: we do **not** merge pull requests from third parties and do **not**
+operate a Contributor License Agreement (CLA).
 
 Pull requests will be closed without review. Please don't take it personally —
 it's purely about preserving the licensing model.
