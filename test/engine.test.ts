@@ -1,9 +1,33 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RequestEngine, parseRetryAfter } from "../src/client/engine.js";
-import { HochwasserzentralenApiError, HochwasserzentralenParseError } from "../src/client/errors.js";
+import {
+  HochwasserzentralenApiError,
+  HochwasserzentralenNetworkError,
+  HochwasserzentralenParseError,
+} from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
+import { HochwasserzentralenClient } from "../src/client/client.js";
+
+test("a non-http(s) base URL is rejected at construction, before any request reaches a custom transport", () => {
+  for (const baseUrl of ["file:///etc/passwd", "ftp://example.org"]) {
+    const mt = makeMockTransport(() => jsonResponse(fx.alertsJson));
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: mt.transport }),
+      (err) => err instanceof HochwasserzentralenNetworkError && /Unsupported protocol/.test(err.message),
+    );
+    assert.throws(
+      () => new HochwasserzentralenClient({ baseUrl, transport: mt.transport }),
+      (err) => err instanceof HochwasserzentralenNetworkError && /Unsupported protocol/.test(err.message),
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+  assert.throws(
+    () => new RequestEngine({ baseUrl: "not a url", transport: makeMockTransport(() => jsonResponse({})).transport }),
+    (err) => err instanceof HochwasserzentralenNetworkError && /Invalid base URL/.test(err.message),
+  );
+});
 
 test("buildUrl normalises the path and appends the query", () => {
   const e = new RequestEngine({ baseUrl: "https://api.hochwasserzentralen.de/public/v1/" });
