@@ -8,8 +8,10 @@ description: >
   "Hochwasserlage in NRW?", or wants the states' official warning text and
   instructions. Pulls the LHP alert areas (optionally with full CAP detail),
   reads the right warning scale, and reports with source and data timestamp.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `hochwasser` CLI (npm package
+  @maschinenlesbar.org/hochwasserzentralen-cli) on PATH, installed by the user;
+  the skill never installs it. Network access to api.hochwasserzentralen.de.
 ---
 
 # Flood Alerts Lookup (LHP)

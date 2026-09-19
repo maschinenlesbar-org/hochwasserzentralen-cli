@@ -8,8 +8,11 @@ description: >
   polygons in QGIS", or wants LHP flood geodata for Leaflet / geojson.io /
   QGIS / Kibana. Uses the CLI's built-in FeatureCollection export with the
   overwrite guard, and reports path and feature count.
-version: 1.0.0
-userInvocable: true
+compatibility: >
+  Requires the `hochwasser` CLI (npm package
+  @maschinenlesbar.org/hochwasserzentralen-cli) on PATH, installed by the user;
+  the skill never installs it. Uses jq for JSON filtering. Network access to
+  api.hochwasserzentralen.de.
 ---
 
 # Flood Data → GeoJSON Export (LHP)
@@ -21,6 +24,8 @@ points — using the CLI's built-in `--geojson` export (no hand-rolled jq needed
 ## Tooling
 
 This skill drives the `hochwasser` command. **Before anything else, validate it is available** — run `command -v hochwasser` (or `hochwasser --version`). If it is not on your PATH, STOP and inform the user that the `hochwasser` CLI (`@maschinenlesbar.org/hochwasserzentralen-cli`) is not installed — installing it is their responsibility; never install it yourself, and do not fall back to `npx` or a local `node dist/...` build.
+
+This skill also filters JSON with `jq`. **Validate it too** — run `command -v jq`. If it is missing, inform the user that `jq` is not installed — installing it is their responsibility; never install it yourself — and carry on without it: filter the CLI output with `node -e` instead (Node is already on your PATH, since the CLI runs on it).
 
 The API is read-only, needs **no API key**.
 
