@@ -13,12 +13,20 @@ import { action, parseMinClass, parseNonEmpty, parseStates, renderGeoJson, rende
 import { LANGS, STATION_CLASS_NAMES, type Lang, type Station, type StationsResponse } from "../../client/types.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
 
-/** The shared --states option (validated comma-separated list, e.g. BY,SN). */
+/**
+ * The shared --states option (validated comma-separated list, e.g. BY,SN). A
+ * repeated option adds to the list (`--states BY --states SN` = `--states BY,SN`)
+ * instead of silently keeping only the last value.
+ */
 function statesOption(): Option {
   return new Option(
     "--states <codes>",
-    "only these states — comma-separated codes, e.g. BY,SN (case-insensitive)",
-  ).argParser(parseStates);
+    "only these states — comma-separated codes, e.g. BY,SN (case-insensitive; repeatable)",
+  ).argParser((value: string, previous: string[] | undefined) => {
+    const merged = [...(previous ?? [])];
+    for (const code of parseStates(value)) if (!merged.includes(code)) merged.push(code);
+    return merged;
+  });
 }
 
 /** The shared --lang option, validated by commander's own .choices(). */

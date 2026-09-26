@@ -76,7 +76,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 
 | Flag | Meaning |
 | --- | --- |
-| `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated) |
+| `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated; repeatable, `--states BY --states SN` = `BY,SN`) |
 | `--cap` | include the CAP (Common Alerting Protocol) detail block per alert |
 | `--lang <de\|en>` | response language (default `de`) |
 | `--geojson` | output the alert areas as a GeoJSON `FeatureCollection` |

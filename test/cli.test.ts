@@ -427,3 +427,12 @@ test("a --user-agent outside Latin-1 is a usage error (exit 2), Latin-1 and tab 
   assert.equal(await run(["--user-agent", "hochwasser-tür\tx", "alerts"], ok.deps), 0);
   assert.equal(ok.mt.last().headers?.["User-Agent"], "hochwasser-tür\tx");
 });
+
+test("a repeated --states adds to the list instead of keeping only the last value", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["stations", "--states", "BY", "--states", "sn,by"], cli.deps), 0);
+  assert.equal(new URL(cli.mt.last().url).searchParams.get("states"), "BY,SN");
+  const bad = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["stations", "--states", "BY", "--states", "XX"], bad.deps), 2);
+  assert.equal(bad.mt.calls.length, 0);
+});
