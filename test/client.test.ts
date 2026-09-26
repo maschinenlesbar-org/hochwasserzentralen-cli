@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { HochwasserzentralenClient, normalizeStates } from "../src/client/client.js";
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
+import type { AlertsResponse } from "../src/client/types.js";
 import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -201,3 +202,31 @@ test("a null or scalar data item, or a station without an id, is a Hochwasserzen
 function client(body: unknown): HochwasserzentralenClient {
   return new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(body)).transport });
 }
+
+test("alertsToGeoJson skips invalid geometries and computes the bbox inside a GeometryCollection", () => {
+  const base = fx.alertsJson.data[0]!;
+  const data = [
+    { ...base, id: "gc", geometry: { type: "GeometryCollection", geometries: [{ type: "Point", coordinates: [50, 50] }] } },
+    { ...base, id: "line", geometry: { type: "LineString", coordinates: [[8.3, 49.6], [8.1, 50.0]] } },
+    { ...base, id: "string", geometry: "garbage" },
+    { ...base, id: "unknown", geometry: { type: "Circle", coordinates: [1, 2] } },
+    { ...base, id: "range", geometry: { type: "Polygon", coordinates: [[[-179, -80], [5, 6], [200, 95], [-179, -80]]] } },
+    { ...base, id: "nan", geometry: { type: "Point", coordinates: ["a", 1] } },
+    { ...base, id: "empty-gc", geometry: { type: "GeometryCollection", geometries: [] } },
+  ];
+  const fc = alertsToGeoJson({ ...fx.alertsJson, data } as unknown as AlertsResponse);
+  assert.deepEqual(fc.features.map((f) => f.properties["id"]), ["gc", "line"]);
+  assert.deepEqual(fc.bbox, [8.1, 49.6, 50, 50]);
+});
+
+test("stationsToGeoJson skips stations whose coordinates are out of range", () => {
+  const base = fx.stationsJson.data[0]!;
+  const data = [
+    { ...base, id: "ok", coordinates: [11, 48] },
+    { ...base, id: "far", coordinates: [200, 95] },
+    { ...base, id: "inf", coordinates: [Infinity, 48] },
+  ];
+  const fc = stationsToGeoJson({ ...fx.stationsJson, data });
+  assert.deepEqual(fc.features.map((f) => f.properties["id"]), ["ok"]);
+  assert.deepEqual(fc.bbox, [11, 48, 11, 48]);
+});

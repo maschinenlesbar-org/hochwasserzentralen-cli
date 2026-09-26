@@ -86,8 +86,10 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 > - The two layers use **different lhpClass scales** (alerts "6".."1" strings,
 >   stations 4..-1 numbers) — when styling by class, style each layer
 >   separately; never merge them into one colour ramp.
-> - Stations without coordinates are skipped by the export automatically; the
->   reported feature count is the count actually written.
+> - Stations without usable coordinates, and alert areas without a valid
+>   geometry (not a GeoJSON geometry, or a position outside ±180/±90), are
+>   skipped by the export automatically; the reported feature count is the
+>   count actually written.
 > - **Border gauges are exported twice**, once per reporting state, as two
 >   points on the same spot with different ids (e.g. Worms, Mainz, Kaub as
 >   `HE_…` and `RP_…`). On 2026-09-15 the Rhine export had 24 features for 21

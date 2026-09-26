@@ -50,6 +50,75 @@ function eachPosition(coords: unknown, visit: (x: number, y: number) => void): v
   for (const c of coords) eachPosition(c, visit);
 }
 
+/** Call `visit` for every position of a geometry, descending into a GeometryCollection. */
+function eachGeometryPosition(geometry: unknown, visit: (x: number, y: number) => void): void {
+  if (typeof geometry !== "object" || geometry === null) return;
+  const g = geometry as { type?: unknown; coordinates?: unknown; geometries?: unknown };
+  if (g.type === "GeometryCollection") {
+    if (Array.isArray(g.geometries)) for (const child of g.geometries) eachGeometryPosition(child, visit);
+    return;
+  }
+  eachPosition(g.coordinates, visit);
+}
+
+/** The RFC 7946 geometry types. */
+const GEOMETRY_TYPES: ReadonlySet<string> = new Set([
+  "Point",
+  "MultiPoint",
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
+  "GeometryCollection",
+]);
+
+/** A finite [lon, lat] inside ±180 / ±90. */
+function isLonLat(x: unknown, y: unknown): boolean {
+  return (
+    typeof x === "number" &&
+    typeof y === "number" &&
+    Number.isFinite(x) &&
+    Number.isFinite(y) &&
+    Math.abs(x) <= 180 &&
+    Math.abs(y) <= 90
+  );
+}
+
+/**
+ * The number of positions in a `coordinates` value, or -1 if any part is not a
+ * position of finite numbers with lon/lat in range (or not an array at all).
+ */
+function countPositions(coords: unknown): number {
+  if (!Array.isArray(coords)) return -1;
+  if (typeof coords[0] === "number") {
+    const numbers = coords.every((n) => typeof n === "number" && Number.isFinite(n));
+    return numbers && coords.length >= 2 && isLonLat(coords[0], coords[1]) ? 1 : -1;
+  }
+  let total = 0;
+  for (const c of coords) {
+    const n = countPositions(c);
+    if (n < 0) return -1;
+    total += n;
+  }
+  return total;
+}
+
+/**
+ * True for a GeoJSON geometry object worth exporting: a known RFC 7946 `type`, and
+ * `coordinates` holding at least one position, every one with lon/lat in range (a
+ * GeometryCollection: every member valid). A string, an unknown type or a point at
+ * [200, 95] would otherwise be passed through and distort the bbox.
+ */
+function isUsableGeometry(geometry: unknown): boolean {
+  if (typeof geometry !== "object" || geometry === null || Array.isArray(geometry)) return false;
+  const g = geometry as { type?: unknown; coordinates?: unknown; geometries?: unknown };
+  if (typeof g.type !== "string" || !GEOMETRY_TYPES.has(g.type)) return false;
+  if (g.type === "GeometryCollection") {
+    return Array.isArray(g.geometries) && g.geometries.length > 0 && g.geometries.every(isUsableGeometry);
+  }
+  return countPositions(g.coordinates) > 0;
+}
+
 /**
  * The RFC 7946 §5 bounding box [west, south, east, north] of the features'
  * geometries, or undefined when they hold no position (e.g. zero features).
@@ -60,8 +129,7 @@ export function featuresBbox(features: readonly GeoJsonFeature[]): number[] | un
   let east = -Infinity;
   let north = -Infinity;
   for (const f of features) {
-    const geometry = f.geometry as { coordinates?: unknown } | null | undefined;
-    eachPosition(geometry?.coordinates, (x, y) => {
+    eachGeometryPosition(f.geometry, (x, y) => {
       west = Math.min(west, x);
       east = Math.max(east, x);
       south = Math.min(south, y);
@@ -89,13 +157,15 @@ function envelopeMembers(res: AlertsResponse | StationsResponse): Partial<GeoJso
 
 /**
  * Alert areas -> FeatureCollection. The plain-JSON alert items already carry a
- * GeoJSON `geometry` (Polygon, [lon, lat] order) — it is used verbatim. Items
- * without a geometry are skipped.
+ * GeoJSON `geometry` (a Polygon, or a LineString for a river reach; [lon, lat]
+ * order) — it is used verbatim. Items without a usable geometry (none, not a
+ * GeoJSON geometry object of a known type, or a position outside ±180/±90) are
+ * skipped.
  */
 export function alertsToGeoJson(res: AlertsResponse): GeoJsonFeatureCollection {
   const features: GeoJsonFeature[] = [];
   for (const a of res.data) {
-    if (a.geometry === undefined || a.geometry === null) continue;
+    if (!isUsableGeometry(a.geometry)) continue;
     features.push({
       type: "Feature",
       geometry: a.geometry,
@@ -117,15 +187,14 @@ export function alertsToGeoJson(res: AlertsResponse): GeoJsonFeatureCollection {
 
 /**
  * Stations -> FeatureCollection of Points. Plain-JSON stations are flat with a
- * `coordinates: [lon, lat]` pair; stations without usable coordinates are skipped.
+ * `coordinates: [lon, lat]` pair; stations without usable coordinates (missing,
+ * not finite numbers, or outside ±180/±90) are skipped.
  */
 export function stationsToGeoJson(res: StationsResponse): GeoJsonFeatureCollection {
   const features: GeoJsonFeature[] = [];
   for (const s of res.data) {
     const c = s.coordinates;
-    if (!Array.isArray(c) || c.length < 2 || typeof c[0] !== "number" || typeof c[1] !== "number") {
-      continue;
-    }
+    if (!Array.isArray(c) || c.length < 2 || !isLonLat(c[0], c[1])) continue;
     features.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: [c[0], c[1]] },
