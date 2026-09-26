@@ -215,3 +215,15 @@ test("an invalid Retry-After falls back to linear backoff instead of an instant 
     assert.deepEqual(sleeps, [200, 400], header);
   }
 });
+
+test("error detail loses bidi controls and line breaks", async () => {
+  const RLO = String.fromCharCode(0x202e);
+  const LRI = String.fromCharCode(0x2066);
+  const body = JSON.stringify({ message: `abc${RLO}def${LRI}x\nError: forged\r\n\tline` });
+  const mt = makeMockTransport(() => rawResponse(body, "application/json", 500));
+  const e = new RequestEngine({ transport: mt.transport, maxRetries: 0 });
+  await assert.rejects(
+    () => e.getJson("/data/alerts"),
+    (err) => err instanceof HochwasserzentralenApiError && err.detail === "abcdefx Error: forged line",
+  );
+});

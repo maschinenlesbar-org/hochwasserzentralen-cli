@@ -98,25 +98,50 @@ export function parseRetryAfter(
 }
 
 /**
- * Strip control characters (all C0/C1 except tab and newline, plus DEL) out of a
- * string that originates in an attacker-controlled response body — the error
- * `detail` snippet that ends up in a HochwasserzentralenApiError.message printed
- * raw to stderr by run.ts. Without this, a hostile / MITM'd / spoofed-`--base-url`
- * endpoint could drive ANSI/OSC escape sequences (display spoofing, terminal
- * title changes) into the user's terminal via a non-2xx reply. This only covers
- * error text: the CLI's JSON/GeoJSON output is escaped separately (escapeControlChars
- * in cli/shared.ts), since JSON.stringify alone leaves DEL and the C1 range raw.
+ * True for the Unicode bidirectional formatting characters: ALM (U+061C), LRM/RLM
+ * (U+200E/U+200F), the embeddings and overrides U+202A–U+202E and the isolates
+ * U+2066–U+2069. A terminal applies them to the text that follows, so an override
+ * in server text can reorder what the user sees ("Trojan Source" spoofing).
+ */
+export function isBidiControl(code: number): boolean {
+  return (
+    code === 0x061c ||
+    code === 0x200e ||
+    code === 0x200f ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
+  );
+}
+
+/**
+ * Make a string that originates in an attacker-controlled response body — the
+ * error `detail` snippet that ends up in a HochwasserzentralenApiError.message
+ * printed to stderr by run.ts — safe to print:
+ *
+ * - C0 and C1 controls and DEL are dropped. Without this, a hostile / MITM'd /
+ *   spoofed-`--base-url` endpoint could drive ANSI/OSC escape sequences (display
+ *   spoofing, terminal title changes) into the user's terminal via a non-2xx reply.
+ * - Bidi formatting characters (isBidiControl) are dropped, so server text cannot
+ *   reorder the visible message.
+ * - Every run of whitespace — newlines, tabs, U+2028/U+2029 included — becomes one
+ *   space and the ends are trimmed, so the text stays on one line and a server
+ *   cannot forge an `Error:` line of its own.
+ *
+ * This only covers error text: the CLI's JSON/GeoJSON output is escaped separately
+ * (escapeControlChars in cli/shared.ts), since JSON.stringify alone leaves DEL, the
+ * C1 range and the bidi characters raw.
  *
  * Written as a char-code filter so no raw control byte ever appears in this source.
  */
-function sanitizeServerText(text: string): string {
+export function sanitizeServerText(text: string): string {
   let out = "";
   for (const ch of text) {
     const n = ch.codePointAt(0) ?? 0;
-    if (n <= 8 || (n >= 0x0b && n <= 0x1f) || (n >= 0x7f && n <= 0x9f)) continue;
+    const whitespaceControl = n >= 0x09 && n <= 0x0d;
+    if (!whitespaceControl && (n <= 0x1f || (n >= 0x7f && n <= 0x9f) || isBidiControl(n))) continue;
     out += ch;
   }
-  return out;
+  return out.replace(/\s+/g, " ").trim();
 }
 
 /**

@@ -436,3 +436,15 @@ test("a repeated --states adds to the list instead of keeping only the last valu
   assert.equal(await run(["stations", "--states", "BY", "--states", "XX"], bad.deps), 2);
   assert.equal(bad.mt.calls.length, 0);
 });
+
+test("bidi controls in server data are escaped in the JSON output", async () => {
+  const RLO = String.fromCharCode(0x202e);
+  const PDI = String.fromCharCode(0x2069);
+  const data = [{ ...fx.stationsJson.data[0]!, name: `abc${RLO}def${PDI}` }];
+  const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+  assert.equal(await run(["--compact", "stations"], cli.deps), 0);
+  const text = cli.out.join("\n");
+  assert.ok(![...text].some((c) => c === RLO || c === PDI));
+  assert.match(text, /abc\\u202edef\\u2069/);
+  assert.equal((JSON.parse(text) as { data: Array<{ name: string }> }).data[0]!.name, `abc${RLO}def${PDI}`);
+});
