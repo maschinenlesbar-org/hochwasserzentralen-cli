@@ -518,3 +518,17 @@ test("a null lhpClass is dropped by --min-class and counted in situation's -1 bu
   const be = (JSON.parse(sit.out.join("\n")) as { states: Array<{ classes: Record<string, number> }> }).states[0]!;
   assert.equal(be.classes["-1"], 1);
 });
+
+test("a deeply nested response gives a clear error, not a stack overflow", async () => {
+  const deep = "[".repeat(200_000) + "]".repeat(200_000);
+  const body = `{"apiVersion":"x","status":"success","lang":"de","source":"s","sourceName":"s","licence":"l","licenceName":"l","title":"t","description":"d","updated":"u","data":[],"extra":${deep}}`;
+  const pretty = makeCli(() => rawResponse(body, "application/json"));
+  assert.equal(await run(["stations"], pretty.deps), 1);
+  assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
+  const compact = makeCli(() => rawResponse(body, "application/json"));
+  const code = await run(["--compact", "stations"], compact.deps);
+  if (code !== 0) {
+    assert.equal(code, 1);
+    assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+  }
+});
