@@ -261,6 +261,12 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // Refuse an existing --output file before any request, so the refusal costs no
+    // download (and no wait up to --timeout). writeOutputFile checks again at write
+    // time with an exclusive create, which also catches a file that appears meanwhile.
+    if (global.output !== undefined && global.force !== true && deps.io.fileExists(global.output)) {
+      throw refuseOverwrite(global.output);
+    }
     const client = deps.createClient(toEngineOptions(global));
     await fn({ client, global, opts: command.opts() }, positionals);
   };

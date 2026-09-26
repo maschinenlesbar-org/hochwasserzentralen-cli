@@ -398,3 +398,12 @@ test("a null data item exits 1 with a typed parse error, not Unexpected error", 
     assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from \/data\/stations/);
   }
 });
+
+test("an existing -o file is refused before any request is sent (exit 2)", async () => {
+  for (const argv of [["stations"], ["alerts", "--geojson"], ["situation"]]) {
+    const cli = makeCli(() => jsonResponse(fx.stationsJson), ["exists.json"]);
+    assert.equal(await run(["-o", "exists.json", ...argv], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0, argv.join(" "));
+    assert.match(cli.err.join("\n"), /Refusing to overwrite existing file "exists.json"/);
+  }
+});
