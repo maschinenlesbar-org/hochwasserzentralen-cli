@@ -390,3 +390,11 @@ test("stations --water folds ß/SS and decomposed umlauts on both sides", async 
     assert.deepEqual(parsed.data.map((s) => s.id), ids, needle);
   }
 });
+
+test("a null data item exits 1 with a typed parse error, not Unexpected error", async () => {
+  for (const argv of [["stations", "--water", "w"], ["stations", "--geojson"], ["situation"]]) {
+    const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [null] }));
+    assert.equal(await run(argv, cli.deps), 1);
+    assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from \/data\/stations/);
+  }
+});

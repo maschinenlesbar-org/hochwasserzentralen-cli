@@ -181,3 +181,23 @@ test("alertsToGeoJson uses the alert geometry verbatim and keeps the CAP block",
   assert.equal((f.properties["cap"] as { identifier?: string }).identifier, "LHP.BY.20260713_577");
   assert.equal(fc.updated, fx.alertsJson.updated);
 });
+
+test("a null or scalar data item, or a station without an id, is a HochwasserzentralenParseError", async () => {
+  const station = fx.stationsJson.data[0]!;
+  const cases: Array<[() => HochwasserzentralenClient, "stations" | "alerts", RegExp]> = [
+    [() => client({ ...fx.stationsJson, data: [station, null] }), "stations", /data\/stations: .*item 1 is null/],
+    [() => client({ ...fx.stationsJson, data: [7] }), "stations", /item 0 is number/],
+    [() => client({ ...fx.alertsJson, data: [null] }), "alerts", /data\/alerts: .*item 0 is null/],
+    [() => client({ ...fx.stationsJson, data: [{ ...station, id: undefined }] }), "stations", /string id, item 0/],
+  ];
+  for (const [make, method, re] of cases) {
+    await assert.rejects(
+      () => make()[method](),
+      (err) => err instanceof HochwasserzentralenParseError && /Unexpected response shape/.test(err.message) && re.test(err.message),
+    );
+  }
+});
+
+function client(body: unknown): HochwasserzentralenClient {
+  return new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(body)).transport });
+}

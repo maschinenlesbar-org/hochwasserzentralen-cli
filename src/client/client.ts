@@ -43,9 +43,13 @@ export const ENDPOINTS = {
  * with `features`, no `data`) to our `Accept: application/json` request. The
  * error names that case so it is not mistaken for a CLI bug.
  */
-function assertDataArray(res: unknown, endpoint: string): void {
+function assertDataArray(res: unknown, endpoint: string, requireId: boolean): void {
   const body = typeof res === "object" && res !== null ? (res as Record<string, unknown>) : {};
-  if (Array.isArray(body["data"])) return;
+  const data = body["data"];
+  if (Array.isArray(data)) {
+    assertItems(data, endpoint, requireId);
+    return;
+  }
   if (body["type"] === "FeatureCollection" && Array.isArray(body["features"])) {
     throw new HochwasserzentralenParseError(
       `The API answered ${endpoint} with its GeoJSON representation ("features") instead of plain JSON ` +
@@ -56,6 +60,33 @@ function assertDataArray(res: unknown, endpoint: string): void {
   throw new HochwasserzentralenParseError(
     `Expected "data" to be an array in the response from ${endpoint}, got ${typeof body["data"]}`,
   );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Every `data` item must be a JSON object (and a station must carry its string
+ * `id`, from which the CLI derives the state): a `null` or scalar item would
+ * otherwise reach the filters, the GeoJSON converter and the `situation`
+ * aggregation untyped and crash there with a raw TypeError.
+ */
+function assertItems(data: readonly unknown[], endpoint: string, requireId: boolean): void {
+  data.forEach((item, index) => {
+    if (!isObject(item)) {
+      throw new HochwasserzentralenParseError(
+        `Unexpected response shape from ${endpoint}: expected every data item to be a JSON object, ` +
+          `item ${index} is ${item === null ? "null" : Array.isArray(item) ? "an array" : typeof item}.`,
+      );
+    }
+    if (requireId && typeof item["id"] !== "string") {
+      throw new HochwasserzentralenParseError(
+        `Unexpected response shape from ${endpoint}: expected every station to have a string id, ` +
+          `item ${index} has none.`,
+      );
+    }
+  });
 }
 
 /**
@@ -105,7 +136,7 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<AlertsResponse>(ENDPOINTS.alerts, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res, ENDPOINTS.alerts);
+    assertDataArray(res, ENDPOINTS.alerts, false);
     return res;
   }
 
@@ -120,7 +151,7 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res, ENDPOINTS.stations);
+    assertDataArray(res, ENDPOINTS.stations, true);
     return res;
   }
 }

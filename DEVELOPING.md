@@ -220,7 +220,9 @@ mocked client and captured output — no subprocess.
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx; carries `status`,
 `detail`, `url`, `method`, `body`), `HochwasserzentralenNetworkError` (transport
 failure/timeout/size cap), `HochwasserzentralenValidationError` (client-side,
-no request made; CLI exit 2), `HochwasserzentralenParseError` (bad JSON), all
+no request made; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
+top-level shape the CLI can't use: `data` not an array, a `data` item that is not a
+JSON object, a station without a string `id`), all
 extending the base `HochwasserzentralenError`.
 
 ## Testing
