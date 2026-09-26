@@ -91,7 +91,8 @@ hochwasser stations --states BY --min-class 0 --geojson -o bayern-pegel.geojson
 ```
 
 The CLI refuses to overwrite an existing file (exit 2) unless you pass
-`--force`, and confirms what it wrote on stderr:
+`--force` — also when a symlink, even a dangling one, sits at that path — and
+confirms what it wrote on stderr:
 
 ```text
 Wrote 243 features (130359 bytes) to bayern-pegel.geojson

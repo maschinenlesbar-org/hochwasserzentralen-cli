@@ -346,3 +346,25 @@ test("a --base-url with a query or fragment is rejected (exit 2), no request", a
     assert.match(cli.err.join("\n"), /cannot have a query \(\?\) or fragment \(#\)/);
   }
 });
+
+test("a file that appears between the check and the write (EEXIST) is refused like an existing one", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  let overwriteFlag: boolean | undefined;
+  cli.deps.io.writeFile = (_p, _d, overwrite) => {
+    overwriteFlag = overwrite;
+    throw Object.assign(new Error("EEXIST: file already exists"), { code: "EEXIST" });
+  };
+  assert.equal(await run(["-o", "race.json", "stations"], cli.deps), 2);
+  assert.equal(overwriteFlag, false);
+  assert.match(cli.err.join("\n"), /Refusing to overwrite existing file "race.json"/);
+});
+
+test("--force writes with overwrite allowed", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  let overwriteFlag: boolean | undefined;
+  cli.deps.io.writeFile = (_p, _d, overwrite) => {
+    overwriteFlag = overwrite;
+  };
+  assert.equal(await run(["--force", "-o", "x.json", "stations"], cli.deps), 0);
+  assert.equal(overwriteFlag, true);
+});

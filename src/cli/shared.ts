@@ -152,22 +152,29 @@ export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClien
   return options;
 }
 
+function refuseOverwrite(path: string): HochwasserzentralenValidationError {
+  return new HochwasserzentralenValidationError(
+    `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
+  );
+}
+
 /**
- * Write bytes to the --output file, refusing to clobber an existing file unless
- * --force is set (fail-secure: no silent data loss), and wrapping raw filesystem
- * errors in a typed error instead of an untyped "Unexpected error: ENOENT: …".
- * The overwrite refusal is a usage condition (fix: pass --force or pick another
- * path), so it maps to exit code 2 via HochwasserzentralenValidationError.
+ * Write bytes to the --output file, refusing to clobber an existing file — or to
+ * write through a symlink, dangling or not — unless --force is set (fail-secure: no
+ * silent data loss), and wrapping raw filesystem errors in a typed error instead of
+ * an untyped "Unexpected error: ENOENT: …". The overwrite refusal is a usage
+ * condition (fix: pass --force or pick another path), so it maps to exit code 2 via
+ * HochwasserzentralenValidationError.
  */
 function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, data: Buffer): void {
-  if (!global.force && deps.io.fileExists(path)) {
-    throw new HochwasserzentralenValidationError(
-      `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
-    );
-  }
+  const force = global.force === true;
+  if (!force && deps.io.fileExists(path)) throw refuseOverwrite(path);
   try {
-    deps.io.writeFile(path, data);
+    // Without --force the write is an exclusive create, so a symlink (even a
+    // dangling one) or a file that appeared since the check is refused too.
+    deps.io.writeFile(path, data, force);
   } catch (err) {
+    if (!force && (err as NodeJS.ErrnoException | undefined)?.code === "EEXIST") throw refuseOverwrite(path);
     // A bad --output path (missing directory, a directory, no permission) is a
     // user error, not an internal fault — surface it cleanly. Drop the
     // `, open '<path>'` tail since we already name the path ourselves.

@@ -170,7 +170,9 @@ src/
   nationwide set. The client validates `states` again (`normalizeStates`) for
   library users.
 - **`-o/--output` never silently overwrites.** An existing file is refused with
-  exit 2 unless `--force` is passed; GeoJSON writes additionally report the
+  exit 2 unless `--force` is passed. The check uses `lstat` and the write is an
+  exclusive create (`wx`), so a symlink at the path (even a dangling one) is
+  refused too and never written through; GeoJSON writes additionally report the
   feature count. (This is stricter than some siblings — deliberate here, since
   the flagship use-case is file export.)
 - **CC BY 4.0 plumbing:** the API envelope's `source*`/`licence*`/`updated`
