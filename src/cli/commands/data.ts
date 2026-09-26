@@ -34,6 +34,21 @@ function commonParams(opts: Record<string, unknown>): { states?: string[]; lang?
   };
 }
 
+/**
+ * Fold a water name for the case-insensitive --water match: NFC (a decomposed
+ * umlaut typed or pasted on macOS matches the feed's composed text), lower case,
+ * "ß" as "ss" ("NEISSE" is the upper-case form of "Neiße", and names occur in both
+ * spellings, e.g. "…wasserstrasse" / "…wasserstraße"), and the Unicode dashes as "-".
+ * Applied to both sides.
+ */
+export function foldName(text: string): string {
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/[\u2010-\u2015\u2212]/g, "-");
+}
+
 /** The state code a station belongs to: "DE-BE" -> "BE", else the id prefix ("BE_5803500" -> "BE"). */
 function stateOf(station: Station): string {
   if (typeof station.stateId === "string" && station.stateId.startsWith("DE-")) {
@@ -153,7 +168,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .option(
       "--water <name>",
-      "only stations whose water (river) name contains this text, case-insensitive",
+      "only stations whose water (river) name contains this text (case-insensitive; ß = ss, umlauts in any Unicode form)",
       parseNonEmpty,
     )
     .option(
@@ -169,10 +184,8 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         // matches nothing because of a non-string/non-number field.
         const water = opts["water"] as string | undefined;
         if (water !== undefined) {
-          const needle = water.trim().toLowerCase();
-          res.data = res.data.filter(
-            (s) => typeof s.water === "string" && s.water.toLowerCase().includes(needle),
-          );
+          const needle = foldName(water.trim());
+          res.data = res.data.filter((s) => typeof s.water === "string" && foldName(s.water).includes(needle));
         }
         const minClass = opts["minClass"] as number | undefined;
         if (minClass !== undefined) {

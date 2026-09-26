@@ -59,7 +59,7 @@ Each entry in `.data[]` is a **Station**:
 | Field | Meaning |
 |---|---|
 | `name` | Gauge name (e.g. "Regensburg Eiserne Brücke"). |
-| `water` | The river/water body — what `--water` matches (substring, case-insensitive). |
+| `water` | The river/water body — what `--water` matches (substring, case-insensitive; `ß` = `ss`, so `--water neisse` finds "Lausitzer Neiße"). |
 | `lhpClass` | **Number**: `4` Sehr großes / `3` Großes / `2` Mittleres / `1` Kleines Hochwasser / `0` Kein Hochwasser / `-1` Derzeit keine Daten — or **`null`**: the gauge has no flood classification at all (`stateClassName` "Ohne Hochwasser-Einstufung"). |
 | `stateClassName` | The state's own label for the class. Stays German with `--lang en` (only `legend` and titles are translated). Rheinland-Pfalz sends an HTML entity: "Kein Hochwasser bzw. &#60; 2-jährliches Hochwasser" — `&#60;` is `<`. |
 | `timestamp` | The gauge's own report time (local German time). |

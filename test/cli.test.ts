@@ -368,3 +368,25 @@ test("--force writes with overwrite allowed", async () => {
   assert.equal(await run(["--force", "-o", "x.json", "stations"], cli.deps), 0);
   assert.equal(overwriteFlag, true);
 });
+
+test("stations --water folds ß/SS and decomposed umlauts on both sides", async () => {
+  const data = [
+    { ...fx.stationsJson.data[0]!, id: "SN_1", water: "Lausitzer Neiße" },
+    { ...fx.stationsJson.data[0]!, id: "BY_2", water: "Altmühl" },
+    { ...fx.stationsJson.data[0]!, id: "BB_3", water: "Havel–Oder-Wasserstraße" },
+  ];
+  const cases: Array<[string, string[]]> = [
+    ["NEISSE", ["SN_1"]],
+    ["neisse", ["SN_1"]],
+    ["Neiße", ["SN_1"]],
+    ["ALTMÜHL", ["BY_2"]],
+    ["Altmühl", ["BY_2"]],
+    ["havel-oder-wasserstrasse", ["BB_3"]],
+  ];
+  for (const [needle, ids] of cases) {
+    const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+    assert.equal(await run(["--compact", "stations", "--water", needle], cli.deps), 0);
+    const parsed = JSON.parse(cli.out.join("\n")) as { data: Array<{ id: string }> };
+    assert.deepEqual(parsed.data.map((s) => s.id), ids, needle);
+  }
+});
