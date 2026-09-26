@@ -53,7 +53,9 @@ und `situation` verwendet):
 meisten in MV). `situation` zählt diese Pegel im Bucket `"-1"`, `--min-class` filtert sie
 unabhängig vom Wert heraus, und der GeoJSON-Export lässt bei ihnen die Eigenschaft `lhpClass` weg.
 Ein Land **ganz ohne Pegel** in den Daten (derzeit Hamburg) ist ein anderer Fall: `situation`
-führt es mit `stations: 0` und `worstClass: null`.
+führt es mit `stations: 0` und `worstClass: null`. Jeder andere Wert (außerhalb der Skala, eine
+Kommazahl, ein String) lässt `--min-class` und `situation` mit Exit-Code 1 abbrechen, statt zu
+raten – eine geänderte Skala könnte sonst ein Hochwasser verdecken.
 
 **Warnskala** (`alerts`, `lhpClass` ist ein **String**, z. B. `"4"`):
 

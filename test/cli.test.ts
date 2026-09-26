@@ -495,3 +495,26 @@ test("situation classes serialise in the documented key order 0..4, then -1", as
   assert.equal(await run(["--compact", "situation"], cli.deps), 0);
   assert.match(cli.out.join("\n"), /"classes":\{"0":0,"1":0,"2":0,"3":1,"4":0,"-1":1\}/);
 });
+
+test("--min-class and situation share one classification: an off-scale lhpClass is a parse error in both", async () => {
+  for (const bad of [99, 2.5, "3"]) {
+    const data = [fx.stationsJson.data[0]!, { ...fx.stationsJson.data[2]!, lhpClass: bad }];
+    for (const argv of [["stations", "--min-class", "3"], ["situation"]]) {
+      const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+      assert.equal(await run(argv, cli.deps), 1, `${JSON.stringify(bad)} ${argv.join(" ")}`);
+      assert.match(cli.err.join("\n"), /^Error: Unexpected lhpClass .* at station "BY_10088003" .*expected an integer from -1 to 4, or null/);
+      assert.deepEqual(cli.out, []);
+    }
+  }
+});
+
+test("a null lhpClass is dropped by --min-class and counted in situation's -1 bucket", async () => {
+  const data = [{ ...fx.stationsJson.data[0]!, lhpClass: null }];
+  const filtered = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+  assert.equal(await run(["--compact", "stations", "--min-class", "-1"], filtered.deps), 0);
+  assert.deepEqual((JSON.parse(filtered.out.join("\n")) as { data: unknown[] }).data, []);
+  const sit = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+  assert.equal(await run(["--compact", "situation", "--states", "BE"], sit.deps), 0);
+  const be = (JSON.parse(sit.out.join("\n")) as { states: Array<{ classes: Record<string, number> }> }).states[0]!;
+  assert.equal(be.classes["-1"], 1);
+});

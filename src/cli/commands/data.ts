@@ -19,6 +19,8 @@ import {
   type StationsResponse,
 } from "../../client/types.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
+import { HochwasserzentralenParseError } from "../../client/errors.js";
+import { sanitizeServerText } from "../../client/engine.js";
 
 /**
  * The shared --states option (validated comma-separated list, e.g. BY,SN). A
@@ -71,6 +73,25 @@ function stateOf(station: Station): string {
   }
   const idx = station.id.indexOf("_");
   return idx > 0 ? station.id.slice(0, idx) : station.id;
+}
+
+/**
+ * A station's lhpClass on the documented station scale, shared by `--min-class` and
+ * `situation` so the two never disagree: an integer from -1 to 4, or `null` for a
+ * gauge without a flood classification (`lhpClass` null or absent). Anything else
+ * (99, 2.5, the string "3") means the upstream scale or type changed; counting it as
+ * "no data" or filtering it by number could hide a flood, so it is a
+ * HochwasserzentralenParseError instead (exit 1).
+ */
+export function stationClass(station: Station): number | null {
+  const value = station.lhpClass as unknown;
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4) return value;
+  const shown = sanitizeServerText(JSON.stringify(value) ?? String(value)).slice(0, 40);
+  throw new HochwasserzentralenParseError(
+    `Unexpected lhpClass ${shown} at station "${sanitizeServerText(station.id)}" from /data/stations: ` +
+      `expected an integer from -1 to 4, or null. The API's class scale may have changed.`,
+  );
 }
 
 interface StateSituation {
@@ -140,10 +161,9 @@ export function aggregateSituation(
     const state = stateOf(s);
     const entry = entryFor(state, s.stateId ?? `DE-${state}`);
     entry.stations += 1;
-    // Clamp anything outside the documented -1..4 scale into "-1" (no data)
-    // rather than inventing new buckets. That includes `lhpClass: null`
-    // ("Ohne Hochwasser-Einstufung"), which occurs live — see GLOSSARY.md.
-    const cls = Number.isInteger(s.lhpClass) && s.lhpClass >= -1 && s.lhpClass <= 4 ? s.lhpClass : -1;
+    // `lhpClass: null` ("Ohne Hochwasser-Einstufung"), which occurs live, counts
+    // in "-1" — see GLOSSARY.md. An off-scale value throws (stationClass).
+    const cls = stationClass(s) ?? -1;
     entry.classes[String(cls)] = (entry.classes[String(cls)] ?? 0) + 1;
     if (entry.worstClass === null || cls > entry.worstClass) {
       entry.worstClass = cls;
@@ -220,7 +240,10 @@ export function registerCommands(program: Command, deps: CliDeps): void {
         }
         const minClass = opts["minClass"] as number | undefined;
         if (minClass !== undefined) {
-          res.data = res.data.filter((s) => typeof s.lhpClass === "number" && s.lhpClass >= minClass);
+          res.data = res.data.filter((s) => {
+            const cls = stationClass(s);
+            return cls !== null && cls >= minClass;
+          });
         }
         if (opts["geojson"] === true) renderGeoJson(deps, global, stationsToGeoJson(res));
         else renderJson(deps, global, res);

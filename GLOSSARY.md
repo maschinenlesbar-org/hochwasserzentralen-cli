@@ -56,7 +56,9 @@ and `situation`):
 bucket, `--min-class` drops them whatever the value, and the GeoJSON export
 leaves out the `lhpClass` property for them. A state with **no gauge at all** in
 the data (Hamburg, today) is a different case: `situation` lists it with
-`stations: 0` and `worstClass: null`.
+`stations: 0` and `worstClass: null`. Any other value (off the scale, a fraction,
+a string) makes `--min-class` and `situation` stop with exit 1 instead of guessing,
+since a changed scale could otherwise hide a flood.
 
 **Alert scale** (`alerts`, `lhpClass` is a **string**, e.g. `"4"`):
 
