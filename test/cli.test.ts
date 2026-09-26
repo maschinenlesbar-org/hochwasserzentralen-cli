@@ -417,3 +417,13 @@ test("a blank -o or --user-agent is a usage error (exit 2), no request, no file"
     assert.match(cli.err.join("\n"), /Expected a non-empty value/);
   }
 });
+
+test("a --user-agent outside Latin-1 is a usage error (exit 2), Latin-1 and tab pass", async () => {
+  const bad = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["--user-agent", "hochwasser €", "alerts"], bad.deps), 2);
+  assert.equal(bad.mt.calls.length, 0);
+  assert.match(bad.err.join("\n"), /outside Latin-1/);
+  const ok = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["--user-agent", "hochwasser-tür\tx", "alerts"], ok.deps), 0);
+  assert.equal(ok.mt.last().headers?.["User-Agent"], "hochwasser-tür\tx");
+});
