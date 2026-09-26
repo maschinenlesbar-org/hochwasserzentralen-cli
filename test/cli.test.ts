@@ -489,3 +489,9 @@ test("situation carries the response's lang, so a --lang en answered in German s
   assert.equal(cli.mt.last().headers?.["Accept-Language"], "en");
   assert.equal((JSON.parse(cli.out.join("\n")) as { lang: string }).lang, "de");
 });
+
+test("situation classes serialise in the documented key order 0..4, then -1", async () => {
+  const cli = makeCli(() => jsonResponse(fx.stationsJson));
+  assert.equal(await run(["--compact", "situation"], cli.deps), 0);
+  assert.match(cli.out.join("\n"), /"classes":\{"0":0,"1":0,"2":0,"3":1,"4":0,"-1":1\}/);
+});

@@ -63,7 +63,9 @@ levels use the sibling `pegel-online-cli` (`pegel current DRESDEN`).
 hochwasser situation
 ```
 
-Per state: station count per lhpClass plus the state's worst class, worst first.
+Per state: station count per lhpClass (`classes`, keys in the order `"0"`..`"4"`,
+then `"-1"` — read them by key, not by position) plus the state's worst class,
+worst first.
 Every state is listed (with `--states`, each requested one): a state without any
 LHP gauge in the data (Hamburg, today) comes last with `stations: 0` and
 `worstClass`/`worstClassName` `null` — "no gauges", not class -1 "no data". The

@@ -80,7 +80,11 @@ interface StateSituation {
   /** The worst lhpClass at the state's gauges; `null` when the state has no gauge in the data. */
   worstClass: number | null;
   worstClassName: string | null;
-  /** Station count per lhpClass, keys "-1".."4" (always all six, zero-filled). */
+  /**
+   * Station count per lhpClass, all six keys zero-filled. JSON key order is
+   * "0","1","2","3","4","-1": JS puts integer-like keys first, so "-1" comes last
+   * whatever the literal's order. Address the counts by key, not by position.
+   */
   classes: Record<string, number>;
 }
 
@@ -119,7 +123,8 @@ export function aggregateSituation(
   states: StateSituation[];
 } {
   const nameOf = classNamer(res);
-  const emptyClasses = (): Record<string, number> => ({ "-1": 0, "0": 0, "1": 0, "2": 0, "3": 0, "4": 0 });
+  // Serialises as "0".."4","-1" (see StateSituation.classes).
+  const emptyClasses = (): Record<string, number> => ({ "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "-1": 0 });
 
   const byState = new Map<string, StateSituation>();
   const entryFor = (state: string, stateId: string): StateSituation => {
