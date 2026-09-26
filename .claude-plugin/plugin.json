@@ -1,6 +1,6 @@
 {
   "name": "hochwasser",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "German flood-warning intelligence skills powered by the hochwasserzentralen-cli (LHP-PublicAPI / hochwasserzentralen.de).",
   "author": {
     "name": "Sebastian Schürmann",
