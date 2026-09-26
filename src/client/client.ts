@@ -15,6 +15,7 @@ import { RequestEngine, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import {
+  LANGS,
   STATE_CODES,
   type AlertsParams,
   type AlertsResponse,
@@ -115,6 +116,26 @@ export function normalizeStates(states: readonly string[]): string[] {
   return out;
 }
 
+/**
+ * Check the library parameters before any request: `states` must be an array of
+ * strings (a plain "BY" string would otherwise be split into characters) and
+ * `lang` one of LANGS (an unsupported value was silently ignored upstream, and a
+ * CR/LF in it failed as an untyped header TypeError).
+ */
+function checkParams(params: { states?: unknown; lang?: unknown }): void {
+  const { states, lang } = params;
+  if (states !== undefined && (!Array.isArray(states) || !states.every((s) => typeof s === "string"))) {
+    throw new HochwasserzentralenValidationError(
+      `Invalid states: expected an array of state codes, got ${JSON.stringify(states) ?? String(states)}.`,
+    );
+  }
+  if (lang !== undefined && !(LANGS as readonly unknown[]).includes(lang)) {
+    throw new HochwasserzentralenValidationError(
+      `Invalid lang: expected one of ${LANGS.join(", ")}, got ${JSON.stringify(lang) ?? String(lang)}.`,
+    );
+  }
+}
+
 /** Options for the client (engine options only — the API needs no auth). */
 export type HochwasserzentralenClientOptions = EngineOptions;
 
@@ -130,6 +151,7 @@ export class HochwasserzentralenClient {
    * `cap: true` adds the Common Alerting Protocol detail block per alert.
    */
   async alerts(params: AlertsParams = {}): Promise<AlertsResponse> {
+    checkParams(params);
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
     if (params.cap === true) query["cap"] = true;
@@ -146,6 +168,7 @@ export class HochwasserzentralenClient {
    * (pegel-online-cli).
    */
   async stations(params: StationsParams = {}): Promise<StationsResponse> {
+    checkParams(params);
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
     const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {

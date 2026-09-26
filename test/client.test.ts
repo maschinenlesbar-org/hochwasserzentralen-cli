@@ -230,3 +230,18 @@ test("stationsToGeoJson skips stations whose coordinates are out of range", () =
   assert.deepEqual(fc.features.map((f) => f.properties["id"]), ["ok"]);
   assert.deepEqual(fc.bbox, [11, 48, 11, 48]);
 });
+
+test("library params are validated before any request: states must be an array, lang one of de/en", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  const bad: Array<[() => Promise<unknown>, RegExp]> = [
+    [() => c.stations({ states: "BY" as unknown as string[] }), /^Invalid states: expected an array of state codes, got "BY"\.$/],
+    [() => c.alerts({ states: [1] as unknown as string[] }), /^Invalid states/],
+    [() => c.stations({ lang: "fr" as "de" }), /^Invalid lang: expected one of de, en, got "fr"\.$/],
+    [() => c.alerts({ lang: "de\r\nX-Evil: 1" as "de" }), /^Invalid lang/],
+  ];
+  for (const [call, re] of bad) {
+    await assert.rejects(call, (err) => err instanceof HochwasserzentralenValidationError && re.test(err.message));
+  }
+  assert.equal(mt.calls.length, 0);
+});

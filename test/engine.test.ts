@@ -5,6 +5,7 @@ import {
   HochwasserzentralenApiError,
   HochwasserzentralenNetworkError,
   HochwasserzentralenParseError,
+  HochwasserzentralenValidationError,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -225,5 +226,29 @@ test("error detail loses bidi controls and line breaks", async () => {
   await assert.rejects(
     () => e.getJson("/data/alerts"),
     (err) => err instanceof HochwasserzentralenApiError && err.detail === "abcdefx Error: forged line",
+  );
+});
+
+test("invalid numeric engine options are rejected at construction", () => {
+  const transport = makeMockTransport(() => jsonResponse({})).transport;
+  const bad: Array<[string, Record<string, number>]> = [
+    ["timeoutMs", { timeoutMs: -5 }],
+    ["timeoutMs", { timeoutMs: Number.NaN }],
+    ["timeoutMs", { timeoutMs: 2_147_483_648 }],
+    ["maxRetries", { maxRetries: Infinity }],
+    ["maxRetries", { maxRetries: 11 }],
+    ["retryDelayMs", { retryDelayMs: 1.5 }],
+    ["maxResponseBytes", { maxResponseBytes: -1 }],
+  ];
+  for (const [name, options] of bad) {
+    assert.throws(
+      () => new RequestEngine({ transport, ...options }),
+      (err) =>
+        err instanceof HochwasserzentralenValidationError &&
+        err.message.startsWith(`Invalid option ${name}: expected an integer from 0 to `),
+    );
+  }
+  assert.doesNotThrow(
+    () => new RequestEngine({ transport, timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxResponseBytes: 0 }),
   );
 });
