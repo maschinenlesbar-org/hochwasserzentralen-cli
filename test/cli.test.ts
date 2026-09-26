@@ -407,3 +407,13 @@ test("an existing -o file is refused before any request is sent (exit 2)", async
     assert.match(cli.err.join("\n"), /Refusing to overwrite existing file "exists.json"/);
   }
 });
+
+test("a blank -o or --user-agent is a usage error (exit 2), no request, no file", async () => {
+  for (const argv of [["-o", "", "stations"], ["-o", " ", "stations"], ["--user-agent", "", "stations"], ["--user-agent", "  ", "stations"]]) {
+    const cli = makeCli(() => jsonResponse(fx.stationsJson));
+    assert.equal(await run(argv, cli.deps), 2, JSON.stringify(argv));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.deepEqual(Object.keys(cli.files), []);
+    assert.match(cli.err.join("\n"), /Expected a non-empty value/);
+  }
+});

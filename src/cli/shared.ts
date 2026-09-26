@@ -46,6 +46,14 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
+ * commander value-parser for `-o, --output <file>`. A blank or whitespace-only path
+ * is a usage error: `-o ""` used to print to stdout silently.
+ */
+export function parseOutputPath(value: string): string {
+  return parseNonEmpty(value);
+}
+
+/**
  * commander value-parser for --states: a comma-separated list of state codes.
  * Case-insensitive input is normalised to upper case; every code is validated
  * against the 16 known Bundesland codes so a typo fails at parse time (exit 2)
@@ -114,11 +122,13 @@ export function parseBaseUrl(value: string): string {
 
 /**
  * commander value-parser for a value that ends up in an HTTP header (User-Agent).
- * Rejects control characters — a CR/LF (or other C0/DEL byte) would otherwise reach
- * Node's HTTP layer and throw an opaque `ERR_INVALID_CHAR`. Tab (0x09) is allowed;
- * checked by char code so the source stays free of control bytes.
+ * Rejects a blank value (it was silently replaced by the default) and control
+ * characters — a CR/LF (or other C0/DEL byte) would otherwise reach Node's HTTP
+ * layer and throw an opaque `ERR_INVALID_CHAR`. Tab (0x09) is allowed; checked by
+ * char code so the source stays free of control bytes.
  */
 export function parseHeaderValue(value: string): string {
+  parseNonEmpty(value);
   for (let i = 0; i < value.length; i++) {
     const c = value.charCodeAt(i);
     if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
