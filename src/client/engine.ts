@@ -68,13 +68,23 @@ const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024;
 // sleep would otherwise not be.
 const MAX_RETRY_AFTER_MS = 30_000;
 
+/** An IMF-fixdate (RFC 9110 §5.6.7), the one HTTP-date form senders must generate. */
+const IMF_FIXDATE =
+  /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/;
+
 /**
  * Parse a `Retry-After` header into a delay in milliseconds, supporting both
- * the delta-seconds form (`Retry-After: 120`) and the HTTP-date form
- * (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`). Returns `undefined` when the
- * header is absent or unparseable so the caller can fall back to its own backoff.
+ * the delta-seconds form (`Retry-After: 120`) and the HTTP-date form as an
+ * IMF-fixdate (`Retry-After: Wed, 21 Oct 2026 07:28:00 GMT`). Returns `undefined`
+ * when the header is absent or anything else (`-5`, `1.5`, `1e3`, other date
+ * formats), so the caller falls back to its own linear backoff. Bare `Date.parse`
+ * is not used: it reads "-5" or "1.5" as a date in the past, i.e. a zero delay and
+ * an instant retry burst.
  */
-export function parseRetryAfter(value: string | string[] | undefined): number | undefined {
+export function parseRetryAfter(
+  value: string | string[] | undefined,
+  now: number = Date.now(),
+): number | undefined {
   const raw = (Array.isArray(value) ? value[0] : value)?.trim();
   if (!raw) return undefined;
 
@@ -82,9 +92,9 @@ export function parseRetryAfter(value: string | string[] | undefined): number | 
     return Number(raw) * 1000;
   }
 
+  if (!IMF_FIXDATE.test(raw)) return undefined;
   const when = Date.parse(raw);
-  if (Number.isNaN(when)) return undefined;
-  return Math.max(0, when - Date.now());
+  return Number.isNaN(when) ? undefined : Math.max(0, when - now);
 }
 
 /**

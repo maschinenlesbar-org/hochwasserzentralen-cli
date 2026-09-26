@@ -196,7 +196,8 @@ built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried
 automatically up to `maxRetries` (default `2`). A `Retry-After` header (seconds or
-HTTP-date) takes precedence over the linear backoff and is clamped to 30 s so a
+HTTP-date as an IMF-fixdate; any other value counts as absent) takes precedence over
+the linear backoff and is clamped to 30 s so a
 hostile value cannot hang the CLI. `HochwasserzentralenApiError` exposes
 `isRetryable`. CLI: `--max-retries`.
 

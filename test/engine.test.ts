@@ -190,3 +190,28 @@ test("a base URL with a query or fragment is rejected at construction", () => {
     );
   }
 });
+
+test("parseRetryAfter accepts only delta-seconds or an IMF-fixdate", () => {
+  const now = Date.parse("Sat, 26 Sep 2026 08:00:00 GMT");
+  assert.equal(parseRetryAfter("Sat, 26 Sep 2026 08:00:05 GMT", now), 5000);
+  assert.equal(parseRetryAfter(["3", "9"], now), 3000);
+  for (const bad of ["-5", "1.5", "+5", "1e3", "0x10", "2026-09-26T08:00:05Z", "Saturday, 26-Sep-26 08:00:05 GMT", ""]) {
+    assert.equal(parseRetryAfter(bad, now), undefined, bad);
+  }
+});
+
+test("an invalid Retry-After falls back to linear backoff instead of an instant retry burst", async () => {
+  for (const header of ["-5", "1.5"]) {
+    const sleeps: number[] = [];
+    const mt = makeMockTransport(() => jsonResponse("{}", 429, { "retry-after": header }));
+    const e = new RequestEngine({
+      transport: mt.transport,
+      maxRetries: 2,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+    await assert.rejects(() => e.getJson("/data/alerts"), HochwasserzentralenApiError);
+    assert.deepEqual(sleeps, [200, 400], header);
+  }
+});
