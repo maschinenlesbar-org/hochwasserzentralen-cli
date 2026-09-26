@@ -1,9 +1,46 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultIO } from "../src/cli/io.js";
+import { defaultIO, handleOutputErrors } from "../src/cli/io.js";
+
+function writeError(code: string): NodeJS.ErrnoException {
+  const err: NodeJS.ErrnoException = new Error(`write ${code}`);
+  err.code = code;
+  return err;
+}
+
+function setup() {
+  const stdout = new EventEmitter();
+  const stderr = new EventEmitter();
+  const exits: number[] = [];
+  handleOutputErrors(
+    { stdout: stdout as unknown as NodeJS.WriteStream, stderr: stderr as unknown as NodeJS.WriteStream },
+    (code) => exits.push(code),
+  );
+  return { stdout, stderr, exits };
+}
+
+test("EPIPE on stdout (reader closed early, e.g. | head) exits 0 instead of crashing", () => {
+  const s = setup();
+  // Without a listener, emitting 'error' would throw — the raw stack trace of the bug.
+  s.stdout.emit("error", writeError("EPIPE"));
+  assert.deepEqual(s.exits, [0]);
+});
+
+test("EPIPE on stderr exits 0 as well", () => {
+  const s = setup();
+  s.stderr.emit("error", writeError("EPIPE"));
+  assert.deepEqual(s.exits, [0]);
+});
+
+test("another stderr write error exits 1", () => {
+  const s = setup();
+  s.stderr.emit("error", writeError("EIO"));
+  assert.deepEqual(s.exits, [1]);
+});
 
 test("defaultIO: a dangling symlink counts as existing and is never written through without --force", () => {
   const dir = mkdtempSync(join(tmpdir(), "hochwasser-io-"));
