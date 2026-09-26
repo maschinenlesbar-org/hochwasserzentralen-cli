@@ -17,8 +17,9 @@ classifications into one national picture and publishes it via the
 
 The API's two kinds of items:
 
-- **AlertArea** (`hochwasser alerts`) — a *regional warning area*: a polygon
-  (river reach, region, or a whole state) with the state's current official
+- **AlertArea** (`hochwasser alerts`) — a *regional warning area*: a region or a
+  whole state as a `Polygon`, or a river reach as a `LineString` (12 of the 40
+  test-system areas on 2026-09-26, e.g. `HE_102` "Rhein: Worms bis Nahemündung"), with the state's current official
   flood warning for it: headline, link to the state's portal, warning class,
   optionally a full **CAP** block. Zero alert areas = no active warnings.
 - **Station** (`hochwasser stations`) — a single *gauge* (Pegel) with its

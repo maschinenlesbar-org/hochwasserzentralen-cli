@@ -16,8 +16,9 @@ veröffentlicht es über die **LHP-PublicAPI**, die diese CLI einbindet. Die Dat
 
 Die zwei Arten von Einträgen der API:
 
-- **AlertArea** (`hochwasser alerts`) – ein *regionales Warngebiet*: ein Polygon
-  (Flussabschnitt, Region oder ein ganzes Land) mit der aktuellen amtlichen Hochwasserwarnung des
+- **AlertArea** (`hochwasser alerts`) – ein *regionales Warngebiet*: eine Region oder ein ganzes
+  Land als `Polygon` oder ein Flussabschnitt als `LineString` (12 der 40 Gebiete im Testsystem am
+  26.09.2026, z. B. `HE_102` „Rhein: Worms bis Nahemündung“), mit der aktuellen amtlichen Hochwasserwarnung des
   Landes dafür: Überschrift, Link zum Portal des Landes, Warnklasse, optional ein vollständiger
   **CAP**-Block. Null Warngebiete = keine aktiven Warnungen.
 - **Station** (`hochwasser stations`) – ein einzelner *Pegel* mit seiner aktuellen

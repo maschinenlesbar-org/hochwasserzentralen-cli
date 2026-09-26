@@ -92,7 +92,10 @@ export interface ResponseEnvelope {
   bbox?: number[];
 }
 
-/** GeoJSON-ish geometry as delivered by the API (Polygon for alert areas). */
+/**
+ * GeoJSON-ish geometry as delivered by the API: a Polygon for an alert area, or a
+ * LineString for a river reach (about 30 % of the areas).
+ */
 export interface AlertGeometry {
   type: string;
   coordinates: unknown;

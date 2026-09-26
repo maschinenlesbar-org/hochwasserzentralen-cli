@@ -89,7 +89,7 @@ hochwasser --compact situation | jq -r '"\(.worstClassName) (Stand: \(.updated))
 ## "Put it on a map" (GeoJSON)
 
 ```bash
-# All alert areas as polygons
+# All alert areas (Polygons, or LineStrings for river reaches)
 hochwasser alerts --geojson -o alerts.geojson
 
 # Bavarian gauges as points, only those classified 0 or higher

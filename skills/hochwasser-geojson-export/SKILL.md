@@ -18,8 +18,8 @@ compatibility: >
 # Flood Data → GeoJSON Export (LHP)
 
 Turn the LHP flood data into a **valid GeoJSON `FeatureCollection`** ready for
-geojson.io, Leaflet, QGIS, or Kibana — alert areas as polygons, gauges as
-points — using the CLI's built-in `--geojson` export (no hand-rolled jq needed).
+geojson.io, Leaflet, QGIS, or Kibana — alert areas as polygons (river reaches as
+lines), gauges as points — using the CLI's built-in `--geojson` export (no hand-rolled jq needed).
 
 ## Tooling
 
@@ -34,7 +34,7 @@ The API is read-only, needs **no API key**.
 Two layers; filter *before* exporting so the map only carries what the user wants:
 
 ```bash
-# Warning areas (polygons)
+# Warning areas (Polygons; river reaches as LineStrings)
 hochwasser alerts --geojson -o flood-alerts.geojson
 hochwasser alerts --states BY,SN --geojson -o flood-alerts-by-sn.geojson
 
@@ -64,7 +64,9 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 - the file parses as JSON and is a single `FeatureCollection`;
 - coordinates are `[longitude, latitude]` (the CLI already emits x,y order —
   don't "fix" it);
-- alert features are Polygons with `properties.areaDesc` / `.lhpClass` (string
+- alert features are Polygons — or LineStrings for river reaches (about 30 %
+  of the areas, e.g. "Rhein: Worms bis Nahemündung"; that is correct, style
+  them as lines) — with `properties.areaDesc` / `.lhpClass` (string
   scale 6..1); station features are Points with `properties.name` / `.water` /
   `.lhpClass` (numeric scale 4..-1). Gauges without a flood classification
   (`lhpClass: null` in the API, `stateClassName` "Ohne Hochwasser-Einstufung")
@@ -118,4 +120,4 @@ it as German local time (`2026-09-15T16:47:47+01:00` is 17:47:47 MESZ) or with
 its offset.
 
 Offer follow-ups: colour points by `lhpClass` for a severity map, or combine
-both layers (alerts polygons under station points) into one view.
+both layers (alert areas and river reaches under station points) into one view.

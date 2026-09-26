@@ -19,7 +19,7 @@ classification-vs-water-level) so Claude doesn't have to rediscover them each ti
 |---|---|---|
 | **hochwasser-flood-alerts** | Pulls the states' current official flood warnings (optionally with full CAP detail) and reports them worst-first with the official instructions. | "gibt es gerade Hochwasserwarnungen in Bayern?", "any flood alerts in Germany?", "Hochwasserlage in Sachsen?" |
 | **hochwasser-station-situation** | Condenses the LHP gauges (about 1600) into a per-state or per-river flood-classification verdict via the built-in `situation` aggregate. | "flood situation on the Rhine?", "wie ist die Hochwasserlage?", "which rivers are flooding?" |
-| **hochwasser-geojson-export** | Exports alert polygons or gauge points as a valid GeoJSON `FeatureCollection` (overwrite-guarded), reporting path + feature count. | "map the flood warnings", "export the Hochwasser areas as GeoJSON", "Hochwasserkarte für Bayern" |
+| **hochwasser-geojson-export** | Exports alert areas (polygons or river-reach lines) or gauge points as a valid GeoJSON `FeatureCollection` (overwrite-guarded), reporting path + feature count. | "map the flood warnings", "export the Hochwasser areas as GeoJSON", "Hochwasserkarte für Bayern" |
 
 ## Requirements
 

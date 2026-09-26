@@ -105,7 +105,7 @@ term, including the two different `lhpClass` scales.
 ## GeoJSON export
 
 `--geojson` turns the result into a valid `FeatureCollection` (alert areas as
-polygons, stations as points, both `[lon, lat]`). Combine with `-o` to write a
+polygons, or LineStrings for river reaches; stations as points; all `[lon, lat]`). Combine with `-o` to write a
 file — the CLI **never silently overwrites** an existing file (pass `--force`) and
 reports the feature count after writing:
 
