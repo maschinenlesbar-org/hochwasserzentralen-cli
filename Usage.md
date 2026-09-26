@@ -76,8 +76,9 @@ hochwasser --compact situation \
   | column -t
 ```
 
-The aggregate also carries the national `worstClass` and the `updated`
-timestamp — a one-liner health check:
+The aggregate also carries the national `worstClass`, the `updated`
+timestamp and the response's `lang` (the API cache can answer `--lang en` in
+German; class names then stay German) — a one-liner health check:
 
 ```bash
 hochwasser --compact situation | jq -r '"\(.worstClassName) (Stand: \(.updated))"'

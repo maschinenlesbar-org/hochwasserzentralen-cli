@@ -482,3 +482,10 @@ test("situation --states BY,HH keeps both, the one with gauges first", async () 
   assert.equal(parsed.worstClass, 3);
   assert.deepEqual(parsed.states.map((s) => s.state), ["BY", "HH"]);
 });
+
+test("situation carries the response's lang, so a --lang en answered in German shows", async () => {
+  const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, lang: "de" }));
+  assert.equal(await run(["--compact", "situation", "--lang", "en"], cli.deps), 0);
+  assert.equal(cli.mt.last().headers?.["Accept-Language"], "en");
+  assert.equal((JSON.parse(cli.out.join("\n")) as { lang: string }).lang, "de");
+});

@@ -106,6 +106,8 @@ export function aggregateSituation(
   states: readonly string[] = STATE_CODES,
 ): {
   title: string;
+  /** The response language the API actually sent (its cache can answer `--lang en` in German). */
+  lang: string;
   source: string;
   sourceName: string;
   licence: string;
@@ -153,6 +155,7 @@ export function aggregateSituation(
 
   return {
     title: "Hochwasser-Lageübersicht (aggregiert aus /data/stations)",
+    lang: res.lang,
     source: res.source,
     sourceName: res.sourceName,
     licence: res.licence,
