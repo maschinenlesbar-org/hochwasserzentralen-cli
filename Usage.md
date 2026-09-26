@@ -64,6 +64,10 @@ hochwasser situation
 ```
 
 Per state: station count per lhpClass plus the state's worst class, worst first.
+Every state is listed (with `--states`, each requested one): a state without any
+LHP gauge in the data (Hamburg, today) comes last with `stations: 0` and
+`worstClass`/`worstClassName` `null` — "no gauges", not class -1 "no data". The
+national `worstClass` is `null` only when no gauge was returned at all.
 As a terminal table:
 
 ```bash

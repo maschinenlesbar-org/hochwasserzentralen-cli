@@ -10,7 +10,14 @@ import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
 import { action, parseMinClass, parseNonEmpty, parseStates, renderGeoJson, renderJson } from "../shared.js";
-import { LANGS, STATION_CLASS_NAMES, type Lang, type Station, type StationsResponse } from "../../client/types.js";
+import {
+  LANGS,
+  STATE_CODES,
+  STATION_CLASS_NAMES,
+  type Lang,
+  type Station,
+  type StationsResponse,
+} from "../../client/types.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
 
 /**
@@ -70,8 +77,9 @@ interface StateSituation {
   state: string;
   stateId: string;
   stations: number;
-  worstClass: number;
-  worstClassName: string;
+  /** The worst lhpClass at the state's gauges; `null` when the state has no gauge in the data. */
+  worstClass: number | null;
+  worstClassName: string | null;
   /** Station count per lhpClass, keys "-1".."4" (always all six, zero-filled). */
   classes: Record<string, number>;
 }
@@ -87,8 +95,16 @@ function classNamer(res: StationsResponse): (lhpClass: number) => string {
   return (n) => byClass.get(n) ?? STATION_CLASS_NAMES[String(n)] ?? `lhpClass ${n}`;
 }
 
-/** Aggregate /data/stations into a per-state overview (pure; unit-tested via the CLI). */
-export function aggregateSituation(res: StationsResponse): {
+/**
+ * Aggregate /data/stations into a per-state overview (pure; unit-tested via the CLI).
+ * Every state in `states` (the requested ones, or all 16) is listed, also one
+ * without a gauge in the data: `stations: 0`, `worstClass: null` — "no gauges" is
+ * not the same as class -1 "Derzeit keine Daten".
+ */
+export function aggregateSituation(
+  res: StationsResponse,
+  states: readonly string[] = STATE_CODES,
+): {
   title: string;
   source: string;
   sourceName: string;
@@ -96,45 +112,44 @@ export function aggregateSituation(res: StationsResponse): {
   licenceName: string;
   updated: string;
   totalStations: number;
-  worstClass: number;
-  worstClassName: string;
+  worstClass: number | null;
+  worstClassName: string | null;
   states: StateSituation[];
 } {
   const nameOf = classNamer(res);
   const emptyClasses = (): Record<string, number> => ({ "-1": 0, "0": 0, "1": 0, "2": 0, "3": 0, "4": 0 });
 
   const byState = new Map<string, StateSituation>();
-  for (const s of res.data) {
-    const state = stateOf(s);
+  const entryFor = (state: string, stateId: string): StateSituation => {
     let entry = byState.get(state);
     if (!entry) {
-      entry = {
-        state,
-        stateId: s.stateId ?? `DE-${state}`,
-        stations: 0,
-        worstClass: -1,
-        worstClassName: nameOf(-1),
-        classes: emptyClasses(),
-      };
+      entry = { state, stateId, stations: 0, worstClass: null, worstClassName: null, classes: emptyClasses() };
       byState.set(state, entry);
     }
+    return entry;
+  };
+  for (const state of states) entryFor(state, `DE-${state}`);
+  for (const s of res.data) {
+    const state = stateOf(s);
+    const entry = entryFor(state, s.stateId ?? `DE-${state}`);
     entry.stations += 1;
     // Clamp anything outside the documented -1..4 scale into "-1" (no data)
     // rather than inventing new buckets. That includes `lhpClass: null`
     // ("Ohne Hochwasser-Einstufung"), which occurs live — see GLOSSARY.md.
     const cls = Number.isInteger(s.lhpClass) && s.lhpClass >= -1 && s.lhpClass <= 4 ? s.lhpClass : -1;
     entry.classes[String(cls)] = (entry.classes[String(cls)] ?? 0) + 1;
-    if (cls > entry.worstClass) {
+    if (entry.worstClass === null || cls > entry.worstClass) {
       entry.worstClass = cls;
       entry.worstClassName = nameOf(cls);
     }
   }
 
-  // Worst first, then alphabetically — the flooded states lead the overview.
-  const states = [...byState.values()].sort(
-    (a, b) => b.worstClass - a.worstClass || a.state.localeCompare(b.state),
-  );
-  const worstClass = states.length > 0 ? Math.max(...states.map((s) => s.worstClass)) : -1;
+  // Worst first, then alphabetically — the flooded states lead the overview;
+  // states without a gauge come last.
+  const rank = (s: StateSituation): number => s.worstClass ?? -2;
+  const sorted = [...byState.values()].sort((a, b) => rank(b) - rank(a) || a.state.localeCompare(b.state));
+  const withGauges = sorted.filter((s) => s.worstClass !== null).map((s) => s.worstClass as number);
+  const worstClass = withGauges.length > 0 ? Math.max(...withGauges) : null;
 
   return {
     title: "Hochwasser-Lageübersicht (aggregiert aus /data/stations)",
@@ -145,8 +160,8 @@ export function aggregateSituation(res: StationsResponse): {
     updated: res.updated,
     totalStations: res.data.length,
     worstClass,
-    worstClassName: nameOf(worstClass),
-    states,
+    worstClassName: worstClass === null ? null : nameOf(worstClass),
+    states: sorted,
   };
 }
 
@@ -211,8 +226,9 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .action(
       action(deps, async ({ client, global, opts }) => {
-        const res = await client.stations(commonParams(opts));
-        renderJson(deps, global, aggregateSituation(res));
+        const params = commonParams(opts);
+        const res = await client.stations(params);
+        renderJson(deps, global, aggregateSituation(res, params.states ?? STATE_CODES));
       }),
     );
 }

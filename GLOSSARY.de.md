@@ -52,6 +52,8 @@ und `situation` verwendet):
 `null` steht nicht in der `legend`, kommt live aber vor (216 von 1.573 Pegeln am 15.09.2026, die
 meisten in MV). `situation` zählt diese Pegel im Bucket `"-1"`, `--min-class` filtert sie
 unabhängig vom Wert heraus, und der GeoJSON-Export lässt bei ihnen die Eigenschaft `lhpClass` weg.
+Ein Land **ganz ohne Pegel** in den Daten (derzeit Hamburg) ist ein anderer Fall: `situation`
+führt es mit `stations: 0` und `worstClass: null`.
 
 **Warnskala** (`alerts`, `lhpClass` ist ein **String**, z. B. `"4"`):
 

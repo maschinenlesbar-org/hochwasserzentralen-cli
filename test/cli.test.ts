@@ -148,11 +148,18 @@ test("situation aggregates per state: counts per class, worst class, attribution
   assert.equal(parsed.worstClassName, "Großes Hochwasser");
   assert.equal(parsed.updated, fx.stationsJson.updated); // CC BY: timestamp shown
   assert.equal(parsed.sourceName, "Länderübergreifendes Hochwasserportal (LHP)");
-  // BY (worst 3) sorts before BE (worst 2).
+  // BY (worst 3) sorts before BE (worst 2); the 14 states without a gauge follow,
+  // alphabetically, with stations 0 and worstClass null.
   assert.deepEqual(
-    parsed.states.map((s) => s.state),
-    ["BY", "BE"],
+    parsed.states.map((s) => s.state).slice(0, 4),
+    ["BY", "BE", "BB", "BW"],
   );
+  assert.equal(parsed.states.length, 16);
+  const bw = parsed.states[3]!;
+  assert.equal(bw.stations, 0);
+  assert.equal(bw.worstClass, null);
+  assert.equal(bw.worstClassName, null);
+  assert.equal(bw.stateId, "DE-BW");
   const by = parsed.states[0]!;
   assert.equal(by.stateId, "DE-BY");
   assert.equal(by.stations, 2);
@@ -447,4 +454,31 @@ test("bidi controls in server data are escaped in the JSON output", async () => 
   assert.ok(![...text].some((c) => c === RLO || c === PDI));
   assert.match(text, /abc\\u202edef\\u2069/);
   assert.equal((JSON.parse(text) as { data: Array<{ name: string }> }).data[0]!.name, `abc${RLO}def${PDI}`);
+});
+
+test("situation --states lists a requested state without gauges as stations 0, worstClass null", async () => {
+  const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
+  assert.equal(await run(["--compact", "situation", "--states", "HH"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as {
+    totalStations: number;
+    worstClass: number | null;
+    worstClassName: string | null;
+    states: Array<{ state: string; stations: number; worstClass: number | null; worstClassName: string | null }>;
+  };
+  assert.equal(parsed.totalStations, 0);
+  assert.equal(parsed.worstClass, null);
+  assert.equal(parsed.worstClassName, null);
+  assert.deepEqual(
+    parsed.states.map((s) => [s.state, s.stations, s.worstClass, s.worstClassName]),
+    [["HH", 0, null, null]],
+  );
+});
+
+test("situation --states BY,HH keeps both, the one with gauges first", async () => {
+  const data = fx.stationsJson.data.filter((s) => s.stateId === "DE-BY");
+  const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
+  assert.equal(await run(["--compact", "situation", "--states", "HH,BY"], cli.deps), 0);
+  const parsed = JSON.parse(cli.out.join("\n")) as { worstClass: number; states: Array<{ state: string }> };
+  assert.equal(parsed.worstClass, 3);
+  assert.deepEqual(parsed.states.map((s) => s.state), ["BY", "HH"]);
 });

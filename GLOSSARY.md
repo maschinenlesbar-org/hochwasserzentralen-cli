@@ -54,7 +54,9 @@ and `situation`):
 `null` is not in the `legend`, but it occurs live (216 of 1573 gauges on
 2026-09-15, most of them in MV). `situation` counts these gauges in its `"-1"`
 bucket, `--min-class` drops them whatever the value, and the GeoJSON export
-leaves out the `lhpClass` property for them.
+leaves out the `lhpClass` property for them. A state with **no gauge at all** in
+the data (Hamburg, today) is a different case: `situation` lists it with
+`stations: 0` and `worstClass: null`.
 
 **Alert scale** (`alerts`, `lhpClass` is a **string**, e.g. `"4"`):
 

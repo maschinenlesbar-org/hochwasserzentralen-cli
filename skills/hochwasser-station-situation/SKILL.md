@@ -42,7 +42,10 @@ hochwasser --compact situation --states BY,BW  # scoped
 Returns `worstClass`/`worstClassName` overall plus `.states[]`, worst-first:
 `state`, `stations`, `worstClass`, `worstClassName`, and `classes` (station
 count per class, keys `"-1"`..`"4"`). If the national `worstClass` is `0`,
-the verdict is "no flooding at any reporting gauge" — say it plainly. The
+the verdict is "no flooding at any reporting gauge" — say it plainly. Every
+state is listed (or each one asked for with `--states`); a state without any LHP
+gauge (Hamburg, today) comes last with `stations: 0` and `worstClass: null` —
+report it as "no LHP gauges", not as "no data" or "no flooding". The
 `"-1"` bucket also holds the gauges without any flood classification
 (`lhpClass: null`, see the Traps), so don't read it as "no data" alone.
 
