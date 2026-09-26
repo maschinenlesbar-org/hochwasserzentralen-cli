@@ -181,3 +181,12 @@ test("error detail is stripped of terminal control characters", async () => {
     },
   );
 });
+
+test("a base URL with a query or fragment is rejected at construction", () => {
+  for (const baseUrl of ["https://example.org/v1?x=1", "https://example.org/v1#x"]) {
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: makeMockTransport(() => jsonResponse({})).transport }),
+      (err) => err instanceof HochwasserzentralenNetworkError && /must not contain a query or fragment/.test(err.message),
+    );
+  }
+});

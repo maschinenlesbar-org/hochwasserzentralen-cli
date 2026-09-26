@@ -110,10 +110,13 @@ function sanitizeServerText(text: string): string {
 }
 
 /**
- * Reject a base URL whose scheme is not http(s). The default transport already
- * gates this per hop, but the engine is exported as a library and may be handed a
- * custom transport that does no such check, so gate the configured base URL here
- * too (a `file:`/`ftp:` base URL fails fast with a typed error).
+ * Reject a base URL whose scheme is not http(s), or that has a query or fragment.
+ * The default transport already gates the scheme per hop, but the engine is
+ * exported as a library and may be handed a custom transport that does no such
+ * check, so gate the configured base URL here too (a `file:`/`ftp:` base URL fails
+ * fast with a typed error). Request paths are appended to the base URL as a string,
+ * so a `?` or `#` in it would swallow every path and the `states` filter:
+ * `http://h/v1?x=1` requests `/v1?x=1/data/stations` and `http://h/v1#f` requests `/v1`.
  */
 function assertHttpScheme(baseUrl: string): void {
   let url: URL;
@@ -126,6 +129,9 @@ function assertHttpScheme(baseUrl: string): void {
     throw new HochwasserzentralenNetworkError(
       `Unsupported protocol "${url.protocol}" in base URL: ${baseUrl}`,
     );
+  }
+  if (/[?#]/.test(baseUrl)) {
+    throw new HochwasserzentralenNetworkError(`Base URL must not contain a query or fragment: ${baseUrl}`);
   }
 }
 

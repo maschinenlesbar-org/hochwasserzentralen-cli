@@ -337,3 +337,12 @@ test("--help exits 0", async () => {
   assert.equal(await run(["--help"], cli.deps), 0);
   assert.match(cli.out.join("\n"), /alerts/);
 });
+
+test("a --base-url with a query or fragment is rejected (exit 2), no request", async () => {
+  for (const url of ["http://127.0.0.1:1/echo#frag", "http://127.0.0.1:1/echo?x=1"]) {
+    const cli = makeCli(() => jsonResponse(fx.stationsJson));
+    assert.equal(await run(["--base-url", url, "stations", "--states", "BY"], cli.deps), 2);
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /cannot have a query \(\?\) or fragment \(#\)/);
+  }
+});
