@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   assertValid,
+  baseUrlProblem,
   headerNameProblem,
   headerValueProblem,
   minClassProblem,
@@ -125,4 +126,17 @@ test("valid defaultHeaders are sent with every request", async () => {
     () => jsonResponse(fx.stationsJson),
   );
   assert.equal(l.requests[0]?.headers?.["X-Trace"], "1");
+});
+
+test("baseUrlProblem: blank, unparseable, non-http(s), query or fragment", () => {
+  assert.equal(baseUrlProblem("https://api.hochwasserzentralen.de/public/v1"), undefined);
+  assert.equal(baseUrlProblem("http://127.0.0.1:8080/v1/"), undefined);
+  assert.equal(baseUrlProblem(""), "Expected a non-empty URL.");
+  assert.equal(baseUrlProblem(" \t"), "Expected a non-empty URL.");
+  assert.equal(baseUrlProblem("h.example"), "Expected a valid URL.");
+  assert.equal(baseUrlProblem("ftp://h/v1"), "Only http: and https: base URLs are supported.");
+  assert.equal(baseUrlProblem("http://h/v1?x=1"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(baseUrlProblem("http://h/v1#f"), "A base URL cannot have a query (?) or fragment (#).");
+  assert.equal(baseUrlProblem(42), "Expected a string.");
+  assert.equal(lib.validateBaseUrl("http://h/v1//"), "http://h/v1");
 });

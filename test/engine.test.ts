@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { RequestEngine, parseRetryAfter } from "../src/client/engine.js";
 import {
   HochwasserzentralenApiError,
-  HochwasserzentralenNetworkError,
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
 } from "../src/client/errors.js";
@@ -16,17 +15,21 @@ test("a non-http(s) base URL is rejected at construction, before any request rea
     const mt = makeMockTransport(() => jsonResponse(fx.alertsJson));
     assert.throws(
       () => new RequestEngine({ baseUrl, transport: mt.transport }),
-      (err) => err instanceof HochwasserzentralenNetworkError && /Unsupported protocol/.test(err.message),
+      (err) =>
+        err instanceof HochwasserzentralenValidationError &&
+        err.message === "Invalid baseUrl: Only http: and https: base URLs are supported.",
     );
     assert.throws(
       () => new HochwasserzentralenClient({ baseUrl, transport: mt.transport }),
-      (err) => err instanceof HochwasserzentralenNetworkError && /Unsupported protocol/.test(err.message),
+      (err) =>
+        err instanceof HochwasserzentralenValidationError &&
+        err.message === "Invalid baseUrl: Only http: and https: base URLs are supported.",
     );
     assert.equal(mt.calls.length, 0);
   }
   assert.throws(
     () => new RequestEngine({ baseUrl: "not a url", transport: makeMockTransport(() => jsonResponse({})).transport }),
-    (err) => err instanceof HochwasserzentralenNetworkError && /Invalid base URL/.test(err.message),
+    (err) => err instanceof HochwasserzentralenValidationError && err.message === "Invalid baseUrl: Expected a valid URL.",
   );
 });
 
@@ -187,7 +190,9 @@ test("a base URL with a query or fragment is rejected at construction", () => {
   for (const baseUrl of ["https://example.org/v1?x=1", "https://example.org/v1#x"]) {
     assert.throws(
       () => new RequestEngine({ baseUrl, transport: makeMockTransport(() => jsonResponse({})).transport }),
-      (err) => err instanceof HochwasserzentralenNetworkError && /must not contain a query or fragment/.test(err.message),
+      (err) =>
+        err instanceof HochwasserzentralenValidationError &&
+        err.message === "Invalid baseUrl: A base URL cannot have a query (?) or fragment (#).",
     );
   }
 });

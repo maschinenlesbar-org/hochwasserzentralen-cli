@@ -5,7 +5,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HochwasserzentralenClient } from "../src/client/client.js";
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
+import {
+  HochwasserzentralenNetworkError,
+  HochwasserzentralenParseError,
+  HochwasserzentralenValidationError,
+} from "../src/client/errors.js";
 import { stationsToGeoJson } from "../src/client/geojson.js";
 import type { HttpRequest } from "../src/client/http.js";
 import type { Station, StationsParams, StationsResponse } from "../src/client/types.js";
@@ -189,3 +193,43 @@ for (const ua of [" ok-agent ", "café/1.0", "a\tb"]) {
     assert.equal(cli.requests[0]?.headers?.["User-Agent"], ua);
   });
 }
+
+// ---- --base-url / baseUrl (finding #5) ------------------------------------------
+
+for (const [baseUrl, reason] of [
+  ["ftp://h/v1", "Only http: and https: base URLs are supported."],
+  ["file:///etc", "Only http: and https: base URLs are supported."],
+  ["", "Expected a non-empty URL."],
+  ["   ", "Expected a non-empty URL."],
+  ["h.example", "Expected a valid URL."],
+  ["http://h/v1?x", "A base URL cannot have a query (?) or fragment (#)."],
+  ["http://h/v1#f", "A base URL cannot have a query (?) or fragment (#)."],
+] as const) {
+  test(`parity: base URL ${JSON.stringify(baseUrl)} is a validation error on both sides`, async () => {
+    const { cli, lib } = await parity(
+      ["--compact", "--base-url", baseUrl, "stations"],
+      (transport) => new HochwasserzentralenClient({ transport, baseUrl }).stations(),
+      () => jsonResponse(fx.stationsJson),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.ok(cli.err.includes(reason), cli.err);
+    assert.equal(lib.ok, false);
+    const error = lib.ok ? undefined : lib.error;
+    assert.ok(error instanceof HochwasserzentralenValidationError, String(error));
+    assert.ok(!(error instanceof HochwasserzentralenNetworkError));
+    assert.equal(error.message, `Invalid baseUrl: ${reason}`);
+    assert.equal(lib.requests.length, 0);
+  });
+}
+
+test("parity: a base URL with a trailing slash requests the same URL on both sides", async () => {
+  const { cli, lib } = await parity(
+    ["--compact", "--base-url", "http://h/v1/", "stations"],
+    (transport) => new HochwasserzentralenClient({ transport, baseUrl: "http://h/v1/" }).stations(),
+    () => jsonResponse(fx.stationsJson),
+  );
+  assert.equal(cli.code, 0, cli.err);
+  assert.deepEqual(urls(cli.requests), ["GET http://h/v1/data/stations"]);
+  assert.deepEqual(urls(lib.requests), urls(cli.requests));
+});

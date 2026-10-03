@@ -138,8 +138,9 @@ new HochwasserzentralenClient({
 
 The numeric options must be integers in range — `timeoutMs` 0..2³¹−1,
 `maxRetries` 0..10 (`MAX_RETRIES`), `retryDelayMs` 0..30 000
-(`MAX_RETRY_AFTER_MS`), `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER` — and a base
-URL must be http(s) without a query or fragment; `userAgent` and every
+(`MAX_RETRY_AFTER_MS`), `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER` — a base
+URL must be a non-blank http(s) URL without a query or fragment (`validateBaseUrl`,
+`baseUrlProblem`; the CLI's `--base-url` uses the same rule); `userAgent` and every
 `defaultHeaders` value must be non-blank Latin-1 without control characters (tab
 allowed; only an omitted `userAgent` selects the default `hochwasserzentralen-cli`),
 and header names RFC 9110 tokens (`assertHeaderValue`, `headerValueProblem`,
@@ -147,7 +148,9 @@ and header names RFC 9110 tokens (`assertHeaderValue`, `headerValueProblem`,
 `alerts()`/`stations()`/`situation()` reject a `states` that is not an array of strings and a
 `lang` other than `de`/`en` before any request, and `stations()` a blank or non-string
 `water` and a `minClass` that is not an integer from -1 to 4. Both are
-`HochwasserzentralenValidationError`.
+`HochwasserzentralenValidationError` — a configuration mistake, never a
+`HochwasserzentralenNetworkError`, which is kept for transport failures (including the
+default transport's per-hop scheme check).
 
 ## Architecture
 
