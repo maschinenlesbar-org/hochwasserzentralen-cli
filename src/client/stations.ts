@@ -5,6 +5,67 @@
 import { HochwasserzentralenParseError } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
+import { assertValid, minClassProblem, nonBlankProblem } from "./validate.js";
+
+/**
+ * Fold a water name for the case-insensitive `water` match: NFC (a decomposed
+ * umlaut typed or pasted on macOS matches the feed's composed text), lower case,
+ * "ß" as "ss" ("NEISSE" is the upper-case form of "Neiße", and names occur in both
+ * spellings, e.g. "…wasserstrasse" / "…wasserstraße"), and the Unicode dashes as "-".
+ * Applied to both sides.
+ */
+export function foldName(text: string): string {
+  return text
+    .normalize("NFC")
+    .toLowerCase()
+    .replace(/ß/g, "ss")
+    .replace(/[\u2010-\u2015\u2212]/g, "-");
+}
+
+/** The client-side station filters (see {@link filterStations}). */
+export interface StationFilter {
+  /** Only stations whose water name contains this text (see {@link foldName}). */
+  water?: string;
+  /** Only stations with `lhpClass >= minClass` (-1..4); gauges without a class never match. */
+  minClass?: number;
+}
+
+/**
+ * Check a {@link StationFilter} before any request: `water` must be a non-blank
+ * string and `minClass` an integer from -1 to 4, or a
+ * HochwasserzentralenValidationError is thrown. `undefined` means "not given".
+ */
+export function assertStationFilter(filter: StationFilter): void {
+  if (filter.water !== undefined) assertValid("water", filter.water, nonBlankProblem);
+  if (filter.minClass !== undefined) assertValid("minClass", filter.minClass, minClassProblem);
+}
+
+/**
+ * Filter a /data/stations response the way `stations --water / --min-class` does,
+ * keeping the envelope (attribution, `updated`) and returning a new object; the
+ * input is not changed. `water` is trimmed and matched as a substring on the
+ * folded names ({@link foldName}); a station without a string `water` never
+ * matches. `minClass` keeps stations whose {@link stationClass} is at least the
+ * value: a null class never matches, an off-scale class throws a
+ * HochwasserzentralenParseError. A bad filter value throws a
+ * HochwasserzentralenValidationError.
+ */
+export function filterStations(res: StationsResponse, filter: StationFilter): StationsResponse {
+  assertStationFilter(filter);
+  let data = res.data;
+  const { water, minClass } = filter;
+  if (water !== undefined) {
+    const needle = foldName(water.trim());
+    data = data.filter((s) => typeof s.water === "string" && foldName(s.water).includes(needle));
+  }
+  if (minClass !== undefined) {
+    data = data.filter((s) => {
+      const cls = stationClass(s);
+      return cls !== null && cls >= minClass;
+    });
+  }
+  return { ...res, data };
+}
 
 /** The state code a station belongs to: "DE-BE" -> "BE", else the id prefix ("BE_5803500" -> "BE"). */
 function stateOf(station: Station): string {

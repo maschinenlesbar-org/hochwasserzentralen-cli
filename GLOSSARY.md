@@ -55,13 +55,14 @@ and `situation` — in the library `client.situation()` and the exported
 
 `null` is not in the `legend`, but it occurs live (216 of 1573 gauges on
 2026-09-15, most of them in MV). `situation` counts these gauges in its `"-1"`
-bucket, `--min-class` drops them whatever the value, and the GeoJSON export
-leaves out the `lhpClass` property for them. A state with **no gauge at all** in
+bucket, `--min-class` (library: `stations({ minClass })`) drops them whatever the
+value, and the GeoJSON export leaves out the `lhpClass` property for them. A state with **no gauge at all** in
 the data (Hamburg, today) is a different case: `situation` lists it with
 `stations: 0` and `worstClass: null`. Any other value (off the scale, a fraction,
 a string) makes `--min-class` and `situation` stop with exit 1 instead of guessing,
-since a changed scale could otherwise hide a flood; the library's `situation()` and
-`stationClass` throw a `HochwasserzentralenParseError` for it, the same check.
+since a changed scale could otherwise hide a flood; the library's `situation()`,
+`stations({ minClass })` and `stationClass` throw a `HochwasserzentralenParseError`
+for it, the same check.
 
 **Alert scale** (`alerts`, `lhpClass` is a **string**, e.g. `"4"`):
 

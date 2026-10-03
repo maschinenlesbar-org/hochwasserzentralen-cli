@@ -52,13 +52,15 @@ und `situation` verwendet – in der Bibliothek von `client.situation()` und den
 | `null` | Ohne Hochwasser-Einstufung |
 
 `null` steht nicht in der `legend`, kommt live aber vor (216 von 1.573 Pegeln am 15.09.2026, die
-meisten in MV). `situation` zählt diese Pegel im Bucket `"-1"`, `--min-class` filtert sie
+meisten in MV). `situation` zählt diese Pegel im Bucket `"-1"`, `--min-class` (Bibliothek:
+`stations({ minClass })`) filtert sie
 unabhängig vom Wert heraus, und der GeoJSON-Export lässt bei ihnen die Eigenschaft `lhpClass` weg.
 Ein Land **ganz ohne Pegel** in den Daten (derzeit Hamburg) ist ein anderer Fall: `situation`
 führt es mit `stations: 0` und `worstClass: null`. Jeder andere Wert (außerhalb der Skala, eine
 Kommazahl, ein String) lässt `--min-class` und `situation` mit Exit-Code 1 abbrechen, statt zu
-raten – eine geänderte Skala könnte sonst ein Hochwasser verdecken. `situation()` und
-`stationClass` der Bibliothek werfen dafür einen `HochwasserzentralenParseError`, dieselbe Prüfung.
+raten – eine geänderte Skala könnte sonst ein Hochwasser verdecken. `situation()`,
+`stations({ minClass })` und `stationClass` der Bibliothek werfen dafür einen
+`HochwasserzentralenParseError`, dieselbe Prüfung.
 
 **Warnskala** (`alerts`, `lhpClass` ist ein **String**, z. B. `"4"`):
 

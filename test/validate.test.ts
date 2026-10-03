@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, type Problem } from "../src/client/validate.js";
+import { assertValid, minClassProblem, nonBlankProblem, type Problem } from "../src/client/validate.js";
 import * as lib from "../src/index.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { HochwasserzentralenClient } from "../src/client/client.js";
@@ -56,4 +56,20 @@ test("parity() runs one input through the CLI and the library on one recording t
   assert.equal(l.requests.length, 1);
   assert.equal(cli.requests[0]!.url, l.requests[0]!.url);
   assert.deepEqual(JSON.parse(cli.out), l.ok ? l.value : undefined);
+});
+
+test("nonBlankProblem rejects a blank or non-string value", () => {
+  assert.equal(nonBlankProblem("Donau"), undefined);
+  assert.equal(nonBlankProblem(" x "), undefined);
+  assert.equal(nonBlankProblem(""), "Expected a non-empty value.");
+  assert.equal(nonBlankProblem(" \t "), "Expected a non-empty value.");
+  assert.equal(nonBlankProblem(3), "Expected a string.");
+  assert.equal(nonBlankProblem(undefined), "Expected a string.");
+});
+
+test("minClassProblem accepts an integer from -1 to 4 only", () => {
+  for (const ok of [-1, 0, 1, 4]) assert.equal(minClassProblem(ok), undefined, String(ok));
+  for (const bad of [-2, 5, 9, 2.5, Number.NaN, "2", null]) {
+    assert.equal(minClassProblem(bad), "Expected an integer between -1 and 4.", String(bad));
+  }
 });

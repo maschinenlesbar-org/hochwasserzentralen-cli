@@ -24,7 +24,7 @@ import {
   type StationsParams,
   type StationsResponse,
 } from "./types.js";
-import { aggregateSituation, type Situation } from "./stations.js";
+import { aggregateSituation, assertStationFilter, filterStations, type Situation } from "./stations.js";
 
 /** The endpoint paths (relative to the base URL). Both are GET. */
 export const ENDPOINTS = {
@@ -168,17 +168,20 @@ export class HochwasserzentralenClient {
   /**
    * The current flood situation at the LHP gauges (1573 on 2026-09-15) — classification only
    * (lhpClass 4..-1), NO water levels. For measured levels use PEGELONLINE
-   * (pegel-online-cli).
+   * (pegel-online-cli). `water` / `minClass` filter the result after the fetch (see
+   * {@link filterStations}); a bad value rejects before any request.
    */
   async stations(params: StationsParams = {}): Promise<StationsResponse> {
     checkParams(params);
+    assertStationFilter(params);
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
     const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
     assertDataArray(res, ENDPOINTS.stations, true);
-    return res;
+    if (params.water === undefined && params.minClass === undefined) return res;
+    return filterStations(res, params);
   }
 
   /**

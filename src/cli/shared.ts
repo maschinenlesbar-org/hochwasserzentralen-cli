@@ -8,6 +8,7 @@ import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
 import { STATE_CODES } from "../client/types.js";
 import { isBidiControl } from "../client/engine.js";
+import { minClassProblem, nonBlankProblem } from "../client/validate.js";
 import type { GeoJsonFeatureCollection } from "../client/geojson.js";
 
 /**
@@ -40,9 +41,8 @@ export function parseBoundedInt(min: number, max: number): (value: string) => nu
 
 /** commander value-parser: a non-empty (after trimming) string. */
 export function parseNonEmpty(value: string): string {
-  if (value.trim() === "") {
-    throw new InvalidArgumentError("Expected a non-empty value.");
-  }
+  const problem = nonBlankProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 
@@ -82,17 +82,14 @@ export function parseStates(value: string): string[] {
 
 /**
  * commander value-parser for --min-class: an integer on the station lhpClass
- * scale, -1 (no data) .. 4 (Sehr großes Hochwasser). Accepts a leading minus for
- * -1 but otherwise stays as strict as parseIntArg.
+ * scale, -1 (no data) .. 4 (Sehr großes Hochwasser) — the library's
+ * {@link minClassProblem}. The argv text must be a plain integer (a leading minus
+ * for -1, otherwise as strict as parseIntArg) before it is converted.
  */
 export function parseMinClass(value: string): number {
-  if (!/^-?[0-9]+$/.test(value)) {
-    throw new InvalidArgumentError("Expected an integer between -1 and 4.");
-  }
-  const n = Number(value);
-  if (!Number.isSafeInteger(n) || n < -1 || n > 4) {
-    throw new InvalidArgumentError("Expected an integer between -1 and 4.");
-  }
+  const n = /^-?[0-9]+$/.test(value) ? Number(value) : Number.NaN;
+  const problem = minClassProblem(n);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return n;
 }
 

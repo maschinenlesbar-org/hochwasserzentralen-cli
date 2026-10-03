@@ -4,8 +4,9 @@
 // stripped); `situation` renders the library's per-state aggregation over
 // /data/stations (client.situation()).
 //
-// Client-side filters (--water / --min-class) filter the envelope's `data` array
-// in place, so the surrounding attribution + timestamp always survive.
+// The client-side filters (--water / --min-class) are the library's
+// (client.stations({ water, minClass })); they filter only the envelope's `data`
+// array, so the surrounding attribution + timestamp always survive.
 
 import type { Command } from "commander";
 import { Option } from "commander";
@@ -13,7 +14,6 @@ import type { CliDeps } from "../io.js";
 import { action, parseMinClass, parseNonEmpty, parseStates, renderGeoJson, renderJson } from "../shared.js";
 import { LANGS, type Lang } from "../../client/types.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
-import { stationClass } from "../../client/stations.js";
 
 /**
  * The shared --states option (validated comma-separated list, e.g. BY,SN). A
@@ -42,21 +42,6 @@ function commonParams(opts: Record<string, unknown>): { states?: string[]; lang?
     ...(opts["states"] !== undefined ? { states: opts["states"] as string[] } : {}),
     ...(opts["lang"] !== undefined ? { lang: opts["lang"] as Lang } : {}),
   };
-}
-
-/**
- * Fold a water name for the case-insensitive --water match: NFC (a decomposed
- * umlaut typed or pasted on macOS matches the feed's composed text), lower case,
- * "ß" as "ss" ("NEISSE" is the upper-case form of "Neiße", and names occur in both
- * spellings, e.g. "…wasserstrasse" / "…wasserstraße"), and the Unicode dashes as "-".
- * Applied to both sides.
- */
-export function foldName(text: string): string {
-  return text
-    .normalize("NFC")
-    .toLowerCase()
-    .replace(/ß/g, "ss")
-    .replace(/[\u2010-\u2015\u2212]/g, "-");
 }
 
 export function registerCommands(program: Command, deps: CliDeps): void {
@@ -96,21 +81,12 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .option("--geojson", "output the stations as a GeoJSON FeatureCollection of points")
     .action(
       action(deps, async ({ client, global, opts }) => {
-        const res = await client.stations(commonParams(opts));
-        // Client-side filters. Field types are guarded so a filter never silently
-        // matches nothing because of a non-string/non-number field.
-        const water = opts["water"] as string | undefined;
-        if (water !== undefined) {
-          const needle = foldName(water.trim());
-          res.data = res.data.filter((s) => typeof s.water === "string" && foldName(s.water).includes(needle));
-        }
-        const minClass = opts["minClass"] as number | undefined;
-        if (minClass !== undefined) {
-          res.data = res.data.filter((s) => {
-            const cls = stationClass(s);
-            return cls !== null && cls >= minClass;
-          });
-        }
+        // The library applies --water / --min-class (filterStations) after the fetch.
+        const res = await client.stations({
+          ...commonParams(opts),
+          ...(opts["water"] !== undefined ? { water: opts["water"] as string } : {}),
+          ...(opts["minClass"] !== undefined ? { minClass: opts["minClass"] as number } : {}),
+        });
         if (opts["geojson"] === true) renderGeoJson(deps, global, stationsToGeoJson(res));
         else renderJson(deps, global, res);
       }),

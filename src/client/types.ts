@@ -207,6 +207,18 @@ export interface AlertsParams {
 export interface StationsParams {
   states?: readonly string[];
   lang?: Lang;
+  /**
+   * Only stations whose water (river) name contains this text: trimmed, compared
+   * case-insensitively on the NFC form, `ß` = `ss`, Unicode dashes = `-`. Applied
+   * after the fetch (the API has no such parameter); a blank value is rejected.
+   */
+  water?: string;
+  /**
+   * Only stations with `lhpClass >= minClass`, an integer from -1 to 4. Gauges
+   * without a class (`lhpClass` null) never match; an off-scale class rejects with
+   * a HochwasserzentralenParseError. Applied after the fetch.
+   */
+  minClass?: number;
 }
 
 /**

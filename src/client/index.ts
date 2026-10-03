@@ -16,12 +16,12 @@ export type { EngineOptions, RawResponse, RequestOptions } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
-export { assertValid } from "./validate.js";
+export { assertValid, minClassProblem, nonBlankProblem } from "./validate.js";
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export { alertsToGeoJson, stationsToGeoJson } from "./geojson.js";
-export { aggregateSituation, stationClass } from "./stations.js";
-export type { Situation, StateSituation } from "./stations.js";
+export { aggregateSituation, filterStations, foldName, stationClass } from "./stations.js";
+export type { Situation, StateSituation, StationFilter } from "./stations.js";
 export type { GeoJsonFeature, GeoJsonFeatureCollection } from "./geojson.js";
 export {
   HochwasserzentralenError,

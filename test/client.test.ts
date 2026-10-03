@@ -4,7 +4,7 @@ import { HochwasserzentralenClient, normalizeStates } from "../src/client/client
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
 import type { AlertsResponse, Station } from "../src/client/types.js";
-import { aggregateSituation, stationClass } from "../src/client/stations.js";
+import { aggregateSituation, filterStations, foldName, stationClass } from "../src/client/stations.js";
 import * as lib from "../src/index.js";
 import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -312,4 +312,45 @@ test("stationClass accepts -1..4 and null, and throws a parse error for an off-s
 test("the situation helpers are exported from the package root", () => {
   assert.equal(lib.aggregateSituation, aggregateSituation);
   assert.equal(lib.stationClass, stationClass);
+});
+
+// ---- stations({ water, minClass }) / filterStations / foldName -------------------
+
+test("foldName folds case, ß, Unicode form and dashes", () => {
+  assert.equal(foldName("Lausitzer Neiße"), "lausitzer neisse");
+  assert.equal(foldName("NEISSE"), "neisse");
+  assert.equal(foldName("Spree–Oder-Wasserstraße"), "spree-oder-wasserstrasse");
+  assert.equal(foldName("Müritz"), foldName("Müritz"));
+});
+
+test("filterStations keeps the envelope, does not change its input and drops null classes", () => {
+  const data = [...fx.stationsJson.data, { ...fx.stationsJson.data[0]!, id: "MV_1", lhpClass: null as unknown as number }];
+  const res = { ...fx.stationsJson, data };
+  const out = filterStations(res, { minClass: -1 });
+  assert.equal(res.data.length, 5);
+  assert.deepEqual(out.data.map((s) => s.id), ["BE_5803500", "BE_586290", "BY_10088003", "BY_16005701"]);
+  assert.equal(out.licenceName, fx.stationsJson.licenceName);
+  assert.deepEqual(filterStations(res, { water: " SPREE " }).data.map((s) => s.id), ["BE_586290"]);
+  assert.deepEqual(filterStations(res, {}).data.length, 5);
+});
+
+test("filterStations throws a parse error for an off-scale class under minClass", () => {
+  const res = { ...fx.stationsJson, data: [{ ...fx.stationsJson.data[0]!, lhpClass: "Hochwasser" as unknown as number }] };
+  assert.throws(() => filterStations(res, { minClass: 1 }), HochwasserzentralenParseError);
+  // Without minClass the class is not looked at (plain stations() passes it through).
+  assert.equal(filterStations(res, { water: "havel" }).data.length, 1);
+});
+
+test("stations() rejects a bad water / minClass before any request", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  for (const params of [{ water: "" }, { water: 3 }, { minClass: 2.5 }, { minClass: "2" }, { minClass: 5 }]) {
+    await assert.rejects(c.stations(params as object), HochwasserzentralenValidationError, JSON.stringify(params));
+  }
+  assert.equal(mt.calls.length, 0);
+});
+
+test("the station filters are exported from the package root", () => {
+  assert.equal(lib.filterStations, filterStations);
+  assert.equal(lib.foldName, foldName);
 });

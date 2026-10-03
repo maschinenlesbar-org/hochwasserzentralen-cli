@@ -104,7 +104,9 @@ console.log(alerts.updated, alerts.data.length); // show the data timestamp (CC 
 
 const stations = await client.stations({ states: ["BE"], lang: "en" });
 const overview = await client.situation({ states: ["BY", "HH"] }); // what `hochwasser situation` prints
-const flooding = stations.data.filter((s) => s.lhpClass >= 1);
+// what `hochwasser stations --min-class 1 --water elbe` prints: the same folding,
+// null classes dropped, an off-scale class a HochwasserzentralenParseError
+const flooding = await client.stations({ minClass: 1, water: "elbe" });
 
 const fc = stationsToGeoJson(stations); // valid FeatureCollection, [lon, lat]
 
@@ -138,8 +140,9 @@ The numeric options must be integers in range — `timeoutMs` 0..2³¹−1,
 `maxRetries` 0..10 (`MAX_RETRIES`), `retryDelayMs` 0..30 000
 (`MAX_RETRY_AFTER_MS`), `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER` — and a base
 URL must be http(s) without a query or fragment; otherwise the constructor throws.
-`alerts()`/`stations()` reject a `states` that is not an array of strings and a
-`lang` other than `de`/`en` before any request. Both are
+`alerts()`/`stations()`/`situation()` reject a `states` that is not an array of strings and a
+`lang` other than `de`/`en` before any request, and `stations()` a blank or non-string
+`water` and a `minClass` that is not an integer from -1 to 4. Both are
 `HochwasserzentralenValidationError`.
 
 ## Architecture
@@ -154,7 +157,7 @@ src/
     errors.ts    # Hochwasserzentralen{Error,ApiError,NetworkError,ValidationError,ParseError}
     validate.ts  # the Problem type + assertValid: input rules shared by library and CLI
     geojson.ts   # pure plain-JSON -> FeatureCollection converters (alerts + stations)
-    stations.ts  # pure /data/stations transforms: stationClass (scale check), aggregateSituation
+    stations.ts  # pure /data/stations transforms: stationClass, filterStations, aggregateSituation
     client.ts    # HochwasserzentralenClient — alerts() / stations() / situation() over the engine
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists)
@@ -194,7 +197,9 @@ src/
 ### Library & technical terms
 
 **API client (`HochwasserzentralenClient`).** [`src/client/client.ts`](src/client/client.ts) —
-the typed wrapper over the API: `alerts(params)`, `stations(params)` and
+the typed wrapper over the API: `alerts(params)`, `stations(params)` (with the
+`water` / `minClass` filters of `stations --water / --min-class`, applied after the
+fetch by the exported pure `filterStations`) and
 `situation(params)`, the per-state overview the `situation` command prints (one
 `/data/stations` request, aggregated by the exported pure `aggregateSituation` in
 [`src/client/stations.ts`](src/client/stations.ts); an off-scale `lhpClass` is a

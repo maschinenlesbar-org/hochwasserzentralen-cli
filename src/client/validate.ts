@@ -25,3 +25,22 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   if (reason !== undefined) throw new HochwasserzentralenValidationError(`Invalid ${name}: ${reason}`);
   return value;
 }
+
+/**
+ * A free-text or filter value must be a string with something besides whitespace
+ * in it: a blank `water` filter would otherwise match every station (or none).
+ */
+export const nonBlankProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "string") return "Expected a string.";
+  if (value.trim() === "") return "Expected a non-empty value.";
+  return undefined;
+};
+
+/**
+ * A `minClass` filter must be an integer on the station lhpClass scale, -1 (no
+ * data) .. 4 (Sehr großes Hochwasser).
+ */
+export const minClassProblem: Problem<unknown> = (value) =>
+  typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4
+    ? undefined
+    : "Expected an integer between -1 and 4.";
