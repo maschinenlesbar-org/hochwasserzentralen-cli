@@ -20,6 +20,8 @@ export { assertValid } from "./validate.js";
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export { alertsToGeoJson, stationsToGeoJson } from "./geojson.js";
+export { aggregateSituation, stationClass } from "./stations.js";
+export type { Situation, StateSituation } from "./stations.js";
 export type { GeoJsonFeature, GeoJsonFeatureCollection } from "./geojson.js";
 export {
   HochwasserzentralenError,

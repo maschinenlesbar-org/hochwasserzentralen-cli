@@ -208,3 +208,12 @@ export interface StationsParams {
   states?: readonly string[];
   lang?: Lang;
 }
+
+/**
+ * Parameters for `client.situation()`: the requested states (also listed when they
+ * have no gauge in the data; default all 16) and the response language.
+ */
+export interface SituationParams {
+  states?: readonly string[];
+  lang?: Lang;
+}

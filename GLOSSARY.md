@@ -40,7 +40,8 @@ The single most important trap in this API: **alerts and stations use different
 `lhpClass` scales, and different types.**
 
 **Station scale** (`stations`, numeric `lhpClass`, also used by `--min-class`
-and `situation`):
+and `situation` — in the library `client.situation()` and the exported
+`stationClass` / `aggregateSituation`):
 
 | lhpClass | Meaning |
 | --- | --- |
@@ -59,7 +60,8 @@ leaves out the `lhpClass` property for them. A state with **no gauge at all** in
 the data (Hamburg, today) is a different case: `situation` lists it with
 `stations: 0` and `worstClass: null`. Any other value (off the scale, a fraction,
 a string) makes `--min-class` and `situation` stop with exit 1 instead of guessing,
-since a changed scale could otherwise hide a flood.
+since a changed scale could otherwise hide a flood; the library's `situation()` and
+`stationClass` throw a `HochwasserzentralenParseError` for it, the same check.
 
 **Alert scale** (`alerts`, `lhpClass` is a **string**, e.g. `"4"`):
 

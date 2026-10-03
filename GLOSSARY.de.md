@@ -38,7 +38,8 @@ Die wichtigste Falle dieser API: **Warnungen und Pegel verwenden unterschiedlich
 `lhpClass`-Skalen und unterschiedliche Typen.**
 
 **Pegelskala** (`stations`, numerische `lhpClass`, auch von `--min-class`
-und `situation` verwendet):
+und `situation` verwendet – in der Bibliothek von `client.situation()` und den exportierten
+`stationClass` / `aggregateSituation`):
 
 | lhpClass | Bedeutung |
 | --- | --- |
@@ -56,7 +57,8 @@ unabhängig vom Wert heraus, und der GeoJSON-Export lässt bei ihnen die Eigensc
 Ein Land **ganz ohne Pegel** in den Daten (derzeit Hamburg) ist ein anderer Fall: `situation`
 führt es mit `stations: 0` und `worstClass: null`. Jeder andere Wert (außerhalb der Skala, eine
 Kommazahl, ein String) lässt `--min-class` und `situation` mit Exit-Code 1 abbrechen, statt zu
-raten – eine geänderte Skala könnte sonst ein Hochwasser verdecken.
+raten – eine geänderte Skala könnte sonst ein Hochwasser verdecken. `situation()` und
+`stationClass` der Bibliothek werfen dafür einen `HochwasserzentralenParseError`, dieselbe Prüfung.
 
 **Warnskala** (`alerts`, `lhpClass` ist ein **String**, z. B. `"4"`):
 

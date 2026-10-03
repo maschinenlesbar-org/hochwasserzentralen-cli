@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { HochwasserzentralenClient, normalizeStates } from "../src/client/client.js";
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
-import type { AlertsResponse } from "../src/client/types.js";
+import type { AlertsResponse, Station } from "../src/client/types.js";
+import { aggregateSituation, stationClass } from "../src/client/stations.js";
+import * as lib from "../src/index.js";
 import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -244,4 +246,70 @@ test("library params are validated before any request: states must be an array, 
     await assert.rejects(call, (err) => err instanceof HochwasserzentralenValidationError && re.test(err.message));
   }
   assert.equal(mt.calls.length, 0);
+});
+
+// ---- situation() / aggregateSituation / stationClass ---------------------------
+
+test("situation() makes one /data/stations request and aggregates it per state", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
+  const sit = await new HochwasserzentralenClient({ transport: mt.transport }).situation({ states: ["by", "hh"] });
+  assert.equal(mt.calls.length, 1);
+  assert.equal(new URL(mt.last().url).pathname, "/public/v1/data/stations");
+  assert.equal(queryOf(mt.last()).get("states"), "BY,HH");
+  assert.equal(sit.worstClass, 3);
+  assert.equal(sit.worstClassName, "Großes Hochwasser");
+  assert.equal(sit.licenceName, fx.stationsJson.licenceName);
+  assert.equal(sit.updated, fx.stationsJson.updated);
+  // The library normalises the requested states itself; HH has no gauge but is listed.
+  assert.deepEqual(
+    sit.states.map((s) => [s.state, s.stations, s.worstClass]),
+    [
+      ["BY", 2, 3],
+      ["BE", 2, 2],
+      ["HH", 0, null],
+    ],
+  );
+});
+
+test("situation() rejects a bad states / lang before any request", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(c.situation({ states: ["XX"] }), HochwasserzentralenValidationError);
+  await assert.rejects(c.situation({ lang: "fr" as "de" }), HochwasserzentralenValidationError);
+  assert.equal(mt.calls.length, 0);
+});
+
+test("aggregateSituation zero-fills requested states without gauges and counts a null lhpClass in -1", () => {
+  const data = [{ ...fx.stationsJson.data[0]!, lhpClass: null as unknown as number }];
+  const sit = aggregateSituation({ ...fx.stationsJson, data }, ["BE", "HH"]);
+  assert.equal(sit.totalStations, 1);
+  assert.equal(sit.worstClass, -1);
+  assert.deepEqual(sit.states[0], {
+    state: "BE",
+    stateId: "DE-BE",
+    stations: 1,
+    worstClass: -1,
+    worstClassName: "Derzeit keine Daten",
+    classes: { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "-1": 1 },
+  });
+  assert.deepEqual(sit.states[1]!.worstClass, null);
+  assert.equal(aggregateSituation({ ...fx.stationsJson, data: [] }).states.length, 16);
+});
+
+test("stationClass accepts -1..4 and null, and throws a parse error for an off-scale value", () => {
+  const st = (lhpClass: unknown): Station => ({ kind: "Station", id: "BY_1", lhpClass: lhpClass as number });
+  for (const ok of [-1, 0, 4]) assert.equal(stationClass(st(ok)), ok);
+  assert.equal(stationClass(st(null)), null);
+  assert.equal(stationClass(st(undefined)), null);
+  for (const bad of [99, 2.5, "3", -2, 5]) {
+    assert.throws(
+      () => stationClass(st(bad)),
+      (e: unknown) => e instanceof HochwasserzentralenParseError && /Unexpected lhpClass .* at station "BY_1"/.test(e.message),
+    );
+  }
+});
+
+test("the situation helpers are exported from the package root", () => {
+  assert.equal(lib.aggregateSituation, aggregateSituation);
+  assert.equal(lib.stationClass, stationClass);
 });

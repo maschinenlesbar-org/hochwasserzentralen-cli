@@ -6,6 +6,7 @@
 //   await c.alerts();                                  // current regional flood alerts
 //   await c.alerts({ states: ["BY", "SN"], cap: true }); // with CAP detail blocks
 //   await c.stations({ states: ["BE"], lang: "en" });  // flood class at the gauges
+//   await c.situation({ states: ["BY", "HH"] });       // per-state overview of the gauges
 //
 // The client always requests `Accept: application/json` (the flat representation;
 // see types.ts). The API also serves application/geo+json and text/xml — library
@@ -19,9 +20,11 @@ import {
   STATE_CODES,
   type AlertsParams,
   type AlertsResponse,
+  type SituationParams,
   type StationsParams,
   type StationsResponse,
 } from "./types.js";
+import { aggregateSituation, type Situation } from "./stations.js";
 
 /** The endpoint paths (relative to the base URL). Both are GET. */
 export const ENDPOINTS = {
@@ -176,5 +179,23 @@ export class HochwasserzentralenClient {
     });
     assertDataArray(res, ENDPOINTS.stations, true);
     return res;
+  }
+
+  /**
+   * A per-state flood overview aggregated from /data/stations (one request): station
+   * count per lhpClass and the worst class per state and nationwide, with the CC BY
+   * attribution and `updated` timestamp of the response. Every requested state (or
+   * all 16) is listed, also one without a gauge (`stations: 0`, `worstClass: null`);
+   * a null lhpClass counts in "-1"; an off-scale lhpClass rejects with a
+   * HochwasserzentralenParseError. See {@link aggregateSituation}.
+   */
+  async situation(params: SituationParams = {}): Promise<Situation> {
+    checkParams(params);
+    const states = params.states !== undefined ? normalizeStates(params.states) : undefined;
+    const res = await this.stations({
+      ...(states !== undefined ? { states } : {}),
+      ...(params.lang !== undefined ? { lang: params.lang } : {}),
+    });
+    return aggregateSituation(res, states ?? STATE_CODES);
   }
 }

@@ -103,6 +103,7 @@ const alerts = await client.alerts({ states: ["BY", "SN"], cap: true });
 console.log(alerts.updated, alerts.data.length); // show the data timestamp (CC BY)
 
 const stations = await client.stations({ states: ["BE"], lang: "en" });
+const overview = await client.situation({ states: ["BY", "HH"] }); // what `hochwasser situation` prints
 const flooding = stations.data.filter((s) => s.lhpClass >= 1);
 
 const fc = stationsToGeoJson(stations); // valid FeatureCollection, [lon, lat]
@@ -153,11 +154,12 @@ src/
     errors.ts    # Hochwasserzentralen{Error,ApiError,NetworkError,ValidationError,ParseError}
     validate.ts  # the Problem type + assertValid: input rules shared by library and CLI
     geojson.ts   # pure plain-JSON -> FeatureCollection converters (alerts + stations)
-    client.ts    # HochwasserzentralenClient — alerts() / stations() over the engine
+    stations.ts  # pure /data/stations transforms: stationClass (scale check), aggregateSituation
+    client.ts    # HochwasserzentralenClient — alerts() / stations() / situation() over the engine
   cli/
     io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists)
     shared.ts    # option parsers (states! min-class!), global-option resolver, JSON/GeoJSON renderers
-    commands/    # data.ts — alerts / stations / situation (incl. the aggregation)
+    commands/    # data.ts — alerts / stations / situation (rendering the library's results)
     program.ts   # assembles the commander program from injectable deps
     run.ts       # parses argv -> exit code (no process.exit; testable)
     index.ts     # #! bin shim
@@ -192,8 +194,12 @@ src/
 ### Library & technical terms
 
 **API client (`HochwasserzentralenClient`).** [`src/client/client.ts`](src/client/client.ts) —
-the typed wrapper over the API: `alerts(params)` and `stations(params)`. Usable as
-a library independently of the CLI.
+the typed wrapper over the API: `alerts(params)`, `stations(params)` and
+`situation(params)`, the per-state overview the `situation` command prints (one
+`/data/stations` request, aggregated by the exported pure `aggregateSituation` in
+[`src/client/stations.ts`](src/client/stations.ts); an off-scale `lhpClass` is a
+`HochwasserzentralenParseError` via the exported `stationClass`). Usable as a library
+independently of the CLI.
 
 **Request engine (`RequestEngine`).** [`src/client/engine.ts`](src/client/engine.ts)
 — builds URLs, serialises queries, applies retry/backoff, decodes JSON and maps
@@ -257,7 +263,10 @@ npm test          # builds, then runs `node --test` over dist/test
   error mapping, 429/503 retry incl. Retry-After precedence and clamping, 3xx-not-followed,
   control-character sanitisation — mocked transport.
 - **`client.test.ts`** — endpoint/query/header mapping, state-code validation, typed
-  fixtures, GeoJSON converters — mocked transport.
+  fixtures, GeoJSON converters, `situation()` / `aggregateSituation` / `stationClass`
+  — mocked transport.
+- **`parity.test.ts`** — CLI <-> library parity: the same input through `run()` and the
+  library (`parity()` in `test/helpers.ts`) gives the same requests and outcome.
 - **`cli.test.ts`** — end-to-end command parsing, filter validation (exit 2 paths),
   the situation aggregation, GeoJSON export + overwrite guard, exit codes (0/2/4/6/1)
   — mocked client, captured output.
