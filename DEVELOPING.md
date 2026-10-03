@@ -188,8 +188,9 @@ src/
 - **Every option value is validated** — `--states` against the 16 codes (parse
   time, exit 2), `--lang` via commander `.choices()`, `--min-class` bounded to
   -1..4. A typo never becomes a silently-dropped filter that returns the full
-  nationwide set. The client validates `states` again (`normalizeStates`) for
-  library users.
+  nationwide set. The rules are the library's: `--states` splits the comma list and
+  calls the exported `statesProblem` / `normalizeStates`, the same check (and the same
+  message) `alerts()`/`stations()`/`situation()` apply for library users.
 - **`-o/--output` never silently overwrites.** An existing file is refused with
   exit 2 unless `--force` is passed, before any request is sent (the `action()`
   wrapper in `shared.ts`), and again at write time. The check uses `lstat` and the write is an

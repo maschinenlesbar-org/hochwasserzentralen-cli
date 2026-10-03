@@ -24,6 +24,7 @@ import {
   type StationsParams,
   type StationsResponse,
 } from "./types.js";
+import { assertValid, statesProblem } from "./validate.js";
 import { aggregateSituation, assertStationFilter, filterStations, type Situation } from "./stations.js";
 
 /** The endpoint paths (relative to the base URL). Both are GET. */
@@ -95,26 +96,17 @@ function assertItems(data: readonly unknown[], endpoint: string, requireId: bool
 
 /**
  * Normalise and validate a list of state codes: trims, upper-cases, de-duplicates
- * (preserving order) and rejects anything not among the 16 known codes with a
- * HochwasserzentralenValidationError — so a typo never becomes a silently-dropped
- * filter that returns the full nationwide set.
+ * (preserving order) and rejects anything not among the 16 known codes (see
+ * {@link statesProblem}) with a HochwasserzentralenValidationError ("Invalid
+ * states: <reason>") — so a typo never becomes a silently-dropped filter that
+ * returns the full nationwide set. Idempotent; the CLI's --states uses it too.
  */
 export function normalizeStates(states: readonly string[]): string[] {
+  assertValid("states", states, statesProblem);
   const out: string[] = [];
   for (const raw of states) {
     const code = raw.trim().toUpperCase();
-    if (code === "") continue;
-    if (!(STATE_CODES as readonly string[]).includes(code)) {
-      throw new HochwasserzentralenValidationError(
-        `Unknown state code "${raw}". Expected one of: ${STATE_CODES.join(", ")}.`,
-      );
-    }
-    if (!out.includes(code)) out.push(code);
-  }
-  if (out.length === 0) {
-    throw new HochwasserzentralenValidationError(
-      `No usable state code given. Expected one or more of: ${STATE_CODES.join(", ")}.`,
-    );
+    if (code !== "" && !out.includes(code)) out.push(code);
   }
   return out;
 }

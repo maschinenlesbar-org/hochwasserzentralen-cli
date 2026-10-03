@@ -7,6 +7,7 @@ import {
   headerValueProblem,
   minClassProblem,
   nonBlankProblem,
+  statesProblem,
   type Problem,
 } from "../src/client/validate.js";
 import * as lib from "../src/index.js";
@@ -139,4 +140,15 @@ test("baseUrlProblem: blank, unparseable, non-http(s), query or fragment", () =>
   assert.equal(baseUrlProblem("http://h/v1#f"), "A base URL cannot have a query (?) or fragment (#).");
   assert.equal(baseUrlProblem(42), "Expected a string.");
   assert.equal(lib.validateBaseUrl("http://h/v1//"), "http://h/v1");
+});
+
+test("statesProblem: known codes only, at least one, blank entries skipped", () => {
+  assert.equal(statesProblem(["by", " SN ", ""]), undefined);
+  assert.match(statesProblem([" xx "]) ?? "", /^Unknown state code "xx"\. Expected one of: BB, BE, .*, TH\.$/);
+  assert.match(statesProblem([" ", ""]) ?? "", /^No usable state code given\. Expected one or more of: BB, .*, TH\.$/);
+  assert.match(statesProblem([]) ?? "", /^No usable state code given\./);
+  assert.equal(statesProblem(["BY", 3] as unknown as string[]), "Expected an array of state codes.");
+  assert.deepEqual(lib.normalizeStates([" by ", "sn", "BY", ""]), ["BY", "SN"]);
+  assert.deepEqual(lib.normalizeStates(lib.normalizeStates(["sn", "by"])), ["SN", "BY"]);
+  assert.throws(() => lib.normalizeStates(["xx"]), /^HochwasserzentralenValidationError: Invalid states: Unknown state code "xx"/);
 });

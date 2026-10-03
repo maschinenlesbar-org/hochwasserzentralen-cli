@@ -233,3 +233,39 @@ test("parity: a base URL with a trailing slash requests the same URL on both sid
   assert.deepEqual(urls(cli.requests), ["GET http://h/v1/data/stations"]);
   assert.deepEqual(urls(lib.requests), urls(cli.requests));
 });
+
+// ---- --states / states (finding #6) ---------------------------------------------
+
+const CODES = "BB, BE, BW, BY, HB, HE, HH, MV, NI, NW, RP, SH, SL, SN, ST, TH";
+for (const [command, flag, states, reason] of [
+  ["alerts", " xx ", [" xx "], `Unknown state code "xx". Expected one of: ${CODES}.`],
+  ["stations", "BY,xx", ["BY", "xx"], `Unknown state code "xx". Expected one of: ${CODES}.`],
+  ["situation", " xx ", [" xx "], `Unknown state code "xx". Expected one of: ${CODES}.`],
+  ["alerts", " , ,", [" ", "", " "], `No usable state code given. Expected one or more of: ${CODES}.`],
+] as const) {
+  test(`parity: ${command} --states ${JSON.stringify(flag)} is rejected with one message on both sides`, async () => {
+    const { cli, lib } = await parity(
+      ["--compact", command, "--states", flag],
+      (transport) => new HochwasserzentralenClient({ transport })[command]({ states }),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.ok(cli.err.includes(`is invalid. ${reason}`), cli.err);
+    assert.equal(lib.ok, false);
+    const error = lib.ok ? undefined : lib.error;
+    assert.ok(error instanceof HochwasserzentralenValidationError);
+    assert.equal(error.message, `Invalid states: ${reason}`);
+    assert.equal(lib.requests.length, 0);
+  });
+}
+
+test("parity: --states ' by , sn,BY' sends the same normalised states as the library", async () => {
+  const { cli, lib } = await parity(
+    ["--compact", "stations", "--states", " by , sn,BY"],
+    (transport) => new HochwasserzentralenClient({ transport }).stations({ states: [" by ", " sn", "BY"] }),
+    () => jsonResponse(fx.stationsJson),
+  );
+  assert.equal(cli.code, 0, cli.err);
+  assert.deepEqual(urls(cli.requests), ["GET https://api.hochwasserzentralen.de/public/v1/data/stations?states=BY%2CSN"]);
+  assert.deepEqual(urls(lib.requests), urls(cli.requests));
+});

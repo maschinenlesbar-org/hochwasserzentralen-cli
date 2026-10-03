@@ -25,6 +25,7 @@ export {
   headerValueProblem,
   minClassProblem,
   nonBlankProblem,
+  statesProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";

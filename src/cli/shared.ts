@@ -6,9 +6,9 @@ import { InvalidArgumentError } from "commander";
 import type { CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
-import { STATE_CODES } from "../client/types.js";
 import { isBidiControl } from "../client/engine.js";
-import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem } from "../client/validate.js";
+import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "../client/validate.js";
+import { normalizeStates } from "../client/client.js";
 import type { GeoJsonFeatureCollection } from "../client/geojson.js";
 
 /**
@@ -55,29 +55,17 @@ export function parseOutputPath(value: string): string {
 }
 
 /**
- * commander value-parser for --states: a comma-separated list of state codes.
- * Case-insensitive input is normalised to upper case; every code is validated
- * against the 16 known Bundesland codes so a typo fails at parse time (exit 2)
+ * commander value-parser for --states: a comma-separated list of state codes. The
+ * only CLI step is the comma split; the rule ({@link statesProblem}) and the
+ * normalisation ({@link normalizeStates}: trim, upper case, de-duplicate) are the
+ * library's, so a typo fails at parse time (exit 2) with the library's message
  * instead of becoming a silently-dropped filter that returns the nationwide set.
  */
 export function parseStates(value: string): string[] {
-  const out: string[] = [];
-  for (const raw of value.split(",")) {
-    const code = raw.trim().toUpperCase();
-    if (code === "") continue;
-    if (!(STATE_CODES as readonly string[]).includes(code)) {
-      throw new InvalidArgumentError(
-        `Unknown state code "${raw.trim()}". Expected a comma-separated subset of: ${STATE_CODES.join(", ")}.`,
-      );
-    }
-    if (!out.includes(code)) out.push(code);
-  }
-  if (out.length === 0) {
-    throw new InvalidArgumentError(
-      `Expected at least one state code (comma-separated subset of: ${STATE_CODES.join(", ")}).`,
-    );
-  }
-  return out;
+  const codes = value.split(",");
+  const problem = statesProblem(codes);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return normalizeStates(codes);
 }
 
 /**

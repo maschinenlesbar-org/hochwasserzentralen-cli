@@ -11,6 +11,7 @@
 //   so they reject rather than throw synchronously; constructors throw.
 
 import { HochwasserzentralenValidationError } from "./errors.js";
+import { STATE_CODES } from "./types.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
 export type Problem<T = unknown> = (value: T) => string | undefined;
@@ -90,4 +91,24 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: base URLs are supported.";
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
   return undefined;
+};
+
+/**
+ * A list of state codes must name at least one of the 16 known codes and nothing
+ * else (each entry trimmed and compared case-insensitively; blank entries are
+ * skipped), so a typo never becomes a silently-dropped filter that returns the full
+ * nationwide set. `normalizeStates` returns the canonical form.
+ */
+export const statesProblem: Problem<readonly string[]> = (states) => {
+  let usable = false;
+  for (const raw of states as readonly unknown[]) {
+    if (typeof raw !== "string") return "Expected an array of state codes.";
+    const code = raw.trim().toUpperCase();
+    if (code === "") continue;
+    if (!(STATE_CODES as readonly string[]).includes(code)) {
+      return `Unknown state code "${raw.trim()}". Expected one of: ${STATE_CODES.join(", ")}.`;
+    }
+    usable = true;
+  }
+  return usable ? undefined : `No usable state code given. Expected one or more of: ${STATE_CODES.join(", ")}.`;
 };
