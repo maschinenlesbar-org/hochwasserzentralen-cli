@@ -44,3 +44,29 @@ export const minClassProblem: Problem<unknown> = (value) =>
   typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4
     ? undefined
     : "Expected an integer between -1 and 4.";
+
+/**
+ * A value that ends up in an HTTP header (the User-Agent, a default header) must
+ * be a non-blank string of Latin-1 characters without control characters (tab is
+ * allowed, as in HTTP). Node's HTTP layer would otherwise throw an opaque "Invalid
+ * character in header content" at request time, and a custom transport would get
+ * a CR/LF through (header injection). Checked by char code so the source stays
+ * free of control bytes.
+ */
+export const headerValueProblem: Problem<unknown> = (value) => {
+  const blank = nonBlankProblem(value);
+  if (blank !== undefined) return blank;
+  const text = value as string;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    if ((c < 0x20 && c !== 0x09) || c === 0x7f) return "Value contains control characters.";
+    if (c > 0xff) return "Value contains characters outside Latin-1 (above U+00FF).";
+  }
+  return undefined;
+};
+
+/** An HTTP header name must be a non-empty RFC 9110 token. */
+export const headerNameProblem: Problem<unknown> = (value) =>
+  typeof value === "string" && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value)
+    ? undefined
+    : "Expected an HTTP header name (a token such as X-Request-Id).";

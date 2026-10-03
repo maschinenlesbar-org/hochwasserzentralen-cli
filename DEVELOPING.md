@@ -139,7 +139,11 @@ new HochwasserzentralenClient({
 The numeric options must be integers in range — `timeoutMs` 0..2³¹−1,
 `maxRetries` 0..10 (`MAX_RETRIES`), `retryDelayMs` 0..30 000
 (`MAX_RETRY_AFTER_MS`), `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER` — and a base
-URL must be http(s) without a query or fragment; otherwise the constructor throws.
+URL must be http(s) without a query or fragment; `userAgent` and every
+`defaultHeaders` value must be non-blank Latin-1 without control characters (tab
+allowed; only an omitted `userAgent` selects the default `hochwasserzentralen-cli`),
+and header names RFC 9110 tokens (`assertHeaderValue`, `headerValueProblem`,
+`headerNameProblem`); otherwise the constructor throws.
 `alerts()`/`stations()`/`situation()` reject a `states` that is not an array of strings and a
 `lang` other than `de`/`en` before any request, and `stations()` a blank or non-string
 `water` and a `minClass` that is not an integer from -1 to 4. Both are

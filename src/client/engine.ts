@@ -16,6 +16,7 @@ import {
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
 } from "./errors.js";
+import { assertValid, headerNameProblem, headerValueProblem } from "./validate.js";
 
 export const DEFAULT_BASE_URL = "https://api.hochwasserzentralen.de/public/v1";
 /**
@@ -42,9 +43,13 @@ export interface EngineOptions {
   baseUrl?: string;
   /** Swappable transport. Defaults to the built-in node http/https transport. */
   transport?: Transport;
-  /** Value of the User-Agent header. */
+  /**
+   * Value of the User-Agent header (default `hochwasserzentralen-cli`). A blank
+   * value, a control character other than tab, or a character above U+00FF throws
+   * a HochwasserzentralenValidationError.
+   */
   userAgent?: string;
-  /** Extra headers sent on every request. */
+  /** Extra headers sent on every request; names and values are checked like `userAgent`. */
   defaultHeaders?: Record<string, string>;
   /**
    * Time limit per request in milliseconds, covering the whole response body, not
@@ -201,6 +206,29 @@ function assertHttpScheme(baseUrl: string): void {
   }
 }
 
+/**
+ * Check a value bound for an HTTP header (see {@link headerValueProblem}) and
+ * return it unchanged; anything else throws a HochwasserzentralenValidationError
+ * naming `name` ("Invalid userAgent: Value contains control characters.").
+ */
+export function assertHeaderValue(name: string, value: string): string {
+  return assertValid(name, value, headerValueProblem);
+}
+
+/** Check every name and value of `defaultHeaders`, returning a copy. */
+function headerOption(headers: Record<string, string> | undefined): Record<string, string> {
+  if (headers === undefined) return {};
+  assertValid("defaultHeaders", headers as unknown, (v) =>
+    typeof v === "object" && v !== null && !Array.isArray(v) ? undefined : "Expected an object of header names to values.",
+  );
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    assertValid("defaultHeaders name", name, headerNameProblem);
+    out[name] = assertHeaderValue(`defaultHeaders["${name}"]`, value);
+  }
+  return out;
+}
+
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -227,8 +255,11 @@ export class RequestEngine {
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     assertHttpScheme(this.baseUrl);
     this.transport = options.transport ?? nodeHttpTransport;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
-    this.defaultHeaders = options.defaultHeaders ?? {};
+    // Only an omitted userAgent selects the default: a blank one is an error, not
+    // a silent fallback, and a malformed one fails here rather than at request time.
+    this.userAgent =
+      options.userAgent === undefined ? DEFAULT_USER_AGENT : assertHeaderValue("userAgent", options.userAgent);
+    this.defaultHeaders = headerOption(options.defaultHeaders);
     this.timeoutMs = intOption("timeoutMs", options.timeoutMs, 30_000, MAX_TIMEOUT_MS);
     this.maxRetries = intOption("maxRetries", options.maxRetries, 2, MAX_RETRIES);
     this.retryDelayMs = intOption("retryDelayMs", options.retryDelayMs, 200, MAX_RETRY_AFTER_MS);

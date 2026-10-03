@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assertValid, minClassProblem, nonBlankProblem, type Problem } from "../src/client/validate.js";
+import {
+  assertValid,
+  headerNameProblem,
+  headerValueProblem,
+  minClassProblem,
+  nonBlankProblem,
+  type Problem,
+} from "../src/client/validate.js";
 import * as lib from "../src/index.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../src/client/errors.js";
 import { HochwasserzentralenClient } from "../src/client/client.js";
@@ -72,4 +79,50 @@ test("minClassProblem accepts an integer from -1 to 4 only", () => {
   for (const bad of [-2, 5, 9, 2.5, Number.NaN, "2", null]) {
     assert.equal(minClassProblem(bad), "Expected an integer between -1 and 4.", String(bad));
   }
+});
+
+test("headerValueProblem rejects blank, control characters and non-Latin-1, allows tab and Latin-1", () => {
+  assert.equal(headerValueProblem("my-app/1.0"), undefined);
+  assert.equal(headerValueProblem("café\tx"), undefined);
+  assert.equal(headerValueProblem(""), "Expected a non-empty value.");
+  assert.equal(headerValueProblem("  "), "Expected a non-empty value.");
+  for (const bad of ["a\r\nb", "a\u0000", "a\u007f", "a\u001b[0m"]) {
+    assert.equal(headerValueProblem(bad), "Value contains control characters.", JSON.stringify(bad));
+  }
+  assert.equal(headerValueProblem("a €"), "Value contains characters outside Latin-1 (above U+00FF).");
+  assert.equal(headerValueProblem(1), "Expected a string.");
+});
+
+test("headerNameProblem accepts an RFC 9110 token only", () => {
+  assert.equal(headerNameProblem("X-Request-Id"), undefined);
+  for (const bad of ["", "X Id", "X:Id", "X\r\nY", 1]) {
+    assert.equal(headerNameProblem(bad), "Expected an HTTP header name (a token such as X-Request-Id).");
+  }
+});
+
+test("the client constructor checks userAgent and defaultHeaders before any request", () => {
+  const bad: Array<[object, string]> = [
+    [{ userAgent: "a\r\nb" }, "Invalid userAgent: Value contains control characters."],
+    [{ userAgent: "" }, "Invalid userAgent: Expected a non-empty value."],
+    [{ defaultHeaders: { "X-A": "a\nb" } }, 'Invalid defaultHeaders["X-A"]: Value contains control characters.'],
+    [{ defaultHeaders: { "X A": "v" } }, "Invalid defaultHeaders name: Expected an HTTP header name (a token such as X-Request-Id)."],
+    [{ defaultHeaders: "X-A: v" }, "Invalid defaultHeaders: Expected an object of header names to values."],
+  ];
+  for (const [options, message] of bad) {
+    assert.throws(
+      () => new HochwasserzentralenClient(options),
+      (e: unknown) => e instanceof HochwasserzentralenValidationError && e.message === message,
+      message,
+    );
+  }
+  assert.equal(lib.assertHeaderValue("userAgent", "ok/1"), "ok/1");
+});
+
+test("valid defaultHeaders are sent with every request", async () => {
+  const { lib: l } = await parity(
+    ["--compact", "stations"],
+    (transport) => new HochwasserzentralenClient({ transport, defaultHeaders: { "X-Trace": "1" } }).stations(),
+    () => jsonResponse(fx.stationsJson),
+  );
+  assert.equal(l.requests[0]?.headers?.["X-Trace"], "1");
 });

@@ -8,6 +8,7 @@ export {
   TEST_BASE_URL,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
+  assertHeaderValue,
   isBidiControl,
   parseRetryAfter,
   sanitizeServerText,
@@ -16,7 +17,13 @@ export type { EngineOptions, RawResponse, RequestOptions } from "./engine.js";
 export { MAX_TIMEOUT_MS, nodeHttpTransport } from "./http.js";
 export type { Transport, HttpRequest, HttpResponse } from "./http.js";
 export { buildQueryString } from "./query.js";
-export { assertValid, minClassProblem, nonBlankProblem } from "./validate.js";
+export {
+  assertValid,
+  headerNameProblem,
+  headerValueProblem,
+  minClassProblem,
+  nonBlankProblem,
+} from "./validate.js";
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export { alertsToGeoJson, stationsToGeoJson } from "./geojson.js";

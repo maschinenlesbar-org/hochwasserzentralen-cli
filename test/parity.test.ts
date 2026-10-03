@@ -145,3 +145,47 @@ test("parity: stations --min-class 1 with an off-scale string class fails the sa
   assert.match(error.message, /Unexpected lhpClass "3" at station "BY_X"/);
   assert.equal(cli.err, `Error: ${error.message}`);
 });
+
+// ---- --user-agent / userAgent (finding #4) --------------------------------------
+
+for (const [ua, reason] of [
+  ["a\r\nX-Injected: 1", "Value contains control characters."],
+  ["agent\u0000", "Value contains control characters."],
+  ["agent\u007f", "Value contains control characters."],
+  ["agent €", "Value contains characters outside Latin-1 (above U+00FF)."],
+  ["", "Expected a non-empty value."],
+  ["   ", "Expected a non-empty value."],
+] as const) {
+  test(`parity: User-Agent ${JSON.stringify(ua)} is rejected on both sides before any request`, async () => {
+    const { cli, lib } = await parity(
+      ["--compact", "--user-agent", ua, "stations"],
+      (transport) => new HochwasserzentralenClient({ transport, userAgent: ua }).stations(),
+      () => jsonResponse(fx.stationsJson),
+    );
+    assert.equal(cli.code, 2);
+    assert.equal(cli.requests.length, 0);
+    assert.ok(cli.err.includes(reason), cli.err);
+    assert.equal(lib.ok, false);
+    const error = lib.ok ? undefined : lib.error;
+    assert.ok(error instanceof HochwasserzentralenValidationError);
+    assert.equal(error.message, `Invalid userAgent: ${reason}`);
+    assert.equal(lib.requests.length, 0);
+  });
+}
+
+for (const ua of [" ok-agent ", "café/1.0", "a\tb"]) {
+  test(`parity: User-Agent ${JSON.stringify(ua)} is sent as is on both sides`, async () => {
+    const { cli, lib } = await parity(
+      ["--compact", "--user-agent", ua, "stations"],
+      (transport) => new HochwasserzentralenClient({ transport, userAgent: ua }).stations(),
+      () => jsonResponse(fx.stationsJson),
+    );
+    assert.equal(cli.code, 0, cli.err);
+    assert.equal(lib.ok, true);
+    assert.deepEqual(
+      lib.requests.map((r) => r.headers?.["User-Agent"]),
+      cli.requests.map((r) => r.headers?.["User-Agent"]),
+    );
+    assert.equal(cli.requests[0]?.headers?.["User-Agent"], ua);
+  });
+}

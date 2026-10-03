@@ -8,7 +8,7 @@ import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
 import { STATE_CODES } from "../client/types.js";
 import { isBidiControl } from "../client/engine.js";
-import { minClassProblem, nonBlankProblem } from "../client/validate.js";
+import { headerValueProblem, minClassProblem, nonBlankProblem } from "../client/validate.js";
 import type { GeoJsonFeatureCollection } from "../client/geojson.js";
 
 /**
@@ -120,24 +120,13 @@ export function parseBaseUrl(value: string): string {
 
 /**
  * commander value-parser for a value that ends up in an HTTP header (User-Agent).
- * Rejects a blank value (it was silently replaced by the default), control
- * characters and anything above U+00FF — a CR/LF (or other C0/DEL byte) or a "€"
- * would otherwise reach Node's HTTP layer and fail at request time with an opaque
- * "Invalid character in header content" ("Unexpected error", exit 1). Tab (0x09)
- * and Latin-1 are allowed, as in HTTP; checked by char code so the source stays
- * free of control bytes.
+ * The rule is the library's {@link headerValueProblem} — blank, control characters
+ * other than tab, and characters above U+00FF are rejected — so a bad value is a
+ * usage error (exit 2) here instead of an opaque failure at request time.
  */
 export function parseHeaderValue(value: string): string {
-  parseNonEmpty(value);
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if ((c < 0x20 && c !== 0x09) || c === 0x7f) {
-      throw new InvalidArgumentError("Value contains control characters.");
-    }
-    if (c > 0xff) {
-      throw new InvalidArgumentError("Value contains characters outside Latin-1 (above U+00FF).");
-    }
-  }
+  const problem = headerValueProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
 }
 
