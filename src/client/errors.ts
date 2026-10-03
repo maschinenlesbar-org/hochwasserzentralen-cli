@@ -47,8 +47,9 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
 export class HochwasserzentralenNetworkError extends HochwasserzentralenError {}
 
 /**
- * A client-side validation error (e.g. an unknown state code) — no request was
- * made. The CLI maps this to the usage exit code (2).
+ * A rejected input — a client option or a method argument that breaks one of the
+ * library's rules (see validate.ts), e.g. an unknown state code. Thrown before any
+ * request is made; the CLI maps it to its usage exit code (2).
  */
 export class HochwasserzentralenValidationError extends HochwasserzentralenError {}
 

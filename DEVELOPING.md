@@ -151,6 +151,7 @@ src/
     http.ts      # the Transport interface + default node:http/https transport
     engine.ts    # URL building, retry/backoff (Retry-After aware), JSON decoding, error mapping
     errors.ts    # Hochwasserzentralen{Error,ApiError,NetworkError,ValidationError,ParseError}
+    validate.ts  # the Problem type + assertValid: input rules shared by library and CLI
     geojson.ts   # pure plain-JSON -> FeatureCollection converters (alerts + stations)
     client.ts    # HochwasserzentralenClient — alerts() / stations() over the engine
   cli/
@@ -228,11 +229,21 @@ mocked client and captured output — no subprocess.
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx; carries `status`,
 `detail`, `url`, `method`, `body`), `HochwasserzentralenNetworkError` (transport
-failure/timeout/size cap), `HochwasserzentralenValidationError` (client-side,
-no request made; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
+failure/timeout/size cap), `HochwasserzentralenValidationError` (a rejected
+input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
 top-level shape the CLI can't use: `data` not an array, a `data` item that is not a
 JSON object, a station without a string `id`), all
 extending the base `HochwasserzentralenError`.
+
+**Input validation.** The library owns every rule about what a request may contain;
+the CLI calls the same functions instead of keeping its own copy. A rule is a pure,
+exported `Problem` ([`src/client/validate.ts`](src/client/validate.ts)): it returns the
+reason a value is invalid, or `undefined`. The library enforces it with
+`assertValid(name, value, problem)`, which throws `HochwasserzentralenValidationError`
+with the message `Invalid <name>: <reason>` before any request (a constructor throws; a
+method returning a promise rejects). The CLI's commander parsers turn the same reason
+into a usage error (exit 2), and `run.ts` maps a `HochwasserzentralenValidationError`
+raised during an action to exit 2 too, printed as `Error: <message>`.
 
 ## Testing
 
@@ -250,6 +261,10 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`cli.test.ts`** — end-to-end command parsing, filter validation (exit 2 paths),
   the situation aggregation, GeoJSON export + overwrite guard, exit codes (0/2/4/6/1)
   — mocked client, captured output.
+- **`validate.test.ts`** — `assertValid`, the `run.ts` mapping of
+  `HochwasserzentralenValidationError`, and the `parity()` helper (`test/helpers.ts`),
+  which sends one input through `run()` and through the library on one recording mock
+  transport so a test can assert both give the same outcome.
 
 Run one file after building: `node --test dist/test/cli.test.js`.
 
