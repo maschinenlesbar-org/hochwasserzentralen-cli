@@ -116,14 +116,16 @@ export interface GlobalOptions {
   force?: boolean;
 }
 
-/** Translate resolved global CLI options into client options. */
+/**
+ * Translate resolved global CLI options into client options. Every value that is
+ * set is handed through as is; the library owns the rules and the defaults (only
+ * an omitted userAgent selects the default, a blank one is rejected).
+ */
 export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClientOptions {
   const options: HochwasserzentralenClientOptions = {};
   if (global.baseUrl !== undefined) options.baseUrl = global.baseUrl;
   if (global.timeout !== undefined) options.timeoutMs = global.timeout;
-  if (global.userAgent !== undefined && global.userAgent.trim().length > 0) {
-    options.userAgent = global.userAgent;
-  }
+  if (global.userAgent !== undefined) options.userAgent = global.userAgent;
   if (global.maxRetries !== undefined) options.maxRetries = global.maxRetries;
   if (global.maxResponseBytes !== undefined) options.maxResponseBytes = global.maxResponseBytes;
   return options;

@@ -13,6 +13,8 @@ import {
 import { stationsToGeoJson } from "../src/client/geojson.js";
 import type { HttpRequest } from "../src/client/http.js";
 import type { Station, StationsParams, StationsResponse } from "../src/client/types.js";
+import { toEngineOptions } from "../src/cli/shared.js";
+import { defaultDeps } from "../src/cli/program.js";
 import { jsonResponse, parity } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
@@ -268,4 +270,27 @@ test("parity: --states ' by , sn,BY' sends the same normalised states as the lib
   assert.equal(cli.code, 0, cli.err);
   assert.deepEqual(urls(cli.requests), ["GET https://api.hochwasserzentralen.de/public/v1/data/stations?states=BY%2CSN"]);
   assert.deepEqual(urls(lib.requests), urls(cli.requests));
+});
+
+// ---- toEngineOptions hands the User-Agent through (finding #7) ------------------
+
+for (const ua of ["", "   ", "\t"]) {
+  test(`parity: toEngineOptions passes a blank User-Agent ${JSON.stringify(ua)} to the library, which rejects it`, () => {
+    const options = toEngineOptions({ userAgent: ua });
+    assert.deepEqual(options, { userAgent: ua });
+    const viaCli = (): unknown => defaultDeps.createClient(options);
+    const viaLib = (): unknown => new HochwasserzentralenClient({ userAgent: ua });
+    for (const make of [viaCli, viaLib]) {
+      assert.throws(
+        make,
+        (e: unknown) =>
+          e instanceof HochwasserzentralenValidationError && e.message === "Invalid userAgent: Expected a non-empty value.",
+      );
+    }
+  });
+}
+
+test("toEngineOptions passes a set User-Agent through unchanged and leaves an unset one to the library", () => {
+  assert.deepEqual(toEngineOptions({ userAgent: " x " }), { userAgent: " x " });
+  assert.deepEqual(toEngineOptions({}), {});
 });
