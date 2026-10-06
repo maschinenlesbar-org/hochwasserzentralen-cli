@@ -136,6 +136,11 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test stations --min-class 2
 ```
 
+A `--base-url` on plain `http:` to a host other than loopback (a mirror) gets one stderr line
+before the first request — `warning: requests to <host> are sent unencrypted (http:, not
+https:)`, or "the base URL's credentials are sent unencrypted …" with a `user:password@` (never
+printed). stdout and the exit code are unchanged.
+
 ## Scripting patterns
 
 ```bash

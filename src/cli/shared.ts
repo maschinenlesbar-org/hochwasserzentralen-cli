@@ -6,7 +6,7 @@ import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
-import { isBidiControl } from "../client/engine.js";
+import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "../client/validate.js";
 import { normalizeStates } from "../client/client.js";
 import type { GeoJsonFeatureCollection } from "../client/geojson.js";
@@ -323,6 +323,10 @@ export function action(
       throw refuseOverwrite(global.output);
     }
     const client = deps.createClient(toEngineOptions(global));
+    // One warning per run, before the first request, when the base URL is plain http: to
+    // a host other than loopback. Help, version and usage errors never get here.
+    const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
+    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }

@@ -197,7 +197,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`) |
+| `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`). Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr per run, naming the base URL's credentials when it carries some (never their value); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; `0` = none; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried) |

@@ -201,6 +201,14 @@ usage error into 0); any other output error exits 1.
   A custom transport must not follow them either: a `fetch`-based one passes
   `redirect: "manual"` (fetch follows by default, and the engine would then accept
   another host's answer without seeing the 3xx).
+- **A plain-`http:` base URL warns.** To a host other than loopback (`localhost`,
+  `127.0.0.0/8`, `::1`) the CLI writes one `warning: <sentence>` line on stderr per run,
+  before the first request (`action()` in `shared.ts`). The sentence comes from the exported
+  `cleartextProblem(baseUrl, secrets?)`: it names the host and, for a `user:password@`, "the
+  base URL's credentials" (never the value). Help, version and usage errors never warn;
+  stdout and the exit code are untouched. `test/conformance-p20-cleartext-warning.test.ts`
+  is the shared check (P20; its environment and API-key cases are skipped: no variable,
+  no key).
 - **Credentials in `--base-url` never reach the output.** A `user:password@` in the
   base URL (a mirror behind a login) is sent as Basic auth, but never printed.
   `credentialsIn(value)` finds the exact userinfo of a URL-like value, parseable or not,
