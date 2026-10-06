@@ -197,6 +197,14 @@ src/
   — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
   command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
   checks ten passwords in seven URL shapes at nine argv positions.
+  The library keeps them out of what a caller logs: the engine holds the base URL in a
+  real `#private` field (so `console.log(client)`, `util.inspect` and `JSON.stringify`
+  never show it), `HochwasserzentralenApiError.url` and its message go through
+  `redactUrl`, and the userinfo (raw and percent-decoded) is scrubbed from error bodies,
+  details, transport error text and the `cause` chain. Whatever a custom transport
+  throws becomes a `HochwasserzentralenNetworkError` with the original (scrubbed) as
+  `cause`. `test/conformance-p2-library-redaction.test.ts` checks the client, nine
+  failing transports and five rejected base URLs.
 - **Every option value is validated** — `--states` against the 16 codes (parse
   time, exit 2), `--lang` via commander `.choices()`, `--min-class` bounded to
   -1..4. A typo never becomes a silently-dropped filter that returns the full
@@ -259,8 +267,8 @@ mocked client and captured output — no subprocess.
 
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx; carries `status`,
-`detail`, `url`, `method`, `body`), `HochwasserzentralenNetworkError` (transport
-failure/timeout/size cap), `HochwasserzentralenValidationError` (a rejected
+`detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
+failure/timeout/size cap, and anything a custom transport throws), `HochwasserzentralenValidationError` (a rejected
 input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
 top-level shape the CLI can't use: `data` not an array, a `data` item that is not a
 JSON object, a station without a string `id`), all

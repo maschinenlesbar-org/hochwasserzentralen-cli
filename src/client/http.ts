@@ -8,7 +8,7 @@
 
 import http from "node:http";
 import https from "node:https";
-import { HochwasserzentralenNetworkError } from "./errors.js";
+import { HochwasserzentralenNetworkError, redactUrl } from "./errors.js";
 
 export interface HttpRequest {
   method: string;
@@ -48,7 +48,7 @@ export const nodeHttpTransport: Transport = (request) =>
     try {
       url = new URL(request.url);
     } catch {
-      reject(new HochwasserzentralenNetworkError(`Invalid URL: ${request.url}`));
+      reject(new HochwasserzentralenNetworkError(`Invalid URL: ${redactUrl(request.url)}`));
       return;
     }
 
@@ -56,7 +56,7 @@ export const nodeHttpTransport: Transport = (request) =>
     // typed error instead of letting Node throw an opaque ERR_INVALID_PROTOCOL.
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       reject(
-        new HochwasserzentralenNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${request.url}`),
+        new HochwasserzentralenNetworkError(`Unsupported protocol "${url.protocol}" in URL: ${redactUrl(request.url)}`),
       );
       return;
     }

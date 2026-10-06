@@ -77,7 +77,8 @@ export function redactCredentials(text: string, credentials: readonly string[]):
 
 /**
  * The API responded with a non-2xx HTTP status. `detail` holds a short snippet of
- * the response body when a useful textual one is present. Note that a 3xx also
+ * the response body when a useful textual one is present. `url` (and the message)
+ * show the request URL with its userinfo replaced by `***` ({@link redactUrl}). Note that a 3xx also
  * lands here: this client deliberately does NOT follow redirects (the canonical
  * host answers directly), so a redirect surfaces as an error.
  */
@@ -90,9 +91,11 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
 
   constructor(args: { status: number; url: string; method: string; body: string; detail?: string }) {
     const detailPart = args.detail ? `: ${args.detail}` : "";
-    super(`HTTP ${args.status} for ${args.method} ${args.url}${detailPart}`);
+    // The URL is shown and kept without userinfo: a credential in the base URL must not leak.
+    const url = redactUrl(args.url);
+    super(`HTTP ${args.status} for ${args.method} ${url}${detailPart}`);
     this.status = args.status;
-    this.url = args.url;
+    this.url = url;
     this.method = args.method;
     this.body = args.body;
     this.detail = args.detail;

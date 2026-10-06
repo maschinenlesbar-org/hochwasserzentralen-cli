@@ -8,12 +8,16 @@
 // is ever followed, credential headers can never leak across hosts (this client
 // is keyless anyway).
 
-import { MAX_TIMEOUT_MS, nodeHttpTransport, type Transport } from "./http.js";
+import { MAX_TIMEOUT_MS, nodeHttpTransport, type HttpResponse, type Transport } from "./http.js";
 import { buildQueryString, type QueryParams } from "./query.js";
 import {
   HochwasserzentralenApiError,
+  HochwasserzentralenError,
+  HochwasserzentralenNetworkError,
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
+  credentialsIn,
+  redactCredentials,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerNameProblem, headerValueProblem } from "./validate.js";
 
@@ -232,7 +236,12 @@ export interface RequestOptions {
 }
 
 export class RequestEngine {
-  private readonly baseUrl: string;
+  // A real private field (not TypeScript's `private`): util.inspect, console.log and
+  // JSON.stringify of a client never show it, so a password in the base URL can't be
+  // logged by accident.
+  readonly #baseUrl: string;
+  /** The base URL's userinfo, raw and percent-decoded, for scrubbing server and transport text. */
+  readonly #credentials: string[];
   private readonly transport: Transport;
   private readonly userAgent: string;
   private readonly defaultHeaders: Record<string, string>;
@@ -245,7 +254,14 @@ export class RequestEngine {
   constructor(options: EngineOptions = {}) {
     // The raw value is checked before the trailing-slash strip; only an omitted
     // baseUrl selects the default.
-    this.baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
+    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+      try {
+        return [raw, decodeURIComponent(raw)];
+      } catch {
+        return [raw];
+      }
+    });
     this.transport = options.transport ?? nodeHttpTransport;
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a silent fallback, and a malformed one fails here rather than at request time.
@@ -264,11 +280,56 @@ export class RequestEngine {
     this.sleep = options.sleep ?? realSleep;
   }
 
+  /**
+   * `text` without the base URL's credentials: server text (an error body that echoes the
+   * request URL) and transport text (fetch's "Failed to fetch <url>") can carry them.
+   */
+  private scrub(text: string): string {
+    return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
+  }
+
+  /**
+   * A transport failure as the `cause` of the error the engine raises: the original when its
+   * text carries no credentials, otherwise a copy with them scrubbed (message, `code` and the
+   * cause chain kept), so logging the error with its causes can't reveal the base URL's
+   * password.
+   */
+  private scrubCause(cause: unknown, depth = 0): unknown {
+    if (this.#credentials.length === 0 || depth > 5) return cause;
+    if (typeof cause === "string") return this.scrub(cause);
+    if (!(cause instanceof Error)) return cause;
+    const inner = this.scrubCause(cause.cause, depth + 1);
+    const message = this.scrub(cause.message);
+    if (message === cause.message && inner === cause.cause && !this.scrub(cause.stack ?? "").includes("***@")) return cause;
+    const copy = new Error(message, inner === undefined ? undefined : { cause: inner });
+    copy.name = cause.name;
+    const code = (cause as { code?: unknown }).code;
+    if (code !== undefined) Object.assign(copy, { code });
+    return copy;
+  }
+
+  /**
+   * What the transport threw, as the error the engine raises. The default transport
+   * rejects with `HochwasserzentralenNetworkError` only; an injected one may throw anything
+   * (a string, a `TypeError` from fetch). Every failure becomes a
+   * `HochwasserzentralenNetworkError` — a `HochwasserzentralenError` a caller and the CLI can
+   * rely on — with the base URL's credentials scrubbed from its message and cause chain; any
+   * other `HochwasserzentralenError` passes through, and a clean network error stays as it is.
+   */
+  private transportError(cause: unknown): HochwasserzentralenError {
+    if (cause instanceof HochwasserzentralenError && !(cause instanceof HochwasserzentralenNetworkError)) return cause;
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    const message = sanitizeServerText(this.scrub(reason));
+    const scrubbed = this.scrubCause(cause);
+    if (cause instanceof HochwasserzentralenNetworkError && message === cause.message && scrubbed === cause) return cause;
+    return new HochwasserzentralenNetworkError(message, { cause: scrubbed });
+  }
+
   /** Build a fully-qualified URL from a path and optional query parameters. */
   buildUrl(path: string, query?: QueryParams): string {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const qs = query ? buildQueryString(query) : "";
-    return `${this.baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
+    return `${this.#baseUrl}${normalizedPath}${qs ? `?${qs}` : ""}`;
   }
 
   /**
@@ -286,13 +347,18 @@ export class RequestEngine {
 
     let attempt = 0;
     for (;;) {
-      const response = await this.transport({
-        method: "GET",
-        url,
-        headers,
-        timeoutMs: this.timeoutMs,
-        ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
-      });
+      let response: HttpResponse;
+      try {
+        response = await this.transport({
+          method: "GET",
+          url,
+          headers,
+          timeoutMs: this.timeoutMs,
+          ...(this.maxResponseBytes > 0 ? { maxResponseBytes: this.maxResponseBytes } : {}),
+        });
+      } catch (cause) {
+        throw this.transportError(cause);
+      }
 
       const status = response.status;
       const retryable = status === 429 || status === 503;
@@ -324,12 +390,15 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new HochwasserzentralenParseError(`Failed to parse JSON response from ${path}`, { cause });
+      throw new HochwasserzentralenParseError(`Failed to parse JSON response from ${path}`, {
+        cause: this.scrubCause(cause),
+      });
     }
   }
 
   private toApiError(url: string, status: number, body: Buffer): HochwasserzentralenApiError {
-    const text = body.toString("utf8");
+    // The body is kept on the error (`body`) and may echo the request URL: scrub it.
+    const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
     // The API's own errors are JSON ({status, message/description}); a gateway
     // in front may serve plain text or HTML. Prefer structured fields, fall back
