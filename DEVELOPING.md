@@ -176,6 +176,12 @@ src/
     index.ts     # #! bin shim
 ```
 
+**Closed pipes.** The bin shim installs `handleOutputErrors()` (`io.ts`) before `run()`:
+an EPIPE on stdout (`| head`, a `jq` that exits early) exits 0 quietly; an EPIPE on
+stderr is ignored, so a failed run keeps its own exit code (`2>&1 | true` used to turn a
+usage error into 0); any other output error exits 1.
+`test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin for both.
+
 **Design notes**
 
 - The HTTP layer is a single `Transport` function (`(req) => Promise<HttpResponse>`). The default
