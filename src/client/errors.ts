@@ -76,25 +76,56 @@ export function redactCredentials(text: string, credentials: readonly string[]):
 }
 
 /**
- * The API responded with a non-2xx HTTP status. `detail` holds a short snippet of
+ * Longest echoed value or server text (in characters) an error message shows. A huge
+ * value or a hostile body would otherwise put kilobytes on one stderr line; the error's
+ * own properties (`url`, `body`) keep the full value.
+ */
+export const MAX_MESSAGE_VALUE_LENGTH = 500;
+
+/** `text` cut to MAX_MESSAGE_VALUE_LENGTH characters, ending in "…" when cut. */
+export function cutForMessage(text: string): string {
+  return text.length > MAX_MESSAGE_VALUE_LENGTH ? `${text.slice(0, MAX_MESSAGE_VALUE_LENGTH)}…` : text;
+}
+
+/**
+ * The API responded with a non-2xx HTTP status, or with a 2xx whose envelope reports
+ * a failure (`apiStatus`). `detail` holds a short snippet of
  * the response body when a useful textual one is present. `url` (and the message)
  * show the request URL with its userinfo replaced by `***` ({@link redactUrl}). Note that a 3xx also
  * lands here: this client deliberately does NOT follow redirects (the canonical
  * host answers directly), so a redirect surfaces as an error.
  */
 export class HochwasserzentralenApiError extends HochwasserzentralenError {
+  /** The HTTP status — 200 for a 2xx answer whose envelope reports a failure (`apiStatus`). */
   readonly status: number;
+  /**
+   * The envelope's own `status` when the API answered 2xx but reported a failure in it
+   * (anything but `"success"`, e.g. `"error"`); `undefined` for a non-2xx answer.
+   */
+  readonly apiStatus: string | undefined;
   readonly detail: string | undefined;
   readonly url: string;
   readonly method: string;
   readonly body: string;
 
-  constructor(args: { status: number; url: string; method: string; body: string; detail?: string }) {
+  constructor(args: {
+    status: number;
+    url: string;
+    method: string;
+    body: string;
+    detail?: string;
+    apiStatus?: string;
+  }) {
     const detailPart = args.detail ? `: ${args.detail}` : "";
     // The URL is shown and kept without userinfo: a credential in the base URL must not leak.
     const url = redactUrl(args.url);
-    super(`HTTP ${args.status} for ${args.method} ${url}${detailPart}`);
+    const head =
+      args.apiStatus === undefined
+        ? `HTTP ${args.status}`
+        : `The API reported status "${args.apiStatus}" (HTTP ${args.status}, not "success")`;
+    super(`${head} for ${args.method} ${cutForMessage(url)}${detailPart}`);
     this.status = args.status;
+    this.apiStatus = args.apiStatus;
     this.url = url;
     this.method = args.method;
     this.body = args.body;

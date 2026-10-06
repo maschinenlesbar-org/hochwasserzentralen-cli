@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { HochwasserzentralenClient, normalizeStates } from "../src/client/client.js";
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "../src/client/errors.js";
+import {
+  HochwasserzentralenApiError,
+  HochwasserzentralenParseError,
+  HochwasserzentralenValidationError,
+} from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
 import type { AlertsResponse, Station } from "../src/client/types.js";
 import { aggregateSituation, filterStations, foldName, stationClass } from "../src/client/stations.js";
@@ -110,7 +114,7 @@ test("a non-object JSON body is still a HochwasserzentralenParseError", async ()
   const c = new HochwasserzentralenClient({ transport: mt.transport });
   await assert.rejects(
     () => c.stations(),
-    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*got undefined/.test(err.message),
+    (err) => err instanceof HochwasserzentralenParseError && /expected a JSON object, got null/.test(err.message),
   );
 });
 
@@ -353,4 +357,24 @@ test("stations() rejects a bad water / minClass before any request", async () =>
 test("the station filters are exported from the package root", () => {
   assert.equal(lib.filterStations, filterStations);
   assert.equal(lib.foldName, foldName);
+});
+
+test("an envelope status other than success is a HochwasserzentralenApiError with apiStatus and the message", async () => {
+  for (const [body, message] of [
+    [{ ...fx.alertsJson, status: "error", message: "Wartungsarbeiten", data: [] }, "Wartungsarbeiten"],
+    [{ apiVersion: "1.0", status: "fail", error: { code: "BAD_REQUEST", message: "Unknown states" } }, "Unknown states"],
+  ] as const) {
+    const c = new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(body)).transport });
+    await assert.rejects(c.alerts(), (err: unknown) => {
+      assert.ok(err instanceof HochwasserzentralenApiError);
+      assert.equal(err.status, 200);
+      assert.equal(err.apiStatus, body.status);
+      assert.equal(err.detail, message);
+      return true;
+    });
+  }
+  const missing = { ...fx.alertsJson } as Record<string, unknown>;
+  delete missing["status"];
+  const c = new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(missing)).transport });
+  await assert.rejects(c.alerts(), HochwasserzentralenParseError);
 });

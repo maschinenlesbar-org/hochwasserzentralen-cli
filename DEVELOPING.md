@@ -286,12 +286,14 @@ carrying attribution + `updated` as foreign members.
 mocked client and captured output — no subprocess.
 
 **Error types.** [`src/client/errors.ts`](src/client/errors.ts):
-`HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx; carries `status`,
-`detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
+`HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx, and a 2xx whose envelope
+`status` isn't `"success"` — then `status` is 200 and `apiStatus` holds the envelope's
+status; carries `status`, `detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
 failure/timeout/size cap, and anything a custom transport throws), `HochwasserzentralenValidationError` (a rejected
 input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
-top-level shape the CLI can't use: `data` not an array, a `data` item that is not a
-JSON object, a station without a string `id`), all
+top-level shape the CLI can't use: not a JSON object, `data` not an array, no
+`"status": "success"`, a `data` item that is not a JSON object, a station without a string
+`id`, a nationwide `/data/stations` answer without any station), all
 extending the base `HochwasserzentralenError`.
 
 **Input validation.** The library owns every rule about what a request may contain;

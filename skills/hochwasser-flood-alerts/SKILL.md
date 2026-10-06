@@ -43,6 +43,10 @@ An **empty `data` array is the happy answer**: no active official flood
 warnings for that scope. Say so plainly — it is a valid, reassuring result, not
 an error. (Exit code 0 either way; exit 2 means a bad state code.)
 
+An **exit 1 saying `The API reported status "…"`** means the API itself flagged
+its answer as failed (the API's message follows the colon). It is not "no
+warnings": report that the check could not be made and quote the message.
+
 An **exit 1 saying "The API answered /data/alerts with its GeoJSON
 representation"** (older CLI versions: `Expected "data" to be an array in the
 response from /data/alerts, got undefined`) is not an answer either way: the

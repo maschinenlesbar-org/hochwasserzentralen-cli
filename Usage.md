@@ -17,7 +17,10 @@ lhpClass scales**).
 hochwasser alerts
 ```
 
-An empty `data` array is the happy answer: no active alerts. Headlines only:
+An empty `data` array (exit 0) is the happy answer: no active alerts. An answer whose
+envelope reports anything but `"status": "success"` is an error instead (exit 1, `The API
+reported status "error" … : <the API's message>`), never printed as data or written to
+`-o`. Headlines only:
 
 ```bash
 hochwasser --compact alerts | jq -r '.data[] | [.id, .lhpClassName, .areaDesc] | @tsv'
@@ -150,4 +153,4 @@ hochwasser --timeout 60000 --max-retries 5 stations
 | `2` | usage error: bad flag, unknown state code, bad `--min-class`, refused overwrite |
 | `4` | HTTP 404 |
 | `6` | network/transport failure |
-| `1` | anything else (unfollowed 3xx redirect, non-JSON body, server 5xx after retries) |
+| `1` | anything else (unfollowed 3xx redirect, non-JSON body, an envelope whose `status` isn't `success`, a nationwide station list without any gauge, server 5xx after retries) |

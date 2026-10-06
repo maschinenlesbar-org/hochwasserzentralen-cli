@@ -155,7 +155,7 @@ or after the command.
 | `2` | bad usage / invalid argument / refused overwrite (nothing was sent or written) |
 | `4` | resource not found (`404`) |
 | `6` | network / transport failure (DNS, connection, timeout, size cap) |
-| `1` | any other error (including a `3xx` — redirects are not followed — and bad JSON) |
+| `1` | any other error (including a `3xx` — redirects are not followed — bad JSON, and an answer whose envelope `status` isn't `success`) |
 
 ## The test system
 
@@ -174,7 +174,11 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
   of the 16 codes (`BY,SN`, case doesn't matter). A typo is rejected up front
   rather than silently returning the nationwide set.
 - **Empty `data` array on `alerts`** — good news: no active flood alerts for the
-  requested states. Use the test system (above) to see what alerts look like.
+  requested states. Use the test system (above) to see what alerts look like. This
+  only holds with exit `0`: an answer whose envelope says anything but
+  `"status": "success"` is an error (exit `1`, `The API reported status "…"`, with the
+  API's message), and so is a nationwide `stations`/`situation` answer without a single
+  gauge — neither is ever printed or written as data.
 - **Exit `1` with a redirect hint** — the server answered `3xx`; this client does
   not follow redirects. Check `--base-url` points at
   `https://api.hochwasserzentralen.de/public/v1`.

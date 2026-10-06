@@ -523,12 +523,41 @@ test("a deeply nested response gives a clear error, not a stack overflow", async
   const deep = "[".repeat(200_000) + "]".repeat(200_000);
   const body = `{"apiVersion":"x","status":"success","lang":"de","source":"s","sourceName":"s","licence":"l","licenceName":"l","title":"t","description":"d","updated":"u","data":[],"extra":${deep}}`;
   const pretty = makeCli(() => rawResponse(body, "application/json"));
-  assert.equal(await run(["stations"], pretty.deps), 1);
+  assert.equal(await run(["stations", "--states", "HH"], pretty.deps), 1);
   assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
   const compact = makeCli(() => rawResponse(body, "application/json"));
-  const code = await run(["--compact", "stations"], compact.deps);
+  const code = await run(["--compact", "stations", "--states", "HH"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
     assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
   }
+});
+
+test("a 200 envelope whose status isn't success is an error with the API's message, exit 1, never written", async () => {
+  const errorEnvelope = { ...fx.alertsJson, status: "error", message: "Wartungsarbeiten", data: [] };
+  for (const argv of [
+    ["alerts"],
+    ["alerts", "--geojson"],
+    ["--force", "-o", "good.json", "alerts"],
+    ["--force", "-o", "good.geojson", "alerts", "--geojson"],
+    ["stations", "--min-class", "1"],
+    ["situation"],
+  ]) {
+    const cli = makeCli(() => jsonResponse(errorEnvelope), ["good.json", "good.geojson"]);
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.equal(cli.out.join(""), "", argv.join(" "));
+    assert.deepEqual(Object.keys(cli.files), [], argv.join(" "));
+    assert.match(cli.err.join("\n"), /status "error".*HTTP 200.*Wartungsarbeiten/, argv.join(" "));
+  }
+});
+
+test("a nationwide /data/stations answer without any station is an error, not an all-clear", async () => {
+  for (const argv of [["situation"], ["stations"], ["stations", "--min-class", "1"]]) {
+    const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
+    assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
+    assert.match(cli.err.join("\n"), /without a single station/);
+  }
+  // A requested state without gauges (HH) stays a valid, empty answer.
+  const hh = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
+  assert.equal(await run(["situation", "--states", "HH"], hh.deps), 0);
 });

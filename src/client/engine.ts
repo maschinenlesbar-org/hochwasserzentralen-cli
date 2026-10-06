@@ -205,6 +205,20 @@ export function sanitizeServerText(text: string): string {
 }
 
 /**
+ * The message an envelope carries: a top-level `message`, or the JSend-style
+ * `error.message` the live API uses (`{"status":"fail","error":{"code":…,"message":…}}`).
+ */
+export function envelopeMessage(body: Record<string, unknown>): string | undefined {
+  if (typeof body["message"] === "string") return body["message"];
+  const error = body["error"];
+  if (typeof error === "object" && error !== null && typeof (error as Record<string, unknown>)["message"] === "string") {
+    return (error as Record<string, unknown>)["message"] as string;
+  }
+  if (typeof error === "string") return error;
+  return undefined;
+}
+
+/**
  * Decode a response body by the charset its Content-Type names (UTF-8 when it names
  * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
@@ -384,9 +398,10 @@ export class RequestEngine {
 
   /**
    * `text` without the base URL's credentials: server text (an error body that echoes the
-   * request URL) and transport text (fetch's "Failed to fetch <url>") can carry them.
+   * request URL) and transport text (fetch's "Failed to fetch <url>") can carry them. Public
+   * so the client can scrub the envelope text it turns into errors.
    */
-  private scrub(text: string): string {
+  scrub(text: string): string {
     return this.#credentials.length === 0 ? text : redactCredentials(text, this.#credentials);
   }
 

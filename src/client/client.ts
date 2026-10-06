@@ -12,9 +12,14 @@
 // see types.ts). The API also serves application/geo+json and text/xml — library
 // users can fetch those via `engine.request` with a custom accept.
 
-import { RequestEngine, type EngineOptions } from "./engine.js";
+import { RequestEngine, envelopeMessage, sanitizeServerText, type EngineOptions } from "./engine.js";
 import type { QueryParams } from "./query.js";
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
+import {
+  HochwasserzentralenApiError,
+  HochwasserzentralenParseError,
+  HochwasserzentralenValidationError,
+  cutForMessage,
+} from "./errors.js";
 import {
   LANGS,
   STATE_CODES,
@@ -34,38 +39,68 @@ export const ENDPOINTS = {
 } as const;
 
 /**
- * `data` is typed as an array (AlertArea[] / Station[]), but that's only a
- * compile-time cast over whatever JSON the API actually returned — nothing
- * upstream checks the runtime shape. Callers (both CLI commands and library
- * consumers) iterate `res.data` immediately, so a malformed/unexpected body
- * would otherwise surface as a raw "X is not iterable" TypeError deep inside
- * unrelated aggregation code. Fail fast at the client boundary instead, with
- * a typed error that names the endpoint and the field.
+ * Check the documented success envelope of a response before anyone reads it, and
+ * return why it is unusable: `undefined` when it is fine, else a rejection raised by
+ * the caller. Every LHP answer carries `"status": "success"` and a `data` array; the
+ * API's own failures come as HTTP 4xx with `"status": "fail"` (JSend). Without this
+ * check a `200` envelope saying `"status": "error"` with `data: []` read as the
+ * documented "no active flood alerts" answer (exit 0), and `--geojson` turned it into
+ * an empty map — a missed warning during an upstream fault.
  *
- * One known cause is upstream and transient: the API's HTTP cache varies only
- * on Accept-Encoding, so for about a minute after anyone requests
- * `application/geo+json` it may serve that representation (a FeatureCollection
- * with `features`, no `data`) to our `Accept: application/json` request. The
- * error names that case so it is not mistaken for a CLI bug.
+ * - a body that is not a JSON object, or has no `data` array: a
+ *   HochwasserzentralenParseError naming the endpoint and the field (`data` is typed as
+ *   an array, but only at compile time; a malformed body would otherwise surface as a
+ *   raw "X is not iterable" TypeError deep inside the aggregation);
+ * - a `status` other than `"success"`: a HochwasserzentralenApiError with the
+ *   envelope's own message (`apiStatus` on the error), whatever `data` holds;
+ * - a missing or non-string `status`: a HochwasserzentralenParseError.
+ *
+ * One known cause of a missing `data` is upstream and transient: the API's HTTP cache
+ * varies only on Accept-Encoding, so for about a minute after anyone requests
+ * `application/geo+json` it may serve that representation (a FeatureCollection with
+ * `features`, no `data`) to our `Accept: application/json` request. The error names
+ * that case so it is not mistaken for a CLI bug.
  */
-function assertDataArray(res: unknown, endpoint: string, requireId: boolean): void {
-  const body = typeof res === "object" && res !== null ? (res as Record<string, unknown>) : {};
-  const data = body["data"];
-  if (Array.isArray(data)) {
-    assertItems(data, endpoint, requireId);
-    return;
-  }
-  if (body["type"] === "FeatureCollection" && Array.isArray(body["features"])) {
-    throw new HochwasserzentralenParseError(
-      `The API answered ${endpoint} with its GeoJSON representation ("features") instead of plain JSON ` +
-        `("data"). This is a transient mix-up in the API's cache that usually clears within a minute or ` +
-        `two; retry then.`,
+function envelopeProblem(
+  res: unknown,
+  endpoint: string,
+  requireId: boolean,
+  rejected: (apiStatus: string, message: string | undefined) => Error,
+): Error | undefined {
+  if (!isObject(res)) {
+    return new HochwasserzentralenParseError(
+      `Unexpected response shape from ${endpoint}: expected a JSON object, got ${describeType(res)}.`,
     );
   }
-  throw new HochwasserzentralenParseError(
-    `Expected "data" to be an array in the response from ${endpoint}, got ${typeof body["data"]}`,
-  );
+  const status = res["status"];
+  if (typeof status === "string" && status !== "success") return rejected(status, envelopeMessage(res));
+  const data = res["data"];
+  if (!Array.isArray(data)) {
+    if (res["type"] === "FeatureCollection" && Array.isArray(res["features"])) {
+      return new HochwasserzentralenParseError(
+        `The API answered ${endpoint} with its GeoJSON representation ("features") instead of plain JSON ` +
+          `("data"). This is a transient mix-up in the API's cache that usually clears within a minute or ` +
+          `two; retry then.`,
+      );
+    }
+    return new HochwasserzentralenParseError(
+      `Expected "data" to be an array in the response from ${endpoint}, got ${describeType(data)}`,
+    );
+  }
+  if (status !== "success") {
+    return new HochwasserzentralenParseError(
+      `Unexpected response shape from ${endpoint}: expected "status": "success", got ${describeType(status)}.`,
+    );
+  }
+  assertItems(data, endpoint, requireId);
+  return undefined;
 }
+
+/** `null`, `an array` or the `typeof` of a value, for shape messages. */
+function describeType(value: unknown): string {
+  return value === null ? "null" : Array.isArray(value) ? "an array" : typeof value;
+}
+
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -141,6 +176,22 @@ export class HochwasserzentralenClient {
     this.engine = new RequestEngine(options);
   }
 
+  /** Throw the envelope's problem (see {@link envelopeProblem}), if it has one. */
+  private checkEnvelope(res: unknown, endpoint: string, query: QueryParams, requireId: boolean): void {
+    const problem = envelopeProblem(res, endpoint, requireId, (apiStatus, message) => {
+      const detail = message === undefined ? undefined : cutForMessage(sanitizeServerText(this.engine.scrub(message)));
+      return new HochwasserzentralenApiError({
+        status: 200,
+        apiStatus: sanitizeServerText(this.engine.scrub(apiStatus)).slice(0, 40),
+        url: this.engine.buildUrl(endpoint, query),
+        method: "GET",
+        body: this.engine.scrub(JSON.stringify(res)),
+        ...(detail !== undefined ? { detail } : {}),
+      });
+    });
+    if (problem !== undefined) throw problem;
+  }
+
   /**
    * Current regional flood alerts (Hochwasser-Warnungen) of the German states.
    * `cap: true` adds the Common Alerting Protocol detail block per alert.
@@ -153,7 +204,7 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<AlertsResponse>(ENDPOINTS.alerts, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res, ENDPOINTS.alerts, false);
+    this.checkEnvelope(res, ENDPOINTS.alerts, query, false);
     return res;
   }
 
@@ -171,7 +222,15 @@ export class HochwasserzentralenClient {
     const res = await this.engine.getJson<StationsResponse>(ENDPOINTS.stations, query, {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
-    assertDataArray(res, ENDPOINTS.stations, true);
+    this.checkEnvelope(res, ENDPOINTS.stations, query, true);
+    // About 1600 gauges report nationwide; an answer for all of Germany without a single
+    // station is an upstream fault, not the "no gauges" verdict `situation` would print.
+    if (params.states === undefined && res.data.length === 0) {
+      throw new HochwasserzentralenParseError(
+        `The API answered ${ENDPOINTS.stations} for all of Germany without a single station; ` +
+          `the LHP lists about 1600 gauges, so this is an upstream fault. Try again later.`,
+      );
+    }
     if (params.water === undefined && params.minClass === undefined) return res;
     return filterStations(res, params);
   }
