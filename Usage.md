@@ -145,9 +145,21 @@ if hochwasser --compact alerts --states NW > alerts.json; then
   echo "NRW has $count active flood alert(s) (Stand: $(jq -r .updated alerts.json))"
 fi
 
-# Cron-friendly: alarm when any gauge in a state reaches class 3
-worst=$(hochwasser --compact situation --states RP | jq '.worstClass')
-[ "$worst" -ge 3 ] && notify-send "Hochwasser RP: Klasse $worst"
+# Cron-friendly: alarm when any gauge in a state reaches class 3 — and fail closed:
+# a check that could not run (no network, an API error, no gauge with data) alarms too,
+# so "no alarm" always means "checked, and below class 3".
+out=$(hochwasser --compact situation --states RP)
+code=$?
+if [ "$code" -ne 0 ]; then
+  notify-send "Hochwasser RP: Prüfung fehlgeschlagen (Exit $code)"; exit "$code"
+fi
+worst=$(printf '%s\n' "$out" | jq -e '.worstClass') || {
+  notify-send "Hochwasser RP: keine Einstufung erhalten"; exit 1   # worstClass null: no gauge
+}
+if [ "$worst" -lt 0 ]; then
+  notify-send "Hochwasser RP: keine Daten an den Pegeln (Klasse $worst)"; exit 1
+fi
+if [ "$worst" -ge 3 ]; then notify-send "Hochwasser RP: Klasse $worst"; fi
 
 # Save the raw response for later processing (refuses to clobber; --force to allow)
 hochwasser stations -o stations-$(date +%F).json
