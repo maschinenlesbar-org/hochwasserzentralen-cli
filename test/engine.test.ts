@@ -269,3 +269,29 @@ test("getJson decodes by the declared charset, drops a BOM, and rejects an unkno
   const unknown = makeMockTransport(() => rawResponse("[]", "application/json; charset=x-bogus"));
   await assert.rejects(new RequestEngine({ transport: unknown.transport }).getJson("/x"), HochwasserzentralenParseError);
 });
+
+test("the API's own JSend error message (error.message) becomes the detail (result 06 Bug 1)", async () => {
+  const live = '{"apiVersion":"1.0 beta, 2025-02-04","status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown states"}}';
+  for (const status of [400, 500]) {
+    const mt = makeMockTransport(() => rawResponse(live, "application/json", status));
+    await assert.rejects(new RequestEngine({ transport: mt.transport, maxRetries: 0 }).getJson("/data/alerts"), (err: unknown) => {
+      assert.ok(err instanceof HochwasserzentralenApiError);
+      assert.equal(err.detail, "Unknown states");
+      assert.match(err.message, /^HTTP \d+ for GET .*\/data\/alerts: Unknown states$/);
+      return true;
+    });
+  }
+});
+
+test("server text in a message is cut at 500 characters; a parse error says why", async () => {
+  const long = makeMockTransport(() => rawResponse(JSON.stringify({ message: "x".repeat(200_000) }), "application/json", 500));
+  await assert.rejects(new RequestEngine({ transport: long.transport, maxRetries: 0 }).getJson("/x"), (err: unknown) => {
+    assert.ok(err instanceof HochwasserzentralenApiError);
+    assert.ok(err.message.length < 700, String(err.message.length));
+    return true;
+  });
+  const html = makeMockTransport(() => rawResponse("<html>proxy</html>", "text/html"));
+  await assert.rejects(new RequestEngine({ transport: html.transport }).getJson("/x"), /expected JSON, got Content-Type "text\/html"/);
+  const cut = makeMockTransport(() => rawResponse('{"data":[', "application/json"));
+  await assert.rejects(new RequestEngine({ transport: cut.transport }).getJson("/x"), /Failed to parse JSON response from \/x: \S/);
+});

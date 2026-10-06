@@ -5,7 +5,14 @@
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
-import { assertValid, knownKeysProblem, minClassProblem, nonBlankProblem, statesProblem } from "./validate.js";
+import {
+  assertValid,
+  knownKeysProblem,
+  minClassProblem,
+  nonBlankProblem,
+  responseArgProblem,
+  statesProblem,
+} from "./validate.js";
 
 /**
  * Fold a water name for the case-insensitive `water` match, applied to both sides:
@@ -81,6 +88,7 @@ export function assertStationFilter(filter: StationFilter): void {
  * HochwasserzentralenValidationError.
  */
 export function filterStations(res: StationsResponse, filter: StationFilter): StationsResponse {
+  assertValid("res", res as unknown, responseArgProblem);
   // A misspelled key (`Water`, `minclass`) used to be ignored, returning every station.
   assertValid("filter", filter as unknown, knownKeysProblem(STATION_FILTER_KEYS));
   assertStationFilter(filter);
@@ -136,7 +144,8 @@ function stateOf(station: Station): string {
  * honouring `?states=`.
  */
 export function onlyStates(res: StationsResponse, states: readonly string[]): StationsResponse {
-  const wanted = new Set(states);
+  assertValid("res", res as unknown, responseArgProblem);
+  const wanted = new Set(normalizeStates(states));
   return { ...res, data: res.data.filter((s) => wanted.has(stateOf(s))) };
 }
 
@@ -149,12 +158,15 @@ export function onlyStates(res: StationsResponse, states: readonly string[]): St
  * so it throws a {@link HochwasserzentralenParseError} instead (CLI exit 1).
  */
 export function stationClass(station: Station): number | null {
+  if (typeof station !== "object" || station === null || Array.isArray(station)) {
+    throw new HochwasserzentralenValidationError("Invalid station: Expected a station object.");
+  }
   const value = station.lhpClass as unknown;
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4) return value;
   const shown = sanitizeServerText(JSON.stringify(value) ?? String(value)).slice(0, 40);
   throw new HochwasserzentralenParseError(
-    `Unexpected lhpClass ${shown} at station "${sanitizeServerText(station.id)}" from /data/stations: ` +
+    `Unexpected lhpClass ${shown} at station "${sanitizeServerText(String(station.id)).slice(0, 100)}" from /data/stations: ` +
       `expected an integer from -1 to 4, or null. The API's class scale may have changed.`,
   );
 }
@@ -217,6 +229,7 @@ function classNamer(res: StationsResponse): (lhpClass: number) => string {
  * fetches and aggregates in one call.
  */
 export function aggregateSituation(res: StationsResponse, states?: readonly string[]): Situation {
+  assertValid("res", res as unknown, responseArgProblem);
   const requested = states === undefined ? undefined : normalizeStates(states);
   const included = requested === undefined ? res : onlyStates(res, requested);
   const nameOf = classNamer(res);

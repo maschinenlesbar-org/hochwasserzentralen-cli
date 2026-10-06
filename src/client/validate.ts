@@ -10,7 +10,7 @@
 //   request is made. Methods that return a promise call it inside the async body,
 //   so they reject rather than throw synchronously; constructors throw.
 
-import { HochwasserzentralenValidationError } from "./errors.js";
+import { HochwasserzentralenValidationError, cutForMessage } from "./errors.js";
 import { STATE_CODES } from "./types.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
@@ -23,9 +23,25 @@ export type Problem<T = unknown> = (value: T) => string | undefined;
  */
 export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
   const reason = problem(value);
-  if (reason !== undefined) throw new HochwasserzentralenValidationError(`Invalid ${name}: ${reason}`);
+  if (reason !== undefined) throw new HochwasserzentralenValidationError(`Invalid ${name}: ${cutForMessage(reason)}`);
   return value;
 }
+
+/**
+ * A response handed to one of the exported pure transforms (`filterStations`,
+ * `aggregateSituation`, `onlyStates`, the GeoJSON converters) must be an object with a
+ * `data` array of objects, as the client returns it; anything else used to fail as a raw
+ * TypeError ("Cannot read properties of undefined").
+ */
+export const responseArgProblem: Problem<unknown> = (value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return "Expected a response object with a data array.";
+  }
+  const data = (value as { data?: unknown }).data;
+  if (!Array.isArray(data)) return "Expected a response object with a data array.";
+  const bad = data.findIndex((item) => typeof item !== "object" || item === null || Array.isArray(item));
+  return bad === -1 ? undefined : `Expected a data array of objects; item ${bad} is not an object.`;
+};
 
 /**
  * An options object must be a plain object (or `undefined`, for "none") whose own keys
@@ -137,13 +153,15 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
  * nationwide set. `normalizeStates` returns the canonical form.
  */
 export const statesProblem: Problem<readonly string[]> = (states) => {
+  // A plain "BY" string would otherwise be read character by character.
+  if (!Array.isArray(states)) return "Expected an array of state codes.";
   let usable = false;
   for (const raw of states as readonly unknown[]) {
     if (typeof raw !== "string") return "Expected an array of state codes.";
     const code = raw.trim().toUpperCase();
     if (code === "") continue;
     if (!(STATE_CODES as readonly string[]).includes(code)) {
-      return `Unknown state code "${raw.trim()}". Expected one of: ${STATE_CODES.join(", ")}.`;
+      return `Unknown state code "${cutForMessage(raw.trim())}". Expected one of: ${STATE_CODES.join(", ")}.`;
     }
     usable = true;
   }

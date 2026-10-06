@@ -12,6 +12,7 @@
 // order [west, south, east, north].
 
 import type { AlertsResponse, StationsResponse } from "./types.js";
+import { assertValid, responseArgProblem } from "./validate.js";
 
 export interface GeoJsonFeature {
   type: "Feature";
@@ -163,6 +164,7 @@ function envelopeMembers(res: AlertsResponse | StationsResponse): Partial<GeoJso
  * skipped.
  */
 export function alertsToGeoJson(res: AlertsResponse): GeoJsonFeatureCollection {
+  assertValid("res", res as unknown, responseArgProblem);
   const features: GeoJsonFeature[] = [];
   for (const a of res.data) {
     if (!isUsableGeometry(a.geometry)) continue;
@@ -191,6 +193,7 @@ export function alertsToGeoJson(res: AlertsResponse): GeoJsonFeatureCollection {
  * not finite numbers, or outside ±180/±90) are skipped.
  */
 export function stationsToGeoJson(res: StationsResponse): GeoJsonFeatureCollection {
+  assertValid("res", res as unknown, responseArgProblem);
   const features: GeoJsonFeature[] = [];
   for (const s of res.data) {
     const c = s.coordinates;

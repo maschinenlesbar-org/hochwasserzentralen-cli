@@ -318,6 +318,19 @@ top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `id`, a nationwide `/data/stations` answer without any station), all
 extending the base `HochwasserzentralenError`.
 
+Every rejected input is a `HochwasserzentralenValidationError`, never a raw
+`TypeError`: wrong-typed method parameters, a non-function `transport` or `sleep`, and a
+malformed response object handed to one of the exported pure transforms
+(`filterStations`, `aggregateSituation`, `onlyStates`, `stationClass`, the GeoJSON
+converters; `responseArgProblem`). An echoed value or server text in a message is cut at
+500 characters (`cutForMessage`, `MAX_MESSAGE_VALUE_LENGTH`); the error's own properties
+keep the full value. A non-2xx answer's `detail` is the API's own message — its JSend
+`error.message` (`{"status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown
+states"}}`), else a top-level `message`/`description`/`detail`, else a plain-text snippet.
+A body that doesn't parse names why: the Content-Type when it isn't JSON (a proxy's HTML
+page), else the parser's reason. `test/conformance-p8-p9-p13-responses-and-errors.test.ts`
+checks the declared charset (P8), the envelope (P9) and the wrong-typed calls (P13).
+
 **Input validation.** The library owns every rule about what a request may contain;
 the CLI calls the same functions instead of keeping its own copy. A rule is a pure,
 exported `Problem` ([`src/client/validate.ts`](src/client/validate.ts)): it returns the

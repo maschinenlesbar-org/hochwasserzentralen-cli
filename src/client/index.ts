@@ -27,6 +27,7 @@ export {
   knownKeysProblem,
   minClassProblem,
   nonBlankProblem,
+  responseArgProblem,
   statesProblem,
 } from "./validate.js";
 export type { Problem } from "./validate.js";
@@ -41,7 +42,9 @@ export {
   HochwasserzentralenNetworkError,
   HochwasserzentralenValidationError,
   HochwasserzentralenParseError,
+  MAX_MESSAGE_VALUE_LENGTH,
   credentialsIn,
+  cutForMessage,
   redactCredentials,
   redactUrl,
 } from "./errors.js";

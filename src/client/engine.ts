@@ -25,6 +25,7 @@ import {
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
   credentialsIn,
+  cutForMessage,
   redactCredentials,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerNameProblem, headerValueProblem, knownKeysProblem } from "./validate.js";
@@ -135,7 +136,24 @@ function intOption(name: string, value: number | undefined, fallback: number, ma
   if (value === undefined) return fallback;
   if (!Number.isSafeInteger(value) || value < 0 || value > max) {
     throw new HochwasserzentralenValidationError(
-      `Invalid option ${name}: expected an integer from 0 to ${max}, got ${String(value)}.`,
+      // A string is quoted, so `"5000"` doesn't read like the number 5000.
+      `Invalid option ${name}: expected an integer from 0 to ${max}, got ` +
+        `${cutForMessage(typeof value === "string" ? JSON.stringify(value) : String(value))}.`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Read a function option: `undefined` gives the default; anything else that is not a
+ * function throws a HochwasserzentralenValidationError. A string `transport` used to fail
+ * only at the first request, and a bad `sleep` as a raw TypeError on the first retry.
+ */
+function functionOption<F extends (...args: never[]) => unknown>(name: string, value: F | undefined, fallback: F): F {
+  if (value === undefined) return fallback;
+  if (typeof value !== "function") {
+    throw new HochwasserzentralenValidationError(
+      `Invalid option ${name}: expected a function, got ${value === null ? "null" : typeof value}.`,
     );
   }
   return value;
@@ -393,7 +411,7 @@ export class RequestEngine {
         return [raw];
       }
     });
-    this.transport = options.transport ?? nodeHttpTransport;
+    this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a silent fallback, and a malformed one fails here rather than at request time.
     this.userAgent =
@@ -408,7 +426,7 @@ export class RequestEngine {
       DEFAULT_MAX_RESPONSE_BYTES,
       Number.MAX_SAFE_INTEGER,
     );
-    this.sleep = options.sleep ?? realSleep;
+    this.sleep = functionOption("sleep", options.sleep, realSleep);
   }
 
   /**
@@ -451,7 +469,7 @@ export class RequestEngine {
   private transportError(cause: unknown): HochwasserzentralenError {
     if (cause instanceof HochwasserzentralenError && !(cause instanceof HochwasserzentralenNetworkError)) return cause;
     const reason = cause instanceof Error ? cause.message : String(cause);
-    const message = sanitizeServerText(this.scrub(reason));
+    const message = cutForMessage(sanitizeServerText(this.scrub(reason)));
     const scrubbed = this.scrubCause(cause);
     if (cause instanceof HochwasserzentralenNetworkError && message === cause.message && scrubbed === cause) return cause;
     return new HochwasserzentralenNetworkError(message, { cause: scrubbed });
@@ -573,7 +591,17 @@ export class RequestEngine {
     try {
       return JSON.parse(text) as T;
     } catch (cause) {
-      throw new HochwasserzentralenParseError(`Failed to parse JSON response from ${path}`, {
+      // Say why (run.ts prints only the message, never `cause`): a proxy's HTML page, a
+      // cut-off body and a stray byte read alike otherwise. An HTML or other non-JSON type
+      // is named, else the parser's reason.
+      const type = sanitizeServerText(res.contentType.split(";")[0] ?? "").slice(0, 100);
+      const reason =
+        type !== "" && !/json/i.test(type)
+          ? `: expected JSON, got Content-Type "${type}"`
+          : cause instanceof Error
+            ? `: ${cutForMessage(sanitizeServerText(this.scrub(cause.message)))}`
+            : "";
+      throw new HochwasserzentralenParseError(`Failed to parse JSON response from ${path}${reason}`, {
         cause: this.scrubCause(cause),
       });
     }
@@ -583,24 +611,28 @@ export class RequestEngine {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it.
     const text = this.scrub(body.toString("utf8"));
     let detail: string | undefined;
-    // The API's own errors are JSON ({status, message/description}); a gateway
-    // in front may serve plain text or HTML. Prefer structured fields, fall back
-    // to a short plain-text (non-HTML) snippet.
+    // The API's own errors are JSend-style JSON (`{"status":"fail","error":{"code":
+    // "BAD_REQUEST","message":"Unknown states"}}`, seen live); a gateway in front may
+    // serve other JSON, plain text or HTML. Prefer the structured message (`error.message`,
+    // or a top-level `message`/`description`/`detail`), fall back to a short plain-text
+    // (non-HTML) snippet.
     try {
-      const parsed = JSON.parse(text) as { message?: unknown; description?: unknown; detail?: unknown };
-      if (parsed && typeof parsed.message === "string") detail = parsed.message;
-      else if (parsed && typeof parsed.description === "string") detail = parsed.description;
-      else if (parsed && typeof parsed.detail === "string") detail = parsed.detail;
+      const parsed = JSON.parse(text) as unknown;
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        const body = parsed as Record<string, unknown>;
+        detail = envelopeMessage(body);
+        if (detail === undefined && typeof body["description"] === "string") detail = body["description"];
+        if (detail === undefined && typeof body["detail"] === "string") detail = body["detail"];
+      }
     } catch {
       const snippet = text.trim().replace(/\s+/g, " ");
-      if (snippet.length > 0 && !snippet.startsWith("<")) {
-        detail = snippet.length > 200 ? `${snippet.slice(0, 200)}…` : snippet;
-      }
+      if (snippet.length > 0 && !snippet.startsWith("<")) detail = snippet;
     }
     // `detail` came from the response body and lands in an Error.message printed
     // raw to stderr; strip control chars so a hostile endpoint cannot inject
-    // terminal escape sequences.
-    if (detail !== undefined) detail = sanitizeServerText(detail);
+    // terminal escape sequences, and cut it to MAX_MESSAGE_VALUE_LENGTH.
+    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
+    if (detail === "") detail = undefined;
     return new HochwasserzentralenApiError({ status, url, method: "GET", body: text, detail });
   }
 }
