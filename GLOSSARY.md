@@ -102,7 +102,9 @@ DWD and BBK/NINA). With `--cap`, each alert carries a `cap` block:
 
 The `--states` filter takes a comma-separated subset of these 16 codes
 (case-insensitive; validated — a typo exits 2 rather than silently returning
-everything):
+everything). The API filters by it, and the CLI applies it again to the answer: only
+the requested states' gauges are returned and counted, so a server that ignored the
+filter can't change the result:
 
 | Code | Land | Code | Land |
 | --- | --- | --- | --- |
@@ -121,7 +123,8 @@ ids to each state's own flood portal.
 
 ## Envelope fields (attribution & freshness)
 
-Every response wraps its `data` in an envelope with `source` / `sourceName`
+Every response wraps its `data` in an envelope with `status` (`"success"`; anything
+else is an error, exit 1, never read as data), `source` / `sourceName`
 (the LHP), `licence` / `licenceName` (CC BY 4.0), `updated` (the **data
 timestamp** — display it, the licence requires it), `lastModified`, a `legend`,
 and a `bbox` (`[west, north, east, south]` in the live API, a fixed box around

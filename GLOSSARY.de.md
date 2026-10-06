@@ -101,7 +101,9 @@ nach dem sie handeln können.
 
 Der Filter `--states` akzeptiert eine kommagetrennte Teilmenge dieser 16 Kürzel
 (Groß-/Kleinschreibung egal; validiert – ein Tippfehler endet mit Exit-Code 2, statt
-stillschweigend alles zurückzugeben):
+stillschweigend alles zurückzugeben). Die API filtert danach, und die CLI wendet den Filter
+noch einmal auf die Antwort an: Nur die Pegel der angefragten Länder werden ausgegeben und
+gezählt, ein Server, der den Filter ignoriert, kann das Ergebnis also nicht verändern:
 
 | Kürzel | Land | Kürzel | Land |
 | --- | --- | --- | --- |
@@ -120,7 +122,8 @@ jeweiligen Hochwasserportal des Landes zu.
 
 ## Envelope-Felder (Namensnennung & Aktualität)
 
-Jede Antwort verpackt ihr `data` in einen Envelope mit `source` / `sourceName` (das LHP),
+Jede Antwort verpackt ihr `data` in einen Envelope mit `status` (`"success"`; alles andere ist
+ein Fehler, Exit-Code 1, und wird nie als Daten gelesen), `source` / `sourceName` (das LHP),
 `licence` / `licenceName` (CC BY 4.0), `updated` (der **Zeitstempel der Daten** – zeigen Sie
 ihn an, die Lizenz verlangt es), `lastModified`, einer `legend` und einer `bbox`
 (in der Live-API `[west, north, east, south]`, ein fester Rahmen um Deutschland, unabhängig vom
