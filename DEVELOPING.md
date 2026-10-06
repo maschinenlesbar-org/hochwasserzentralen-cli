@@ -209,6 +209,11 @@ usage error into 0); any other output error exits 1.
   stdout and the exit code are untouched. `test/conformance-p20-cleartext-warning.test.ts`
   is the shared check (P20; its environment and API-key cases are skipped: no variable,
   no key).
+- **README links work on npmjs.com.** The README ships in the npm tarball and is what
+  npmjs.com shows, so a relative link in it points only at a file `files` ships
+  (`LICENSE`, `LICENSING.md`, `CONTRIBUTING.md`, `DATA_LICENSE.md`); every other document is
+  linked by its absolute GitHub URL. `test/conformance-p21-readme-links.test.ts` is the
+  shared check (P21).
 - **Credentials in `--base-url` never reach the output.** A `user:password@` in the
   base URL (a mirror behind a login) is sent as Basic auth, but never printed.
   `credentialsIn(value)` finds the exact userinfo of a URL-like value, parseable or not,

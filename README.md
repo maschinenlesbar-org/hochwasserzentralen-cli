@@ -32,7 +32,7 @@ straight into [`jq`](https://jqlang.github.io/jq/), or as ready-to-map GeoJSON.
 > PEGELONLINE = measured values (federal waterways).
 
 > Want to use this as a TypeScript library or understand how it's built?
-> See **[DEVELOPING.md](DEVELOPING.md)**.
+> See **[DEVELOPING.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/DEVELOPING.md)**.
 
 ## Install
 
@@ -99,7 +99,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | `--lang <de\|en>` | response language (affects class names) |
 
 The 16 state codes are `BB BE BW BY HB HE HH MV NI NW RP SH SL SN ST TH` — the
-**[Glossary](GLOSSARY.md)** maps each to its Bundesland and explains every domain
+**[Glossary](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/GLOSSARY.md)** maps each to its Bundesland and explains every domain
 term, including the two different `lhpClass` scales.
 
 ## GeoJSON export
@@ -210,10 +210,10 @@ usage error (exit `2`), not "the last one wins". Only `--states` collects repeat
 
 ## Learn more
 
-- **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live flood questions.
-- **[Usage.md](Usage.md)** — use-case-driven cookbook.
-- **[GLOSSARY.md](GLOSSARY.md)** — lhpClass scales, AlertArea vs Station, CAP, Meldestufen, state codes.
-- **[DEVELOPING.md](DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
+- **[SKILLS.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live flood questions.
+- **[Usage.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/Usage.md)** — use-case-driven cookbook.
+- **[GLOSSARY.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/GLOSSARY.md)** — lhpClass scales, AlertArea vs Station, CAP, Meldestufen, state codes.
+- **[DEVELOPING.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/DEVELOPING.md)** — TypeScript library usage, architecture, testing, CI.
 
 ## Data license
 
