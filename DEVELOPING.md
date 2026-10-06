@@ -371,7 +371,7 @@ Run one file after building: `node --test dist/test/cli.test.js`.
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 20/22/24 for every push and PR.
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
 - **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`,
   generate CycloneDX SBOMs, and create a GitHub Release with the artifacts.
 - **publish.yml** — manual dispatch: publish to npm via OIDC **Trusted Publishing**

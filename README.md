@@ -40,7 +40,7 @@ straight into [`jq`](https://jqlang.github.io/jq/), or as ready-to-map GeoJSON.
 npm i -g @maschinenlesbar.org/hochwasserzentralen-cli
 ```
 
-This installs the **`hochwasser`** command. Requires **Node.js 20+**.
+This installs the **`hochwasser`** command. Requires **Node.js 22.12+**.
 
 Check it works:
 
@@ -169,7 +169,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 ## Troubleshooting
 
 - **`command not found: hochwasser`** — the global npm bin directory isn't on
-  your `PATH`. Run `npm bin -g` to find it and add it.
+  your `PATH`. It is `$(npm prefix -g)/bin`; add that to your `PATH`.
 - **Exit `2` / "Unknown state code"** — `--states` takes a comma-separated subset
   of the 16 codes (`BY,SN`, case doesn't matter). A typo is rejected up front
   rather than silently returning the nationwide set.
