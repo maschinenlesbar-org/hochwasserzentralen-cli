@@ -244,11 +244,13 @@ errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses, and reset
-connections, are retried automatically up to `maxRetries` (default `2`). A `Retry-After` header (seconds or
-HTTP-date as an IMF-fixdate; any other value counts as absent) takes precedence over
-the linear backoff and is clamped to 30 s so a
-hostile value cannot hang the CLI. `HochwasserzentralenApiError` exposes
-`isRetryable`. CLI: `--max-retries`.
+connections, are retried automatically up to `maxRetries` (default `2`), with a linear
+backoff from `retryDelayMs` (200 ms, 400 ms, …). A `Retry-After` header (seconds or
+HTTP-date as an IMF-fixdate; any other value counts as absent) can lengthen a wait, never
+shorten it: `Retry-After: 0` or a date in the past waits the normal backoff, so retries
+never burst, and a long one is clamped to 30 s so a hostile value cannot hang the CLI.
+`HochwasserzentralenApiError` exposes `isRetryable`. CLI: `--max-retries`.
+`test/conformance-p6-retry-policy.test.ts` covers it.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory
 exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.

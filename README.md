@@ -196,7 +196,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`) |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; `0` = none; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring `Retry-After` (default `2`; a refused connection, DNS failure or timeout is not retried) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `-o, --output <file>` | Write output to this file instead of stdout |
 | `--force` | Overwrite the `--output` file if it already exists |

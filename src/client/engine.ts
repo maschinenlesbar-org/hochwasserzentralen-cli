@@ -84,9 +84,9 @@ export interface EngineOptions {
    */
   maxRetries?: number;
   /**
-   * Base backoff between retries in milliseconds (grows linearly), unless the
-   * response carries a `Retry-After` header, which takes precedence. At most
-   * `MAX_RETRY_AFTER_MS`. Default 200.
+   * Base backoff between retries in milliseconds (grows linearly). A `Retry-After`
+   * header can lengthen a wait (up to `MAX_RETRY_AFTER_MS`), never shorten it below
+   * this backoff. At most `MAX_RETRY_AFTER_MS`. Default 200.
    */
   retryDelayMs?: number;
   /**
@@ -494,12 +494,14 @@ export class RequestEngine {
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
         attempt += 1;
-        // Honour a Retry-After header when present, clamped to MAX_RETRY_AFTER_MS
-        // so a pathological/hostile value can't hang the CLI; otherwise fall back
-        // to linear backoff.
+        // Back off linearly from retryDelayMs. A Retry-After header can ask for longer
+        // (clamped to MAX_RETRY_AFTER_MS so a pathological/hostile value can't hang the
+        // CLI), never for less: `Retry-After: 0` or a date in the past turned the retries
+        // into a zero-delay burst (11 requests in ~25 ms with --max-retries 10) against a
+        // server that had just asked for less load.
+        const backoff = this.retryDelayMs * attempt;
         const retryAfter = parseRetryAfter(responseHeaders["retry-after"]);
-        const delay =
-          retryAfter !== undefined ? Math.min(retryAfter, MAX_RETRY_AFTER_MS) : this.retryDelayMs * attempt;
+        const delay = retryAfter === undefined ? backoff : Math.min(Math.max(retryAfter, backoff), MAX_RETRY_AFTER_MS);
         await this.sleep(delay);
         continue;
       }
