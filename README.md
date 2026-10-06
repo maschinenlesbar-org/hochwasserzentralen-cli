@@ -85,7 +85,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 
 | Flag | Meaning |
 | --- | --- |
-| `--states <codes>` | comma-separated state codes (validated) |
+| `--states <codes>` | comma-separated state codes (validated); only these states' gauges are returned, also if the server sent others |
 | `--lang <de\|en>` | response language |
 | `--water <name>` | only stations whose water (river) name contains this text, case-insensitive (`ß` matches `ss`; umlauts match in any Unicode form) |
 | `--min-class <n>` | only stations with `lhpClass >= n` (`-1` no data … `4` sehr großes Hochwasser); gauges without a class (`lhpClass: null`) never match |
@@ -95,7 +95,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 
 | Flag | Meaning |
 | --- | --- |
-| `--states <codes>` | restrict the aggregation to these states |
+| `--states <codes>` | restrict the aggregation to these states: each is listed, and a gauge of any other state in the answer is left out of the counts and the worst class |
 | `--lang <de\|en>` | response language (affects class names) |
 
 The 16 state codes are `BB BE BW BY HB HE HH MV NI NW RP SH SL SN ST TH` — the

@@ -22,20 +22,28 @@ import {
 } from "./errors.js";
 import {
   LANGS,
-  STATE_CODES,
   type AlertsParams,
   type AlertsResponse,
   type SituationParams,
   type StationsParams,
   type StationsResponse,
 } from "./types.js";
-import { assertValid, knownKeysProblem, statesProblem } from "./validate.js";
+import { assertValid, knownKeysProblem } from "./validate.js";
 
 /** The keys each method's parameter object takes; any other key is a validation error. */
 const ALERTS_KEYS = ["states", "cap", "lang"] as const;
 const STATIONS_KEYS = ["states", "lang", "water", "minClass"] as const;
 const SITUATION_KEYS = ["states", "lang"] as const;
-import { aggregateSituation, assertStationFilter, filterStations, type Situation } from "./stations.js";
+import {
+  aggregateSituation,
+  assertStationFilter,
+  filterStations,
+  normalizeStates,
+  onlyStates,
+  type Situation,
+} from "./stations.js";
+
+export { normalizeStates };
 
 /** The endpoint paths (relative to the base URL). Both are GET. */
 export const ENDPOINTS = {
@@ -134,22 +142,6 @@ function assertItems(data: readonly unknown[], endpoint: string, requireId: bool
   });
 }
 
-/**
- * Normalise and validate a list of state codes: trims, upper-cases, de-duplicates
- * (preserving order) and rejects anything not among the 16 known codes (see
- * {@link statesProblem}) with a HochwasserzentralenValidationError ("Invalid
- * states: <reason>") — so a typo never becomes a silently-dropped filter that
- * returns the full nationwide set. Idempotent; the CLI's --states uses it too.
- */
-export function normalizeStates(states: readonly string[]): string[] {
-  assertValid("states", states, statesProblem);
-  const out: string[] = [];
-  for (const raw of states) {
-    const code = raw.trim().toUpperCase();
-    if (code !== "" && !out.includes(code)) out.push(code);
-  }
-  return out;
-}
 
 /**
  * Check the library parameters before any request: `states` must be an array of
@@ -243,8 +235,12 @@ export class HochwasserzentralenClient {
           `the LHP lists about 1600 gauges, so this is an upstream fault. Try again later.`,
       );
     }
-    if (params.water === undefined && params.minClass === undefined) return res;
-    return filterStations(res, {
+    // The API filters by `states` itself, but nothing checked that it did: a server that
+    // ignores the parameter (a mirror, a proxy, an upstream regression) let a Bavarian
+    // gauge raise an RP alarm. Keep only the requested states' gauges.
+    const scoped = params.states === undefined ? res : onlyStates(res, normalizeStates(params.states));
+    if (params.water === undefined && params.minClass === undefined) return scoped;
+    return filterStations(scoped, {
       ...(params.water !== undefined ? { water: params.water } : {}),
       ...(params.minClass !== undefined ? { minClass: params.minClass } : {}),
     });
@@ -254,7 +250,8 @@ export class HochwasserzentralenClient {
    * A per-state flood overview aggregated from /data/stations (one request): station
    * count per lhpClass and the worst class per state and nationwide, with the CC BY
    * attribution and `updated` timestamp of the response. Every requested state (or
-   * all 16) is listed, also one without a gauge (`stations: 0`, `worstClass: null`);
+   * all 16) is listed, also one without a gauge (`stations: 0`, `worstClass: null`),
+   * and only the requested states' gauges count, whatever the server sent;
    * a null lhpClass counts in "-1"; an off-scale lhpClass rejects with a
    * HochwasserzentralenParseError. See {@link aggregateSituation}.
    */
@@ -265,6 +262,6 @@ export class HochwasserzentralenClient {
       ...(states !== undefined ? { states } : {}),
       ...(params.lang !== undefined ? { lang: params.lang } : {}),
     });
-    return aggregateSituation(res, states ?? STATE_CODES);
+    return aggregateSituation(res, states);
   }
 }

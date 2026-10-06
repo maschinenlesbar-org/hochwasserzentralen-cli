@@ -5,7 +5,7 @@
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
-import { assertValid, knownKeysProblem, minClassProblem, nonBlankProblem } from "./validate.js";
+import { assertValid, knownKeysProblem, minClassProblem, nonBlankProblem, statesProblem } from "./validate.js";
 
 /**
  * Fold a water name for the case-insensitive `water` match: NFC (a decomposed
@@ -75,13 +75,46 @@ export function filterStations(res: StationsResponse, filter: StationFilter): St
   return { ...res, data };
 }
 
-/** The state code a station belongs to: "DE-BE" -> "BE", else the id prefix ("BE_5803500" -> "BE"). */
+/**
+ * Normalise and validate a list of state codes: trims, upper-cases, de-duplicates
+ * (preserving order) and rejects anything not among the 16 known codes (see
+ * {@link statesProblem}) with a HochwasserzentralenValidationError ("Invalid
+ * states: <reason>") — so a typo never becomes a silently-dropped filter that
+ * returns the full nationwide set. Idempotent; the CLI's --states uses it too.
+ */
+export function normalizeStates(states: readonly string[]): string[] {
+  assertValid("states", states, statesProblem);
+  const out: string[] = [];
+  for (const raw of states) {
+    const code = raw.trim().toUpperCase();
+    if (code !== "" && !out.includes(code)) out.push(code);
+  }
+  return out;
+}
+
+/**
+ * The state code a station belongs to, upper-cased: from its `stateId` ("DE-BE" -> "BE",
+ * also "DE-be"), else from the id prefix ("BE_5803500" -> "BE"). A station whose state
+ * can't be read that way keeps what it has (an unknown "DE-XX" gives "XX", an id without
+ * "_" the whole id), so the nationwide overview lists it rather than losing a gauge.
+ */
 function stateOf(station: Station): string {
-  if (typeof station.stateId === "string" && station.stateId.startsWith("DE-")) {
-    return station.stateId.slice(3);
+  if (typeof station.stateId === "string" && /^DE-/i.test(station.stateId)) {
+    return station.stateId.slice(3).toUpperCase();
   }
   const idx = station.id.indexOf("_");
-  return idx > 0 ? station.id.slice(0, idx) : station.id;
+  return (idx > 0 ? station.id.slice(0, idx) : station.id).toUpperCase();
+}
+
+/**
+ * The response with only the stations of `states` (upper-case codes as `normalizeStates`
+ * returns them), by {@link stateOf}; the envelope is kept, the input not changed. The
+ * client applies it to every `states` request, so the answer never depends on the server
+ * honouring `?states=`.
+ */
+export function onlyStates(res: StationsResponse, states: readonly string[]): StationsResponse {
+  const wanted = new Set(states);
+  return { ...res, data: res.data.filter((s) => wanted.has(stateOf(s))) };
 }
 
 /**
@@ -148,14 +181,21 @@ function classNamer(res: StationsResponse): (lhpClass: number) => string {
 }
 
 /**
- * Aggregate a /data/stations response into a per-state overview (pure). Every
- * state in `states` (upper-case codes as `normalizeStates` returns them; default
- * all 16) is listed, also one without a gauge in the data: `stations: 0`,
- * `worstClass: null` — "no gauges" is not the same as class -1 "Derzeit keine
- * Daten". A null `lhpClass` counts in the "-1" bucket; an off-scale one throws
- * (see {@link stationClass}). `client.situation()` fetches and aggregates in one call.
+ * Aggregate a /data/stations response into a per-state overview (pure). With `states`
+ * (normalised like `normalizeStates`: trimmed, upper-cased, checked against the 16
+ * codes, else a HochwasserzentralenValidationError), the overview covers exactly those
+ * states: each is listed, also one without a gauge in the data (`stations: 0`,
+ * `worstClass: null` — "no gauges" is not the same as class -1 "Derzeit keine Daten"),
+ * and a gauge of any other state in the body is left out of the counts and the national
+ * worst class (a server that ignored `?states=` can't change the answer). Without
+ * `states`, all 16 are listed and every gauge counts; one whose state isn't among the 16
+ * gets an entry of its own rather than being lost. A null `lhpClass` counts in the "-1"
+ * bucket; an off-scale one throws (see {@link stationClass}). `client.situation()`
+ * fetches and aggregates in one call.
  */
-export function aggregateSituation(res: StationsResponse, states: readonly string[] = STATE_CODES): Situation {
+export function aggregateSituation(res: StationsResponse, states?: readonly string[]): Situation {
+  const requested = states === undefined ? undefined : normalizeStates(states);
+  const included = requested === undefined ? res : onlyStates(res, requested);
   const nameOf = classNamer(res);
   // Serialises as "0".."4","-1" (see StateSituation.classes).
   const emptyClasses = (): Record<string, number> => ({ "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "-1": 0 });
@@ -169,10 +209,11 @@ export function aggregateSituation(res: StationsResponse, states: readonly strin
     }
     return entry;
   };
-  for (const state of states) entryFor(state, `DE-${state}`);
-  for (const s of res.data) {
+  for (const state of requested ?? STATE_CODES) entryFor(state, `DE-${state}`);
+  for (const s of included.data) {
     const state = stateOf(s);
-    const entry = entryFor(state, s.stateId ?? `DE-${state}`);
+    const known = (STATE_CODES as readonly string[]).includes(state);
+    const entry = entryFor(state, known ? `DE-${state}` : (s.stateId ?? state));
     entry.stations += 1;
     // `lhpClass: null` ("Ohne Hochwasser-Einstufung"), which occurs live, counts
     // in "-1" — see GLOSSARY.md. An off-scale value throws (stationClass).
@@ -199,7 +240,7 @@ export function aggregateSituation(res: StationsResponse, states: readonly strin
     licence: res.licence,
     licenceName: res.licenceName,
     updated: res.updated,
-    totalStations: res.data.length,
+    totalStations: included.data.length,
     worstClass,
     worstClassName: worstClass === null ? null : nameOf(worstClass),
     states: sorted,

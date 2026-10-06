@@ -7,8 +7,8 @@ import {
   HochwasserzentralenValidationError,
 } from "../src/client/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/client/geojson.js";
-import type { AlertsResponse, Station } from "../src/client/types.js";
-import { aggregateSituation, filterStations, foldName, stationClass } from "../src/client/stations.js";
+import type { AlertsResponse, Station, StationsResponse } from "../src/client/types.js";
+import { aggregateSituation, filterStations, foldName, onlyStates, stationClass } from "../src/client/stations.js";
 import * as lib from "../src/index.js";
 import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -264,15 +264,16 @@ test("situation() makes one /data/stations request and aggregates it per state",
   assert.equal(sit.worstClassName, "Großes Hochwasser");
   assert.equal(sit.licenceName, fx.stationsJson.licenceName);
   assert.equal(sit.updated, fx.stationsJson.updated);
-  // The library normalises the requested states itself; HH has no gauge but is listed.
+  // The library normalises the requested states itself; HH has no gauge but is listed,
+  // and the BE gauges the mock sent although only BY,HH were asked for are left out.
   assert.deepEqual(
     sit.states.map((s) => [s.state, s.stations, s.worstClass]),
     [
       ["BY", 2, 3],
-      ["BE", 2, 2],
       ["HH", 0, null],
     ],
   );
+  assert.equal(sit.totalStations, 2);
 });
 
 test("situation() rejects a bad states / lang before any request", async () => {
@@ -395,4 +396,42 @@ test("stations() combines states, lang and the filters without tripping the filt
   const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
   const c = new HochwasserzentralenClient({ transport: mt.transport });
   await assert.doesNotReject(c.stations({ states: ["BE"], lang: "en", water: "spree", minClass: 0 }));
+});
+
+test("a server that ignores ?states= can't change the answer: only the requested states' gauges count", async () => {
+  // Result 01 Bug 1: the live body with a Bavarian gauge at class 3, served for --states RP.
+  const body = {
+    ...fx.stationsJson,
+    data: [
+      { kind: "Station", id: "RP_1", stateId: "DE-RP", water: "Rhein", lhpClass: 0 },
+      { kind: "Station", id: "BY_10026293", stateId: "DE-BY", water: "Donau", lhpClass: 3 },
+      { kind: "Station", id: "XX_1", stateId: "DE-XX", water: "Nirgendwo", lhpClass: 4 },
+    ],
+  } as unknown as StationsResponse;
+  const c = new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(body)).transport });
+  const rp = await c.situation({ states: ["RP"] });
+  assert.equal(rp.worstClass, 0);
+  assert.equal(rp.totalStations, 1);
+  assert.deepEqual(rp.states.map((s) => s.state), ["RP"]);
+  assert.deepEqual((await c.stations({ states: ["RP"], minClass: 1 })).data, []);
+  assert.deepEqual((await c.stations({ states: ["rp"] })).data.map((s) => s.id), ["RP_1"]);
+  // Nationwide, no gauge is lost: the unknown state gets an entry of its own and counts.
+  const all = await c.situation();
+  assert.equal(all.worstClass, 4);
+  assert.ok(all.states.some((s) => s.state === "XX" && s.stations === 1));
+});
+
+test("odd stateIds are read case-insensitively and fall back to the id prefix", () => {
+  const body = {
+    ...fx.stationsJson,
+    data: [
+      { kind: "Station", id: "BY_1", stateId: "DE-by", lhpClass: 4 },
+      { kind: "Station", id: "BY_2", stateId: "DE-BY", lhpClass: 3 },
+      { kind: "Station", id: "by_3", lhpClass: 1 },
+    ],
+  } as unknown as StationsResponse;
+  const by = aggregateSituation(body, ["by"]);
+  assert.deepEqual(by.states.map((s) => [s.state, s.stateId, s.stations, s.worstClass]), [["BY", "DE-BY", 3, 4]]);
+  assert.throws(() => aggregateSituation(body, ["XX"]), HochwasserzentralenValidationError);
+  assert.deepEqual(onlyStates(body, ["BY"]).data.length, 3);
 });
