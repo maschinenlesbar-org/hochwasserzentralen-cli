@@ -76,7 +76,7 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
       once(parseIntArg),
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    .option("-o, --output <file>", "write output to this file instead of stdout", once(parseOutputPath))
+    .option("-o, --output <file>", "write output to this file instead of stdout (- = stdout)", once(parseOutputPath))
     .option("--force", "overwrite the --output file if it already exists")
     .showHelpAfterError();
 

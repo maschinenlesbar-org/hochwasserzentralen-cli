@@ -244,6 +244,8 @@ usage error into 0); any other output error exits 1.
   refused too and never written through; GeoJSON writes additionally report the
   feature count. (This is stricter than some siblings — deliberate here, since
   the flagship use-case is file export.)
+  `-o -` means stdout, as in other Unix tools — the same as no `-o`; it used to
+  create a file named `-` (`test/conformance-p12-output-dash.test.ts`).
 - **CC BY 4.0 plumbing:** the API envelope's `source*`/`licence*`/`updated`
   fields are never stripped — they survive filtering (`--water`/`--min-class`),
   appear in the `situation` aggregate, and ride along as GeoJSON foreign members.

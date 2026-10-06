@@ -71,7 +71,8 @@ export function choiceOption(flags: string, description: string, choices: readon
 
 /**
  * commander value-parser for `-o, --output <file>`. A blank or whitespace-only path
- * is a usage error: `-o ""` used to print to stdout silently.
+ * is a usage error: `-o ""` used to print to stdout silently. `-` is kept as is and
+ * means stdout (see {@link action}).
  */
 export function parseOutputPath(value: string): string {
   return parseNonEmpty(value);
@@ -287,6 +288,9 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // `-o -` means stdout, as in other Unix tools: from here on it is the same as no -o
+    // (it used to create a file named "-", and the next run refused to overwrite it).
+    if (global.output === "-") delete global.output;
     // Refuse an existing --output file before any request, so the refusal costs no
     // download (and no wait up to --timeout). writeOutputFile checks again at write
     // time with an exclusive create, which also catches a file that appears meanwhile.
