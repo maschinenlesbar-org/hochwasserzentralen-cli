@@ -205,6 +205,9 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `-o, --output <file>` | Write output to this file instead of stdout |
 | `--force` | Overwrite the `--output` file if it already exists |
 
+Every value option takes one value: giving it twice (`--min-class 3 --min-class 1`) is a
+usage error (exit `2`), not "the last one wins". Only `--states` collects repeats.
+
 ## Learn more
 
 - **[SKILLS.md](SKILLS.md)** — Claude Code Agent Skills that drive this CLI for live flood questions.

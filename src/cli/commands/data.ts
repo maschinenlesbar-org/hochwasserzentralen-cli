@@ -11,7 +11,16 @@
 import type { Command } from "commander";
 import { Option } from "commander";
 import type { CliDeps } from "../io.js";
-import { action, parseMinClass, parseNonEmpty, parseStates, renderGeoJson, renderJson } from "../shared.js";
+import {
+  action,
+  choiceOption,
+  once,
+  parseMinClass,
+  parseNonEmpty,
+  parseStates,
+  renderGeoJson,
+  renderJson,
+} from "../shared.js";
 import { LANGS, type Lang } from "../../client/types.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
 
@@ -31,9 +40,9 @@ function statesOption(): Option {
   });
 }
 
-/** The shared --lang option, validated by commander's own .choices(). */
+/** The shared --lang option, validated by commander's own .choices(), given at most once. */
 function langOption(): Option {
-  return new Option("--lang <lang>", `response language: ${LANGS.join(" | ")}`).choices([...LANGS]);
+  return choiceOption("--lang <lang>", `response language: ${LANGS.join(" | ")}`, LANGS);
 }
 
 /** Read the states/lang pair off a parsed-options object. */
@@ -71,12 +80,12 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .option(
       "--water <name>",
       "only stations whose water (river) name contains this text (case-insensitive; ß = ss, umlauts in any Unicode form)",
-      parseNonEmpty,
+      once(parseNonEmpty),
     )
     .option(
       "--min-class <n>",
       "only stations with lhpClass >= n (-1 no data .. 4 sehr großes Hochwasser; gauges without a class are dropped)",
-      parseMinClass,
+      once(parseMinClass),
     )
     .option("--geojson", "output the stations as a GeoJSON FeatureCollection of points")
     .action(

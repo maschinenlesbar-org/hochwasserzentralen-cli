@@ -2,7 +2,7 @@
 // option resolver, and the JSON / GeoJSON renderers.
 
 import type { Command } from "commander";
-import { InvalidArgumentError } from "commander";
+import { InvalidArgumentError, Option } from "commander";
 import type { CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
@@ -44,6 +44,29 @@ export function parseNonEmpty(value: string): string {
   const problem = nonBlankProblem(value);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
   return value;
+}
+
+/**
+ * Wrap a commander value-parser for a single-valued option so that a second
+ * occurrence is a usage error. commander otherwise keeps only the last value, so
+ * `--min-class 3 --min-class 1` silently became `--min-class 1`. (The option must have
+ * no default: commander passes the default as `previous` on the first occurrence.)
+ */
+export function once<T>(parse: (value: string) => T): (value: string, previous: T | undefined) => T {
+  return (value, previous) => {
+    if (previous !== undefined) {
+      throw new InvalidArgumentError("Given more than once; this option takes a single value.");
+    }
+    return parse(value);
+  };
+}
+
+/** An Option constrained to a fixed set of choices, given at most once. */
+export function choiceOption(flags: string, description: string, choices: readonly string[]): Option {
+  const option = new Option(flags, description).choices([...choices]);
+  // Keep commander's choice check (and the choices in --help), and reject a repeat.
+  const check = option.parseArg as (value: string, previous: unknown) => string;
+  return option.argParser(once((value: string) => check(value, undefined)));
 }
 
 /**

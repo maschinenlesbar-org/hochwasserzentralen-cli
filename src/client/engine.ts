@@ -27,7 +27,20 @@ import {
   credentialsIn,
   redactCredentials,
 } from "./errors.js";
-import { assertValid, baseUrlProblem, headerNameProblem, headerValueProblem } from "./validate.js";
+import { assertValid, baseUrlProblem, headerNameProblem, headerValueProblem, knownKeysProblem } from "./validate.js";
+
+/** The keys {@link EngineOptions} has; any other key is a HochwasserzentralenValidationError. */
+export const ENGINE_OPTION_KEYS = [
+  "baseUrl",
+  "transport",
+  "userAgent",
+  "defaultHeaders",
+  "timeoutMs",
+  "maxRetries",
+  "retryDelayMs",
+  "maxResponseBytes",
+  "sleep",
+] as const;
 
 export const DEFAULT_BASE_URL = "https://api.hochwasserzentralen.de/public/v1";
 /**
@@ -368,6 +381,8 @@ export class RequestEngine {
   private readonly sleep: (ms: number) => Promise<void>;
 
   constructor(options: EngineOptions = {}) {
+    // A misspelled option (`timeout`, `maxRetry`) was ignored and its default used.
+    assertValid("options", options, knownKeysProblem(ENGINE_OPTION_KEYS));
     // The raw value is checked before the trailing-slash strip; only an omitted
     // baseUrl selects the default.
     this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);

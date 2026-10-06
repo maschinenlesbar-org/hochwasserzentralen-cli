@@ -10,7 +10,7 @@ import { defaultIO } from "./io.js";
 import { HochwasserzentralenClient } from "../client/client.js";
 import { DEFAULT_BASE_URL, MAX_RETRIES } from "../client/engine.js";
 import { MAX_TIMEOUT_MS } from "../client/http.js";
-import { parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, parseOutputPath } from "./shared.js";
+import { once, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, parseOutputPath } from "./shared.js";
 import { registerCommands } from "./commands/data.js";
 
 /**
@@ -52,21 +52,31 @@ export function buildProgram(deps: CliDeps = defaultDeps): Command {
         "(see DATA_LICENSE.md).",
     )
     .version(VERSION)
-    .option("--base-url <url>", "API base URL (append /test for the LHP test system)", parseBaseUrl, DEFAULT_BASE_URL)
+    // Every value option takes one value: a repeat is a usage error (once), not "last
+    // one wins". --base-url therefore has no commander default; the library's applies.
+    .option(
+      "--base-url <url>",
+      `API base URL (default: ${DEFAULT_BASE_URL}; append /test for the LHP test system)`,
+      once(parseBaseUrl),
+    )
     .option(
       "--timeout <ms>",
       "time limit per request in ms, whole response included (0 = no timeout)",
-      parseBoundedInt(0, MAX_TIMEOUT_MS),
+      once(parseBoundedInt(0, MAX_TIMEOUT_MS)),
     )
-    .option("--user-agent <ua>", "User-Agent header value", parseHeaderValue)
-    .option("--max-retries <n>", "retries for transient 429/503 responses and reset connections (0..10)", parseBoundedInt(0, MAX_RETRIES))
+    .option("--user-agent <ua>", "User-Agent header value", once(parseHeaderValue))
+    .option(
+      "--max-retries <n>",
+      "retries for transient 429/503 responses and reset connections (0..10)",
+      once(parseBoundedInt(0, MAX_RETRIES)),
+    )
     .option(
       "--max-response-bytes <n>",
       "cap response body size in bytes (0 = unlimited; default 100 MiB)",
-      parseIntArg,
+      once(parseIntArg),
     )
     .option("--compact", "print JSON on a single line instead of pretty-printed")
-    .option("-o, --output <file>", "write output to this file instead of stdout", parseOutputPath)
+    .option("-o, --output <file>", "write output to this file instead of stdout", once(parseOutputPath))
     .option("--force", "overwrite the --output file if it already exists")
     .showHelpAfterError();
 

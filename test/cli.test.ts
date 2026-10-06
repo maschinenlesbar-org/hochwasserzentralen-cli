@@ -561,3 +561,18 @@ test("a nationwide /data/stations answer without any station is an error, not an
   const hh = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
   assert.equal(await run(["situation", "--states", "HH"], hh.deps), 0);
 });
+
+test("a single-value option given twice is a usage error, not last-one-wins", async () => {
+  for (const argv of [
+    ["--base-url", "http://127.0.0.1:9/a", "--base-url", "http://127.0.0.1:9/b", "alerts"],
+    ["--timeout", "1000", "--timeout", "2000", "alerts"],
+    ["-o", "a.json", "-o", "b.json", "alerts"],
+    ["alerts", "--lang", "de", "--lang", "en"],
+    ["stations", "--water", "Elbe", "--water", "Rhein"],
+  ]) {
+    const cli = makeCli(() => jsonResponse(fx.alertsJson));
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /more than once/);
+  }
+});

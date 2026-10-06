@@ -28,6 +28,26 @@ export function assertValid<T>(name: string, value: T, problem: Problem<T>): T {
 }
 
 /**
+ * An options object must be a plain object (or `undefined`, for "none") whose own keys
+ * are all in `known`. A misspelled or unknown key (`States`, `timeout`, `minclass`), or a
+ * `__proto__` key from `JSON.parse`, used to be ignored without a word, so
+ * `stations({ Water: "elbe" })` returned every gauge in Germany. Returns a `Problem`
+ * naming the first unknown key (cut, JSON-quoted) and the known ones.
+ */
+export function knownKeysProblem(known: readonly string[]): Problem<unknown> {
+  return (value) => {
+    if (value === undefined) return undefined;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
+    for (const key of Object.keys(value)) {
+      if (!known.includes(key)) {
+        return `Unknown key ${JSON.stringify(key.slice(0, 60))}; expected one of ${known.join(", ")}.`;
+      }
+    }
+    return undefined;
+  };
+}
+
+/**
  * A free-text or filter value must be a string with something besides whitespace
  * in it: a blank `water` filter would otherwise match every station (or none).
  */

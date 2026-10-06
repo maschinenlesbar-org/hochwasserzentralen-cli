@@ -5,6 +5,7 @@ export type { HochwasserzentralenClientOptions } from "./client.js";
 export {
   RequestEngine,
   DEFAULT_BASE_URL,
+  ENGINE_OPTION_KEYS,
   TEST_BASE_URL,
   MAX_RETRIES,
   MAX_RETRY_AFTER_MS,
@@ -23,6 +24,7 @@ export {
   baseUrlProblem,
   headerNameProblem,
   headerValueProblem,
+  knownKeysProblem,
   minClassProblem,
   nonBlankProblem,
   statesProblem,

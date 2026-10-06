@@ -378,3 +378,21 @@ test("an envelope status other than success is a HochwasserzentralenApiError wit
   const c = new HochwasserzentralenClient({ transport: makeMockTransport(() => jsonResponse(missing)).transport });
   await assert.rejects(c.alerts(), HochwasserzentralenParseError);
 });
+
+test("unknown keys in client options, method params and the station filter are validation errors", async () => {
+  assert.throws(() => new HochwasserzentralenClient({ timeout: 5 } as never), /Unknown key "timeout"/);
+  const mt = makeMockTransport(() => jsonResponse(fx.alertsJson));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.rejects(c.alerts({ State: ["BY"] } as never), HochwasserzentralenValidationError);
+  await assert.rejects(c.alerts({ cap: "yes" } as never), /Invalid cap/);
+  await assert.rejects(c.situation({ water: "elbe" } as never), /Unknown key "water"/);
+  assert.equal(mt.calls.length, 0);
+  assert.throws(() => filterStations(fx.stationsJson, { Water: "elbe" } as never), HochwasserzentralenValidationError);
+  assert.throws(() => filterStations(fx.stationsJson, undefined as never), HochwasserzentralenValidationError);
+});
+
+test("stations() combines states, lang and the filters without tripping the filter's key check", async () => {
+  const mt = makeMockTransport(() => jsonResponse(fx.stationsJson));
+  const c = new HochwasserzentralenClient({ transport: mt.transport });
+  await assert.doesNotReject(c.stations({ states: ["BE"], lang: "en", water: "spree", minClass: 0 }));
+});

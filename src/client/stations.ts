@@ -2,10 +2,10 @@
 // CLI: the lhpClass scale check and the per-state situation overview. The API
 // offers no server-side aggregation, so this is the one place it is computed.
 
-import { HochwasserzentralenParseError } from "./errors.js";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
-import { assertValid, minClassProblem, nonBlankProblem } from "./validate.js";
+import { assertValid, knownKeysProblem, minClassProblem, nonBlankProblem } from "./validate.js";
 
 /**
  * Fold a water name for the case-insensitive `water` match: NFC (a decomposed
@@ -22,6 +22,9 @@ export function foldName(text: string): string {
     .replace(/[\u2010-\u2015\u2212]/g, "-");
 }
 
+/** The keys a {@link StationFilter} has; any other key is a validation error. */
+const STATION_FILTER_KEYS = ["water", "minClass"] as const;
+
 /** The client-side station filters (see {@link filterStations}). */
 export interface StationFilter {
   /** Only stations whose water name contains this text (see {@link foldName}). */
@@ -36,6 +39,9 @@ export interface StationFilter {
  * HochwasserzentralenValidationError is thrown. `undefined` means "not given".
  */
 export function assertStationFilter(filter: StationFilter): void {
+  if (typeof filter !== "object" || filter === null || Array.isArray(filter)) {
+    throw new HochwasserzentralenValidationError("Invalid filter: Expected an object.");
+  }
   if (filter.water !== undefined) assertValid("water", filter.water, nonBlankProblem);
   if (filter.minClass !== undefined) assertValid("minClass", filter.minClass, minClassProblem);
 }
@@ -51,6 +57,8 @@ export function assertStationFilter(filter: StationFilter): void {
  * HochwasserzentralenValidationError.
  */
 export function filterStations(res: StationsResponse, filter: StationFilter): StationsResponse {
+  // A misspelled key (`Water`, `minclass`) used to be ignored, returning every station.
+  assertValid("filter", filter as unknown, knownKeysProblem(STATION_FILTER_KEYS));
   assertStationFilter(filter);
   let data = res.data;
   const { water, minClass } = filter;

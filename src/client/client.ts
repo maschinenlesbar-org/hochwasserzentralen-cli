@@ -29,7 +29,12 @@ import {
   type StationsParams,
   type StationsResponse,
 } from "./types.js";
-import { assertValid, statesProblem } from "./validate.js";
+import { assertValid, knownKeysProblem, statesProblem } from "./validate.js";
+
+/** The keys each method's parameter object takes; any other key is a validation error. */
+const ALERTS_KEYS = ["states", "cap", "lang"] as const;
+const STATIONS_KEYS = ["states", "lang", "water", "minClass"] as const;
+const SITUATION_KEYS = ["states", "lang"] as const;
 import { aggregateSituation, assertStationFilter, filterStations, type Situation } from "./stations.js";
 
 /** The endpoint paths (relative to the base URL). Both are GET. */
@@ -152,7 +157,9 @@ export function normalizeStates(states: readonly string[]): string[] {
  * `lang` one of LANGS (an unsupported value was silently ignored upstream, and a
  * CR/LF in it failed as an untyped header TypeError).
  */
-function checkParams(params: { states?: unknown; lang?: unknown }): void {
+function checkParams(params: { states?: unknown; lang?: unknown }, keys: readonly string[]): void {
+  // A misspelled key (`States`, `minclass`) used to be ignored, returning the nationwide set.
+  assertValid("params", params as unknown, knownKeysProblem(keys));
   const { states, lang } = params;
   if (states !== undefined && (!Array.isArray(states) || !states.every((s) => typeof s === "string"))) {
     throw new HochwasserzentralenValidationError(
@@ -197,7 +204,12 @@ export class HochwasserzentralenClient {
    * `cap: true` adds the Common Alerting Protocol detail block per alert.
    */
   async alerts(params: AlertsParams = {}): Promise<AlertsResponse> {
-    checkParams(params);
+    checkParams(params, ALERTS_KEYS);
+    if (params.cap !== undefined && typeof params.cap !== "boolean") {
+      throw new HochwasserzentralenValidationError(
+        `Invalid cap: expected true or false, got ${cutForMessage(JSON.stringify(params.cap) ?? String(params.cap))}.`,
+      );
+    }
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
     if (params.cap === true) query["cap"] = true;
@@ -215,7 +227,7 @@ export class HochwasserzentralenClient {
    * {@link filterStations}); a bad value rejects before any request.
    */
   async stations(params: StationsParams = {}): Promise<StationsResponse> {
-    checkParams(params);
+    checkParams(params, STATIONS_KEYS);
     assertStationFilter(params);
     const query: QueryParams = {};
     if (params.states !== undefined) query["states"] = normalizeStates(params.states).join(",");
@@ -232,7 +244,10 @@ export class HochwasserzentralenClient {
       );
     }
     if (params.water === undefined && params.minClass === undefined) return res;
-    return filterStations(res, params);
+    return filterStations(res, {
+      ...(params.water !== undefined ? { water: params.water } : {}),
+      ...(params.minClass !== undefined ? { minClass: params.minClass } : {}),
+    });
   }
 
   /**
@@ -244,7 +259,7 @@ export class HochwasserzentralenClient {
    * HochwasserzentralenParseError. See {@link aggregateSituation}.
    */
   async situation(params: SituationParams = {}): Promise<Situation> {
-    checkParams(params);
+    checkParams(params, SITUATION_KEYS);
     const states = params.states !== undefined ? normalizeStates(params.states) : undefined;
     const res = await this.stations({
       ...(states !== undefined ? { states } : {}),

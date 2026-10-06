@@ -146,6 +146,12 @@ control characters or a `%` in its userinfo that isn't an escape (write `%25`) (
 allowed; only an omitted `userAgent` selects the default `hochwasserzentralen-cli`),
 and header names RFC 9110 tokens (`assertHeaderValue`, `headerValueProblem`,
 `headerNameProblem`); otherwise the constructor throws.
+The options object, each method's parameter object and `filterStations`' filter take only
+their documented keys (`ENGINE_OPTION_KEYS`; `states`/`cap`/`lang` for `alerts()`,
+`states`/`lang`/`water`/`minClass` for `stations()`, `states`/`lang` for `situation()`,
+`water`/`minClass` for the filter): a misspelled or unknown key (`timeout`, `States`,
+`minclass`, a `__proto__` from `JSON.parse`) throws a `HochwasserzentralenValidationError`
+naming it (`knownKeysProblem`) instead of being ignored. `cap` must be a boolean.
 `alerts()`/`stations()`/`situation()` reject a `states` that is not an array of strings and a
 `lang` other than `de`/`en` before any request, and `stations()` a blank or non-string
 `water` and a `minClass` that is not an integer from -1 to 4. Both are
@@ -217,6 +223,13 @@ usage error into 0); any other output error exits 1.
   nationwide set. The rules are the library's: `--states` splits the comma list and
   calls the exported `statesProblem` / `normalizeStates`, the same check (and the same
   message) `alerts()`/`stations()`/`situation()` apply for library users.
+- **A value option takes one value.** Given twice (`--min-class 3 --min-class 1`,
+  `--base-url a --base-url b`), it is a usage error (exit 2, `once()` in `shared.ts`)
+  instead of commander's "last one wins"; `--states` is the exception and collects
+  (`--states BY --states SN` = `--states BY,SN`). `--base-url` therefore has no
+  commander default — the library's `DEFAULT_BASE_URL` applies.
+  `test/conformance-p10-strict-filters.test.ts` covers keys, codes, value types and
+  the repeated flags.
 - **`-o/--output` never silently overwrites.** An existing file is refused with
   exit 2 unless `--force` is passed, before any request is sent (the `action()`
   wrapper in `shared.ts`), and again at write time. The check uses `lstat` and the write is an
