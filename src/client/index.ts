@@ -39,6 +39,9 @@ export {
   HochwasserzentralenNetworkError,
   HochwasserzentralenValidationError,
   HochwasserzentralenParseError,
+  credentialsIn,
+  redactCredentials,
+  redactUrl,
 } from "./errors.js";
 
 export * from "./types.js";

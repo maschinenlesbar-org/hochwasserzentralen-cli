@@ -185,6 +185,17 @@ src/
   (CLI exit 1 with a hint). The canonical host answers directly; since no redirect
   is ever followed, credential headers can never leak across hosts (this client
   is keyless anyway).
+- **Credentials in `--base-url` never reach the output.** A `user:password@` in the
+  base URL (a mirror behind a login) is sent as Basic auth, but never printed.
+  `credentialsIn(value)` finds the exact userinfo of a URL-like value, parseable or not,
+  with a prefix (`--base-url=…`) or without a scheme (`user:pw@host`), and
+  `redactCredentials(text, list)` replaces each `secret@` with `***@`; `redactUrl` falls
+  back to them for a value that doesn't parse. `run()` starts with
+  `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
+  of the value part of `--opt=value`) and redacts every line printed on stdout and stderr
+  — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
+  command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
+  checks ten passwords in seven URL shapes at nine argv positions.
 - **Every option value is validated** — `--states` against the 16 codes (parse
   time, exit 2), `--lang` via commander `.choices()`, `--min-class` bounded to
   -1..4. A typo never becomes a silently-dropped filter that returns the full
