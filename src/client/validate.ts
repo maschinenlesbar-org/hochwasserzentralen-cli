@@ -73,15 +73,25 @@ export const headerNameProblem: Problem<unknown> = (value) =>
     : "Expected an HTTP header name (a token such as X-Request-Id).";
 
 /**
- * Every rule for a base URL, in order: a non-blank string, a parseable URL, the
- * `http:` or `https:` scheme, and no query or fragment — request paths are appended
- * to the base URL as a string, so a `?` or `#` would swallow every path and the
- * `states` filter (`http://h/v1?x=1` requests `/v1?x=1/data/stations`, `http://h/v1#f`
- * requests `/v1`). The reasons never echo the URL.
+ * Every rule for a base URL, in order: a non-blank string without surrounding
+ * whitespace or control characters, a parseable URL, the `http:` or `https:` scheme,
+ * no query or fragment, and userinfo that decodes. Request paths are appended to the
+ * base URL as a string, so a `?` or `#` would swallow every path and the `states`
+ * filter (`http://h/v1?x=1` requests `/v1?x=1/data/stations`, `http://h/v1#f`
+ * requests `/v1`), and a trailing space would land in the path: `new URL()` trims
+ * surrounding whitespace and drops tab/CR/LF silently, so the raw string is checked.
+ * Node decodes a `user:password@` into the Authorization header and fails at request
+ * time on a `%` that isn't an escape, so that is rejected here too (write a literal
+ * `%` as `%25`). The reasons never echo the URL, so a credential in it cannot leak.
  */
 export const baseUrlProblem: Problem<unknown> = (value) => {
   if (typeof value !== "string") return "Expected a string.";
   if (value.trim() === "") return "Expected a non-empty URL.";
+  if (value !== value.trim()) return "A base URL cannot have surrounding whitespace.";
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return "A base URL cannot contain control characters.";
+  }
   let url: URL;
   try {
     url = new URL(value);
@@ -90,6 +100,13 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: base URLs are supported.";
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  for (const part of [url.username, url.password]) {
+    try {
+      decodeURIComponent(part);
+    } catch {
+      return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
+    }
+  }
   return undefined;
 };
 

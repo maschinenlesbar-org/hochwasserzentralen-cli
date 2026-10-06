@@ -139,7 +139,8 @@ new HochwasserzentralenClient({
 The numeric options must be integers in range — `timeoutMs` 0..2³¹−1,
 `maxRetries` 0..10 (`MAX_RETRIES`), `retryDelayMs` 0..30 000
 (`MAX_RETRY_AFTER_MS`), `maxResponseBytes` 0..`Number.MAX_SAFE_INTEGER` — a base
-URL must be a non-blank http(s) URL without a query or fragment (`validateBaseUrl`,
+URL must be a non-blank http(s) URL without a query or fragment, surrounding whitespace,
+control characters or a `%` in its userinfo that isn't an escape (write `%25`) (`validateBaseUrl`,
 `baseUrlProblem`; the CLI's `--base-url` uses the same rule); `userAgent` and every
 `defaultHeaders` value must be non-blank Latin-1 without control characters (tab
 allowed; only an omitted `userAgent` selects the default `hochwasserzentralen-cli`),

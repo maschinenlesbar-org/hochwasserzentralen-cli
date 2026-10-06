@@ -140,6 +140,10 @@ test("baseUrlProblem: blank, unparseable, non-http(s), query or fragment", () =>
   assert.equal(baseUrlProblem("http://h/v1#f"), "A base URL cannot have a query (?) or fragment (#).");
   assert.equal(baseUrlProblem(42), "Expected a string.");
   assert.equal(lib.validateBaseUrl("http://h/v1//"), "http://h/v1");
+  // new URL() trims these silently; a trailing space used to land in the request path.
+  assert.equal(baseUrlProblem("https://u:secret@h/ "), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem(" https://h"), "A base URL cannot have surrounding whitespace.");
+  assert.equal(baseUrlProblem("https://h/a\tb"), "A base URL cannot contain control characters.");
 });
 
 test("statesProblem: known codes only, at least one, blank entries skipped", () => {
