@@ -8,6 +8,7 @@
 // is ever followed, credential headers can never leak across hosts (this client
 // is keyless anyway).
 
+import { TextDecoder } from "node:util";
 import {
   MAX_TIMEOUT_MS,
   nodeHttpTransport,
@@ -201,6 +202,26 @@ export function sanitizeServerText(text: string): string {
     out += ch;
   }
   return out.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Decode a response body by the charset its Content-Type names (UTF-8 when it names
+ * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
+ * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
+ * parse error; a Latin-1 body is no longer misread as UTF-8. An unknown charset label
+ * is a HochwasserzentralenParseError.
+ */
+function decodeBody(body: Buffer, contentType: string, path: string): string {
+  const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
+  let decoder: TextDecoder;
+  try {
+    decoder = new TextDecoder(charset);
+  } catch {
+    throw new HochwasserzentralenParseError(
+      `Unsupported response charset "${sanitizeServerText(charset).slice(0, 100)}" from ${path}.`,
+    );
+  }
+  return decoder.decode(body);
 }
 
 /** Why `value` is not a usable HttpResponse, or undefined when it is. */
@@ -518,7 +539,7 @@ export class RequestEngine {
   /** Perform a GET expecting JSON and parse it into `T`. */
   async getJson<T>(path: string, query?: QueryParams, options: RequestOptions = {}): Promise<T> {
     const res = await this.request(path, query, options);
-    const text = res.data.toString("utf8");
+    const text = decodeBody(res.data, res.contentType, path);
     try {
       return JSON.parse(text) as T;
     } catch (cause) {

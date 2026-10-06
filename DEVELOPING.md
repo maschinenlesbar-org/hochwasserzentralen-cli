@@ -243,7 +243,9 @@ independently of the CLI.
 **Request engine (`RequestEngine`).** [`src/client/engine.ts`](src/client/engine.ts)
 — builds URLs, serialises queries, applies retry/backoff, decodes JSON and maps
 errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
-`TEST_BASE_URL` appends `/test`.
+`TEST_BASE_URL` appends `/test`. A body is decoded by the charset its Content-Type
+names (UTF-8 when it names none; a byte order mark is dropped); an unknown charset label
+is a `HochwasserzentralenParseError`.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
 ([`src/client/http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses Node's

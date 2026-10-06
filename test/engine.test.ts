@@ -257,3 +257,15 @@ test("invalid numeric engine options are rejected at construction", () => {
     () => new RequestEngine({ transport, timeoutMs: 0, maxRetries: 10, retryDelayMs: 0, maxResponseBytes: 0 }),
   );
 });
+
+test("getJson decodes by the declared charset, drops a BOM, and rejects an unknown charset", async () => {
+  const text = "Müller µg/l";
+  for (const [charset, encoding] of [["iso-8859-1", "latin1"], ["utf-8", "utf8"]] as const) {
+    const mt = makeMockTransport(() => rawResponse(Buffer.from(JSON.stringify([text]), encoding), `application/json; charset=${charset}`));
+    assert.deepEqual(await new RequestEngine({ transport: mt.transport }).getJson("/x"), [text], charset);
+  }
+  const bom = makeMockTransport(() => rawResponse(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("[]")]), "application/json"));
+  assert.deepEqual(await new RequestEngine({ transport: bom.transport }).getJson("/x"), []);
+  const unknown = makeMockTransport(() => rawResponse("[]", "application/json; charset=x-bogus"));
+  await assert.rejects(new RequestEngine({ transport: unknown.transport }).getJson("/x"), HochwasserzentralenParseError);
+});
