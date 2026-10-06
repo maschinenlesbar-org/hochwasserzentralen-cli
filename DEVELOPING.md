@@ -243,8 +243,8 @@ errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
 ([`src/client/http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses Node's
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
-**Retry / backoff.** Transient `429` (rate limit) and `503` responses are retried
-automatically up to `maxRetries` (default `2`). A `Retry-After` header (seconds or
+**Retry / backoff.** Transient `429` (rate limit) and `503` responses, and reset
+connections, are retried automatically up to `maxRetries` (default `2`). A `Retry-After` header (seconds or
 HTTP-date as an IMF-fixdate; any other value counts as absent) takes precedence over
 the linear backoff and is clamped to 30 s so a
 hostile value cannot hang the CLI. `HochwasserzentralenApiError` exposes
@@ -252,6 +252,16 @@ hostile value cannot hang the CLI. `HochwasserzentralenApiError` exposes
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory
 exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
+
+**Transport contract.** The engine enforces its limits for *every* transport, not only the
+built-in one: each call races a deadline (`timeoutMs`, passed to the transport as
+`HttpRequest.signal`, which the default transport honours), the body it gets back is checked
+against `maxResponseBytes`, headers are read from a plain object in any key case, a fetch
+`Headers` or a `Map`, the body may be any ArrayBuffer view or an `ArrayBuffer` (from any
+realm), a reset connection (`ECONNRESET`, `EPIPE`, `ECONNABORTED`, undici's
+`UND_ERR_SOCKET`, anywhere in the cause chain) is retried like a 503, and whatever a
+transport throws or returns malformed becomes a `HochwasserzentralenNetworkError`.
+`test/conformance-p5-transport-contract.test.ts` covers it.
 
 **GeoJSON converters.** [`src/client/geojson.ts`](src/client/geojson.ts) — pure
 functions `alertsToGeoJson` / `stationsToGeoJson` producing RFC-7946
