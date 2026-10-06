@@ -371,6 +371,13 @@ npm test          # builds, then runs `node --test` over dist/test
   which sends one input through `run()` and through the library on one recording mock
   transport so a test can assert both give the same outcome.
 
+- **`conformance-*.test.ts`** — the shared checks of the 2026-10-05 fix plan, copied from
+  the sibling repos with only their adapter block changed: P1 CLI output redaction, P2
+  library redaction, P4 base-URL validation (its P19 part is skipped: this CLI reads no
+  environment variable), P5 the transport contract, P6 the retry policy, P7 pipes and
+  exit codes (runs the built bin), P8/P9/P13 charset, envelope and error classes, P10
+  strict keys and repeated flags, P12 `-o -`.
+
 Run one file after building: `node --test dist/test/cli.test.js`.
 
 ## Continuous integration
