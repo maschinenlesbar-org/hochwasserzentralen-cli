@@ -11,7 +11,7 @@
 // `bbox` is computed from the exported features instead, in the RFC 7946 §5
 // order [west, south, east, north].
 
-import type { AlertsResponse, StationsResponse } from "./types.js";
+import type { AlertArea, AlertsResponse, Station, StationsResponse } from "./types.js";
 import { assertValid, responseArgProblem } from "./validate.js";
 
 export interface GeoJsonFeature {
@@ -197,7 +197,7 @@ export function stationsToGeoJson(res: StationsResponse): GeoJsonFeatureCollecti
   const features: GeoJsonFeature[] = [];
   for (const s of res.data) {
     const c = s.coordinates;
-    if (!Array.isArray(c) || c.length < 2 || !isLonLat(c[0], c[1])) continue;
+    if (!hasUsableCoordinates(s) || !Array.isArray(c)) continue;
     features.push({
       type: "Feature",
       geometry: { type: "Point", coordinates: [c[0], c[1]] },
@@ -215,4 +215,26 @@ export function stationsToGeoJson(res: StationsResponse): GeoJsonFeatureCollecti
     });
   }
   return collection(res, features);
+}
+
+/** True for a station whose `coordinates` hold a [lon, lat] position in range. */
+function hasUsableCoordinates(station: Station): boolean {
+  const c = station.coordinates;
+  return Array.isArray(c) && c.length >= 2 && isLonLat(c[0], c[1]);
+}
+
+/**
+ * The alert areas {@link alertsToGeoJson} leaves out because they have no usable
+ * geometry, in response order. A map without them is missing warnings — possibly the most
+ * severe one — so the CLI names them on stderr; a library user can do the same.
+ */
+export function alertsWithoutGeometry(res: AlertsResponse): AlertArea[] {
+  assertValid("res", res as unknown, responseArgProblem);
+  return res.data.filter((a) => !isUsableGeometry(a.geometry));
+}
+
+/** The stations {@link stationsToGeoJson} leaves out because they have no usable coordinates. */
+export function stationsWithoutCoordinates(res: StationsResponse): Station[] {
+  assertValid("res", res as unknown, responseArgProblem);
+  return res.data.filter((s) => !hasUsableCoordinates(s));
 }

@@ -459,3 +459,11 @@ test("odd stateIds are read case-insensitively and fall back to the id prefix", 
   assert.throws(() => aggregateSituation(body, ["XX"]), HochwasserzentralenValidationError);
   assert.deepEqual(onlyStates(body, ["BY"]).data.length, 3);
 });
+
+test("alertsWithoutGeometry / stationsWithoutCoordinates list what the converters leave out", () => {
+  const alerts = { ...fx.alertsJson, data: [{ ...fx.alertsJson.data[0]!, id: "X", geometry: undefined }, fx.alertsJson.data[0]!] };
+  assert.deepEqual(lib.alertsWithoutGeometry(alerts).map((a) => a.id), ["X"]);
+  assert.equal(lib.alertsToGeoJson(alerts).features.length + lib.alertsWithoutGeometry(alerts).length, 2);
+  const stations = { ...fx.stationsJson, data: [{ ...fx.stationsJson.data[0]!, id: "BE_0", coordinates: [200, 95] }, fx.stationsJson.data[0]!] };
+  assert.deepEqual(lib.stationsWithoutCoordinates(stations).map((s) => s.id), ["BE_0"]);
+});

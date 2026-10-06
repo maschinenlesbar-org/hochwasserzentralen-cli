@@ -576,3 +576,28 @@ test("a single-value option given twice is a usage error, not last-one-wins", as
     assert.match(cli.err.join("\n"), /more than once/);
   }
 });
+
+test("--geojson names the alerts it leaves off the map, to a file and to stdout (result 01 Bug 4)", async () => {
+  const good = fx.alertsJson.data[0]!;
+  const body = {
+    ...fx.alertsJson,
+    data: [
+      { ...good, id: "BY_1", lhpClass: "6", lhpClassName: "Sehr großes Hochwasser", areaDesc: "Donau", geometry: null },
+      { ...good, id: "BY_2", geometry: { type: "Point", coordinates: [181, 48] } },
+      good,
+    ],
+  };
+  const toFile = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["alerts", "--geojson", "-o", "map.geojson"], toFile.deps), 0);
+  const err = toFile.err.join("\n");
+  assert.match(err, /^Wrote 1 feature \(\d+ bytes\) to map\.geojson; 2 alerts skipped \(no usable geometry\)$/m);
+  assert.match(err, /^Note: 2 alerts left off the map \(no usable geometry\): BY_1 \(class 6, Sehr großes Hochwasser, Donau\), BY_2/m);
+  const toStdout = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["alerts", "--geojson"], toStdout.deps), 0);
+  assert.equal((JSON.parse(toStdout.out.join("\n")) as { features: unknown[] }).features.length, 1);
+  assert.match(toStdout.err.join("\n"), /^Note: 2 alerts left off the map/);
+  // A complete export says nothing extra.
+  const complete = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["alerts", "--geojson"], complete.deps), 0);
+  assert.equal(complete.err.join("\n"), "");
+});

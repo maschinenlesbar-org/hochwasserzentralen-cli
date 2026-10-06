@@ -79,7 +79,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated; repeatable, `--states BY --states SN` = `BY,SN`) |
 | `--cap` | include the CAP (Common Alerting Protocol) detail block per alert |
 | `--lang <de\|en>` | response language (default `de`) |
-| `--geojson` | output the alert areas as a GeoJSON `FeatureCollection` |
+| `--geojson` | output the alert areas as a GeoJSON `FeatureCollection`; alerts without a usable geometry are left out and named on stderr (`Note: 2 alerts left off the map …`) |
 
 ### `stations` options
 

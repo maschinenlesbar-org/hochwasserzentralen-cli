@@ -22,7 +22,13 @@ import {
   renderJson,
 } from "../shared.js";
 import { LANGS, type Lang } from "../../client/types.js";
-import { alertsToGeoJson, stationsToGeoJson } from "../../client/geojson.js";
+import {
+  alertsToGeoJson,
+  alertsWithoutGeometry,
+  stationsToGeoJson,
+  stationsWithoutCoordinates,
+} from "../../client/geojson.js";
+import { sanitizeServerText } from "../../client/engine.js";
 
 /**
  * The shared --states option (validated comma-separated list, e.g. BY,SN). A
@@ -43,6 +49,18 @@ function statesOption(): Option {
 /** The shared --lang option, validated by commander's own .choices(), given at most once. */
 function langOption(): Option {
   return choiceOption("--lang <lang>", `response language: ${LANGS.join(" | ")}`, LANGS);
+}
+
+/**
+ * A short label for an item a GeoJSON export left out: its id, class and name (server
+ * text, so sanitised and cut), e.g. `BY_577 (class 6, Sehr großes Hochwasser, Donau)`.
+ */
+function label(id: unknown, lhpClass: unknown, ...names: unknown[]): string {
+  const text = (v: unknown): string => sanitizeServerText(String(v)).slice(0, 80);
+  const parts: string[] = lhpClass === undefined || lhpClass === null ? [] : [`class ${text(lhpClass)}`];
+  for (const name of names) if (typeof name === "string" && name.trim() !== "") parts.push(text(name));
+  const detail = parts.join(", ");
+  return `${id === undefined ? "(no id)" : text(id)}${detail === "" ? "" : ` (${detail})`}`;
 }
 
 /** Read the states/lang pair off a parsed-options object. */
@@ -67,8 +85,13 @@ export function registerCommands(program: Command, deps: CliDeps): void {
           ...commonParams(opts),
           ...(opts["cap"] === true ? { cap: true } : {}),
         });
-        if (opts["geojson"] === true) renderGeoJson(deps, global, alertsToGeoJson(res));
-        else renderJson(deps, global, res);
+        if (opts["geojson"] === true) {
+          renderGeoJson(deps, global, alertsToGeoJson(res), {
+            noun: ["alert", "alerts"],
+            reason: "no usable geometry",
+            labels: alertsWithoutGeometry(res).map((a) => label(a.id, a.lhpClass, a.lhpClassName, a.areaDesc)),
+          });
+        } else renderJson(deps, global, res);
       }),
     );
 
@@ -96,8 +119,13 @@ export function registerCommands(program: Command, deps: CliDeps): void {
           ...(opts["water"] !== undefined ? { water: opts["water"] as string } : {}),
           ...(opts["minClass"] !== undefined ? { minClass: opts["minClass"] as number } : {}),
         });
-        if (opts["geojson"] === true) renderGeoJson(deps, global, stationsToGeoJson(res));
-        else renderJson(deps, global, res);
+        if (opts["geojson"] === true) {
+          renderGeoJson(deps, global, stationsToGeoJson(res), {
+            noun: ["station", "stations"],
+            reason: "no usable coordinates",
+            labels: stationsWithoutCoordinates(res).map((s) => label(s.id, s.lhpClass, s.name)),
+          });
+        } else renderJson(deps, global, res);
       }),
     );
 

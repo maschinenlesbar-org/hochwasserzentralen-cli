@@ -109,6 +109,16 @@ confirms what it wrote on stderr:
 Wrote 243 features (130359 bytes) to bayern-pegel.geojson
 ```
 
+Items without a usable geometry (an alert area without a GeoJSON geometry, a gauge
+without coordinates, a position outside ±180/±90) can't go on a map and are left out
+— but never silently: the confirmation adds the count, and a note names them, to a
+file and to stdout alike:
+
+```text
+Wrote 1 feature (13599 bytes) to map.geojson; 2 alerts skipped (no usable geometry)
+Note: 2 alerts left off the map (no usable geometry): BY_1 (class 6, Sehr großes Hochwasser, Donau), BY_2 (class 2, …)
+```
+
 Open the file at https://geojson.io or load it into Leaflet/QGIS. Coordinates
 are `[longitude, latitude]` (RFC 7946), and the collection's `bbox` is
 `[west, south, east, north]` around the exported features. The collection's

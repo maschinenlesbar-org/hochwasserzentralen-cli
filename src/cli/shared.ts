@@ -247,21 +247,46 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   }
 }
 
+/** What a GeoJSON export left out: how many items, of what kind, why, and which. */
+export interface GeoJsonSkipped {
+  /** Singular and plural noun, e.g. ["alert", "alerts"]. */
+  noun: [string, string];
+  /** Why they were left out, e.g. "no usable geometry". */
+  reason: string;
+  /** One short, printable label per item left out (id, class). */
+  labels: string[];
+}
+
 /**
  * Render a GeoJSON FeatureCollection. Same rules as renderJson, but the file
  * confirmation reports the FEATURE COUNT alongside the byte count so the user
- * knows what was exported without opening the file.
+ * knows what was exported without opening the file. Items the converter left out
+ * (`skipped`) are named on stderr — to stdout and to a file alike — so a map that
+ * lacks a warning never looks complete.
  */
-export function renderGeoJson(deps: CliDeps, global: GlobalOptions, fc: GeoJsonFeatureCollection): void {
+export function renderGeoJson(
+  deps: CliDeps,
+  global: GlobalOptions,
+  fc: GeoJsonFeatureCollection,
+  skipped?: GeoJsonSkipped,
+): void {
   const text = escapeControlChars(stringifyJson(fc, global.compact === true));
+  const left = skipped !== undefined && skipped.labels.length > 0 ? skipped : undefined;
+  const leftCount = left === undefined ? "" : `${left.labels.length} ${left.noun[left.labels.length === 1 ? 0 : 1]}`;
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
     writeOutputFile(deps, global, global.output, data);
     deps.io.err(
-      `Wrote ${fc.features.length} feature${fc.features.length === 1 ? "" : "s"} (${data.length} bytes) to ${global.output}`,
+      `Wrote ${fc.features.length} feature${fc.features.length === 1 ? "" : "s"} (${data.length} bytes) to ${global.output}` +
+        (left === undefined ? "" : `; ${leftCount} skipped (${left.reason})`),
     );
   } else {
     deps.io.out(text);
+  }
+  if (left !== undefined) {
+    const shown = left.labels.slice(0, 20).join(", ");
+    const more = left.labels.length > 20 ? `, and ${left.labels.length - 20} more` : "";
+    deps.io.err(`Note: ${leftCount} left off the map (${left.reason}): ${shown}${more}`);
   }
 }
 

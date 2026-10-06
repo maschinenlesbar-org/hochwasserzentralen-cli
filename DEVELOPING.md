@@ -300,7 +300,10 @@ functions `alertsToGeoJson` / `stationsToGeoJson` producing RFC-7946
 FeatureCollections (`[lon, lat]`), skipping items without usable geometry,
 computing `bbox` (`[west, south, east, north]`) from the exported features
 rather than copying the API's `[west, north, east, south]` Germany box, and
-carrying attribution + `updated` as foreign members.
+carrying attribution + `updated` as foreign members. `alertsWithoutGeometry` /
+`stationsWithoutCoordinates` list what the converters leave out; the CLI names those
+items on stderr (`Note: 2 alerts left off the map (no usable geometry): …`) and adds
+the count to the `-o` confirmation, so a map that lacks a warning never looks complete.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
 ([`src/cli/io.ts`](src/cli/io.ts)): a client factory plus an I/O object

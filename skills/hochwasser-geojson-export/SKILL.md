@@ -90,8 +90,13 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 >   separately; never merge them into one colour ramp.
 > - Stations without usable coordinates, and alert areas without a valid
 >   geometry (not a GeoJSON geometry, or a position outside ±180/±90), are
->   skipped by the export automatically; the reported feature count is the
->   count actually written.
+>   skipped by the export; the reported feature count is the count actually
+>   written. When anything was skipped the CLI says so on stderr —
+>   `Wrote 1 feature (…) to map.geojson; 2 alerts skipped (no usable geometry)`
+>   and a `Note: 2 alerts left off the map (no usable geometry): BY_577 (class
+>   6, Sehr großes Hochwasser, …), …` line. **Tell the user which warnings are
+>   missing from the map** (id, class, area), most severe first — a map that
+>   silently lacks a warning reads as complete.
 > - **Border gauges are exported twice**, once per reporting state, as two
 >   points on the same spot with different ids (e.g. Worms, Mainz, Kaub as
 >   `HE_…` and `RP_…`). On 2026-09-15 the Rhine export had 24 features for 21
