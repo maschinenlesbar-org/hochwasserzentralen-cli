@@ -40,6 +40,13 @@ export interface HttpResponse {
   body: Buffer;
 }
 
+/**
+ * One HTTP exchange. A transport must not follow redirects: it resolves with the 3xx as
+ * it came, and the engine reports it (this client follows none). The built-in transport
+ * never follows one; a `fetch`-based transport must pass `redirect: "manual"`, because
+ * fetch follows redirects by default and the engine would then accept another host's
+ * answer without seeing the 3xx.
+ */
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 
 /** The message for a body over the size cap, naming the option on both sides. */

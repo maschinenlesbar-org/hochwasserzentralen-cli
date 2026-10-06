@@ -198,6 +198,9 @@ usage error into 0); any other output error exits 1.
   (CLI exit 1 with a hint). The canonical host answers directly; since no redirect
   is ever followed, credential headers can never leak across hosts (this client
   is keyless anyway).
+  A custom transport must not follow them either: a `fetch`-based one passes
+  `redirect: "manual"` (fetch follows by default, and the engine would then accept
+  another host's answer without seeing the 3xx).
 - **Credentials in `--base-url` never reach the output.** A `user:password@` in the
   base URL (a mirror behind a login) is sent as Basic auth, but never printed.
   `credentialsIn(value)` finds the exact userinfo of a URL-like value, parseable or not,
