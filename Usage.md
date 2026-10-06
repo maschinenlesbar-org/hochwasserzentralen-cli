@@ -50,7 +50,8 @@ hochwasser stations --states BE
 # Only gauges actually showing flood (class >= 1), nationwide
 hochwasser stations --min-class 1
 
-# Gauges on waters whose name contains "Elbe" (case-insensitive; ß = ss, so NEISSE finds "Lausitzer Neiße")
+# Gauges on waters whose name contains "Elbe" (case-insensitive; ß = ss, so NEISSE finds "Lausitzer Neiße";
+# ä/ö/ü = ae/oe/ue, so Roeder finds "Große Röder"; a double space, tab or no-break space counts as one space)
 hochwasser stations --water elbe
 
 # Combine: Saxon Elbe gauges at class >= 2, in English

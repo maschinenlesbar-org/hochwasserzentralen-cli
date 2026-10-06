@@ -79,7 +79,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .addOption(langOption())
     .option(
       "--water <name>",
-      "only stations whose water (river) name contains this text (case-insensitive; ß = ss, umlauts in any Unicode form)",
+      "only stations whose water (river) name contains this text (case-insensitive; ß = ss, ä/ö/ü = ae/oe/ue, any whitespace run = one space)",
       once(parseNonEmpty),
     )
     .option(

@@ -326,6 +326,30 @@ test("foldName folds case, ß, Unicode form and dashes", () => {
   assert.equal(foldName("NEISSE"), "neisse");
   assert.equal(foldName("Spree–Oder-Wasserstraße"), "spree-oder-wasserstrasse");
   assert.equal(foldName("Müritz"), foldName("Müritz"));
+  assert.equal(foldName(" Weiße \u00a0 Elster\t"), "weisse elster");
+  assert.equal(foldName("Große Röder"), "grosse roeder");
+});
+
+test("water finds names across whitespace runs, umlaut spellings and dropped diacritics (result 01 Bugs 2, 3)", () => {
+  const station = (id: string, water: string) => ({ kind: "Station", id, stateId: "DE-SN", water, lhpClass: 0 });
+  const body = {
+    ...fx.stationsJson,
+    data: [
+      station("SN_1", "Weiße Elster"),
+      station("SN_2", "Große Röder"),
+      station("MV_1", "Müritz"),
+      station("SN_3", "Lößnitzbach"),
+      station("SN_4", "Elbe"),
+    ],
+  } as unknown as StationsResponse;
+  const ids = (water: string) => filterStations(body, { water }).data.map((s) => s.id);
+  for (const water of ["Weisse  Elster", "Weisse\u00a0Elster", "Weisse\tElster", "WEISSE ELSTER", " weiße elster "]) {
+    assert.deepEqual(ids(water), ["SN_1"], JSON.stringify(water));
+  }
+  for (const water of ["Roeder", "Röder", "ROEDER", "Roder"]) assert.deepEqual(ids(water), ["SN_2"], water);
+  for (const water of ["Mueritz", "Müritz", "Muritz"]) assert.deepEqual(ids(water), ["MV_1"], water);
+  for (const water of ["Loessnitz", "Lößnitz", "Lossnitz"]) assert.deepEqual(ids(water), ["SN_3"], water);
+  assert.deepEqual(ids("Elbe"), ["SN_4"]);
 });
 
 test("filterStations keeps the envelope, does not change its input and drops null classes", () => {

@@ -208,8 +208,9 @@ export interface StationsParams {
   states?: readonly string[];
   lang?: Lang;
   /**
-   * Only stations whose water (river) name contains this text: trimmed, compared
-   * case-insensitively on the NFC form, `ß` = `ss`, Unicode dashes = `-`. Applied
+   * Only stations whose water (river) name contains this text: compared
+   * case-insensitively on the NFC form, whitespace runs = one space, `ß` = `ss`,
+   * `ä`/`ö`/`ü` = `ae`/`oe`/`ue` (or without the diacritic), Unicode dashes = `-`. Applied
    * after the fetch (the API has no such parameter); a blank value is rejected.
    */
   water?: string;

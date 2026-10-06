@@ -87,7 +87,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | --- | --- |
 | `--states <codes>` | comma-separated state codes (validated); only these states' gauges are returned, also if the server sent others |
 | `--lang <de\|en>` | response language |
-| `--water <name>` | only stations whose water (river) name contains this text, case-insensitive (`ß` matches `ss`; umlauts match in any Unicode form) |
+| `--water <name>` | only stations whose water (river) name contains this text, case-insensitive (`ß` matches `ss`, `ä`/`ö`/`ü` match `ae`/`oe`/`ue` and `a`/`o`/`u`, in any Unicode form; whitespace runs — double spaces, tabs, no-break spaces — count as one space) |
 | `--min-class <n>` | only stations with `lhpClass >= n` (`-1` no data … `4` sehr großes Hochwasser); gauges without a class (`lhpClass: null`) never match |
 | `--geojson` | output the stations as a GeoJSON `FeatureCollection` of points |
 

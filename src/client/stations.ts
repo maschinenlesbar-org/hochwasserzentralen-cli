@@ -8,18 +8,41 @@ import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse }
 import { assertValid, knownKeysProblem, minClassProblem, nonBlankProblem, statesProblem } from "./validate.js";
 
 /**
- * Fold a water name for the case-insensitive `water` match: NFC (a decomposed
- * umlaut typed or pasted on macOS matches the feed's composed text), lower case,
- * "ß" as "ss" ("NEISSE" is the upper-case form of "Neiße", and names occur in both
- * spellings, e.g. "…wasserstrasse" / "…wasserstraße"), and the Unicode dashes as "-".
- * Applied to both sides.
+ * Fold a water name for the case-insensitive `water` match, applied to both sides:
+ * NFC (a decomposed umlaut typed or pasted on macOS matches the feed's composed text),
+ * lower case, every whitespace run (a double space, a tab, a no-break space from a web
+ * page) as one space and the ends trimmed, "ß" as "ss" ("NEISSE" is the upper-case form
+ * of "Neiße", and names occur in both spellings, e.g. "…wasserstrasse" /
+ * "…wasserstraße"), "ä"/"ö"/"ü" as "ae"/"oe"/"ue" (a keyboard without umlauts writes
+ * "Roeder" for "Röder", as it writes "Weisse" for "Weiße"), and the Unicode dashes as "-".
  */
 export function foldName(text: string): string {
+  return baseFold(text).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue");
+}
+
+/** The fold shared by both match forms: NFC, lower case, whitespace, ß, dashes. */
+function baseFold(text: string): string {
   return text
     .normalize("NFC")
     .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
     .replace(/ß/g, "ss")
     .replace(/[\u2010-\u2015\u2212]/g, "-");
+}
+
+/** The second match form: {@link baseFold} with every diacritic dropped ("Müritz" -> "muritz"). */
+function plainFold(text: string): string {
+  return baseFold(text).normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
+}
+
+/**
+ * True when `name` contains the `water` needle in either folded form: transliterated
+ * ({@link foldName}: "Roeder" and "Röder" both find "Große Röder") or with diacritics
+ * dropped ("Muritz" finds "Müritz").
+ */
+function waterMatches(name: string, needle: string): boolean {
+  return foldName(name).includes(foldName(needle)) || plainFold(name).includes(plainFold(needle));
 }
 
 /** The keys a {@link StationFilter} has; any other key is a validation error. */
@@ -49,8 +72,9 @@ export function assertStationFilter(filter: StationFilter): void {
 /**
  * Filter a /data/stations response the way `stations --water / --min-class` does,
  * keeping the envelope (attribution, `updated`) and returning a new object; the
- * input is not changed. `water` is trimmed and matched as a substring on the
- * folded names ({@link foldName}); a station without a string `water` never
+ * input is not changed. `water` is matched as a substring on the folded names
+ * ({@link foldName}: case, whitespace, ß, umlauts in either spelling, dashes; or with
+ * diacritics dropped); a station without a string `water` never
  * matches. `minClass` keeps stations whose {@link stationClass} is at least the
  * value: a null class never matches, an off-scale class throws a
  * HochwasserzentralenParseError. A bad filter value throws a
@@ -63,8 +87,7 @@ export function filterStations(res: StationsResponse, filter: StationFilter): St
   let data = res.data;
   const { water, minClass } = filter;
   if (water !== undefined) {
-    const needle = foldName(water.trim());
-    data = data.filter((s) => typeof s.water === "string" && foldName(s.water).includes(needle));
+    data = data.filter((s) => typeof s.water === "string" && waterMatches(s.water, water));
   }
   if (minClass !== undefined) {
     data = data.filter((s) => {
