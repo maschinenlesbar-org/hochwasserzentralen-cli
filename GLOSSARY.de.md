@@ -145,3 +145,16 @@ für die Bundeswasserstraßen kommen von PEGELONLINE (WSV) – Schwester-CLI:
 `https://api.hochwasserzentralen.de/public/v1/test` – dieselbe API mit festen, vorgefertigten
 Daten, die immer aktive Warnungen enthalten. Erreichbar mit
 `--base-url …/public/v1/test`. Behandeln Sie die Ausgabe nie als tatsächliche Lage.
+
+## Log-Eintrag (log record)
+
+Jede Diagnosezeile, die die CLI nach stderr schreibt: ein Zeitstempel, eine Stufe (`ERROR`,
+`WARN`, `INFO`) und ein Thema `hochwasser.<Bereich>`, als Text (im Stil von log4j) oder mit
+`--log-format jsonl` als ein JSON-Objekt pro Zeile. Die Bereiche: `cli` (Bedienfehler,
+Meldungen von commander, unerwartete Fehler), `api` (die Antworten der API: ein
+Fehlerstatus, ein Envelope, dessen `status` nicht `success` ist, der Hinweis bei einer
+Umleitung und eine fehlerhafte Antwort — kein gültiges JSON, die HTML-Seite eines Proxys,
+die falsche Form, die GeoJSON-Darstellung statt reinem JSON), `http` (die Verbindung, der
+Hinweis zur Größengrenze, die Klartext-Warnung) und `output` (die `-o`-Datei, was ein
+GeoJSON-Export nicht auf die Karte bringt, ein Schreibfehler auf stdout). Ein Eintrag ist
+immer eine Zeile; Steuerzeichen darin werden maskiert.

@@ -147,3 +147,15 @@ federal waterways come from PEGELONLINE (WSV) — sibling CLI:
 `https://api.hochwasserzentralen.de/public/v1/test` — same API, fixed canned
 data that always includes active alerts. Reach it with
 `--base-url …/public/v1/test`. Never treat its output as the real situation.
+
+## Log record
+
+Every diagnostic line the CLI writes to stderr: a timestamp, a level (`ERROR`, `WARN`,
+`INFO`) and a topic `hochwasser.<area>`, as text (log4j style) or with `--log-format jsonl`
+as one JSON object per line. The areas: `cli` (usage errors, commander's messages,
+unexpected errors), `api` (the API's answers: an error status, an envelope whose `status`
+isn't `success`, the redirect hint, and a malformed answer — bad JSON, a proxy's HTML page,
+the wrong shape, the GeoJSON representation instead of plain JSON), `http` (the
+connection, the size-cap hint, the cleartext warning) and `output` (the `-o` file, what a
+GeoJSON export left off the map, a failed write to stdout). A record is always one line;
+control characters in it are escaped.

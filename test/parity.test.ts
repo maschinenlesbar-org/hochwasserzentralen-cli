@@ -57,7 +57,7 @@ test("parity: situation with an off-scale lhpClass fails with the same parse err
   assert.equal(lib.ok, false);
   const error = lib.ok ? undefined : lib.error;
   assert.ok(error instanceof HochwasserzentralenParseError);
-  assert.equal(cli.err, `ERROR [hochwasser.cli] ${error.message}`);
+  assert.equal(cli.err, `ERROR [hochwasser.api] ${error.message}`);
 });
 
 // ---- stations --water / --min-class (finding #2) --------------------------------
@@ -149,7 +149,7 @@ test("parity: stations --min-class 1 with an off-scale string class fails the sa
   const error = lib.ok ? undefined : lib.error;
   assert.ok(error instanceof HochwasserzentralenParseError);
   assert.match(error.message, /Unexpected lhpClass "3" at station "BY_X"/);
-  assert.equal(cli.err, `ERROR [hochwasser.cli] ${error.message}`);
+  assert.equal(cli.err, `ERROR [hochwasser.api] ${error.message}`);
 });
 
 // ---- --user-agent / userAgent (finding #4) --------------------------------------

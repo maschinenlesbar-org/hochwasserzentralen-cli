@@ -347,7 +347,8 @@ failure/timeout/size cap, and anything a custom transport throws), `Hochwasserze
 input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
 top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `"status": "success"`, a `data` item that is not a JSON object, a station without a string
-`id`, a nationwide `/data/stations` answer without any station), all
+`id`, a nationwide `/data/stations` answer without any station; the CLI raises it too
+for an answer nested too deeply to print; logged under `hochwasser.api`), all
 extending the base `HochwasserzentralenError`.
 
 Every rejected input is a `HochwasserzentralenValidationError`, never a raw
@@ -469,8 +470,11 @@ and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cu
 code point and ends in `… (N more characters)`. Own messages already bound what they quote
 at the source (`cutForMessage`, 500; the `-o` path is left to the record cap, it names a
 file the user chose). The areas are `cli` (usage errors, commander's messages and the help it shows
-after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP error
-answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
+after one, unexpected errors), `api` (the API's answers: an HTTP error status, an
+envelope whose `status` isn't `success`, the redirect hint, and a malformed answer, a
+`HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, the
+GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
+deeply to print), `http` (the connection, the size-cap hint, the cleartext
 warning) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
 failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refused overwrite;
 and a stdout write error). Code logs

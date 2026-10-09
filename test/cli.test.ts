@@ -402,7 +402,7 @@ test("a null data item exits 1 with a typed parse error, not Unexpected error", 
   for (const argv of [["stations", "--water", "w"], ["stations", "--geojson"], ["situation"]]) {
     const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [null] }));
     assert.equal(await run(argv, cli.deps), 1);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.cli\] Unexpected response shape from \/data\/stations/);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.api\] Unexpected response shape from \/data\/stations/);
   }
 });
 
@@ -502,7 +502,7 @@ test("--min-class and situation share one classification: an off-scale lhpClass 
     for (const argv of [["stations", "--min-class", "3"], ["situation"]]) {
       const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
       assert.equal(await run(argv, cli.deps), 1, `${JSON.stringify(bad)} ${argv.join(" ")}`);
-      assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.cli\] Unexpected lhpClass .* at station "BY_10088003" .*expected an integer from -1 to 4, or null/);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.api\] Unexpected lhpClass .* at station "BY_10088003" .*expected an integer from -1 to 4, or null/);
       assert.deepEqual(cli.out, []);
     }
   }
@@ -524,12 +524,12 @@ test("a deeply nested response gives a clear error, not a stack overflow", async
   const body = `{"apiVersion":"x","status":"success","lang":"de","source":"s","sourceName":"s","licence":"l","licenceName":"l","title":"t","description":"d","updated":"u","data":[],"extra":${deep}}`;
   const pretty = makeCli(() => rawResponse(body, "application/json"));
   assert.equal(await run(["stations", "--states", "HH"], pretty.deps), 1);
-  assert.equal(untimed(pretty.err.join("\n")), "ERROR [hochwasser.cli] The response is nested too deeply to pretty-print; try --compact.");
+  assert.equal(untimed(pretty.err.join("\n")), "ERROR [hochwasser.api] The response is nested too deeply to pretty-print; try --compact.");
   const compact = makeCli(() => rawResponse(body, "application/json"));
   const code = await run(["--compact", "stations", "--states", "HH"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
-    assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.cli] The response is nested too deeply to print.");
+    assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.api] The response is nested too deeply to print.");
   }
 });
 

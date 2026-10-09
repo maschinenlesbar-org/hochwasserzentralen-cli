@@ -10,6 +10,7 @@ import {
   HochwasserzentralenApiError,
   HochwasserzentralenError,
   HochwasserzentralenNetworkError,
+  HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
   credentialsIn,
   echoedCredentialForms,
@@ -205,6 +206,18 @@ export function processLogger(argv: readonly string[]): Logger {
   });
 }
 
+/**
+ * The log area of a `HochwasserzentralenError` that is neither an API, network, output
+ * nor usage error: a malformed answer (`api`: bad JSON, a proxy's HTML page, the wrong
+ * shape, the GeoJSON representation instead of plain JSON, an off-scale `lhpClass`, an
+ * unknown charset, an answer nested too deeply to print — the API's answer as much as an
+ * error status is), else `cli`.
+ */
+function areaOf(err: HochwasserzentralenError): string {
+  if (err instanceof HochwasserzentralenParseError) return "api";
+  return "cli";
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);
@@ -279,8 +292,8 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return EXIT.NETWORK;
     }
     if (err instanceof HochwasserzentralenError) {
-      // Includes HochwasserzentralenParseError (a non-JSON body).
-      log.error("cli", err.message);
+      // A HochwasserzentralenParseError (a non-JSON body, the wrong shape) is an api record.
+      log.error(areaOf(err), err.message);
       return EXIT.OTHER;
     }
     log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);

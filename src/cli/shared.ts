@@ -5,7 +5,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
 import { OutputError, logOf, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
-import { HochwasserzentralenError } from "../client/errors.js";
+import { HochwasserzentralenParseError } from "../client/errors.js";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "../client/validate.js";
 import { normalizeStates } from "../client/client.js";
@@ -213,7 +213,8 @@ export function escapeControlChars(json: string): string {
  * JSON.stringify, pretty or compact. A deeply nested value (a hostile or broken
  * response) overflows the stack — the pretty form far sooner than the compact one,
  * which is why the message suggests --compact. The RangeError becomes a
- * HochwasserzentralenError so the CLI prints a clear message (exit 1) instead of
+ * HochwasserzentralenParseError (an answer the CLI can't use, logged under
+ * `hochwasser.api`) so the CLI prints a clear message (exit 1) instead of
  * "Unexpected error: Maximum call stack size exceeded".
  */
 function stringifyJson(value: unknown, compact: boolean): string {
@@ -221,7 +222,7 @@ function stringifyJson(value: unknown, compact: boolean): string {
     return compact ? JSON.stringify(value) : JSON.stringify(value, null, 2);
   } catch (err) {
     if (err instanceof RangeError) {
-      throw new HochwasserzentralenError(
+      throw new HochwasserzentralenParseError(
         compact
           ? "The response is nested too deeply to print."
           : "The response is nested too deeply to pretty-print; try --compact.",
