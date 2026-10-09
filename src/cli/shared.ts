@@ -181,8 +181,9 @@ function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, dat
     if (!force && (err as NodeJS.ErrnoException | undefined)?.code === "EEXIST") throw refuseOverwrite(path);
     // A bad --output path (missing directory, a directory, no permission) is a
     // user error, not an internal fault — surface it cleanly. Drop the
-    // `, open '<path>'` tail since we already name the path ourselves.
-    const reason = err instanceof Error ? err.message.replace(/,\s*open\s+'.*'$/, "") : String(err);
+    // `, open '<path>'` tail since we already name the path ourselves; the `s` flag lets
+    // it span a path with a line break in it.
+    const reason = err instanceof Error ? err.message.replace(/,\s*open\s+'.*'$/s, "") : String(err);
     throw new OutputError(`Could not write to ${path}: ${reason}`, { cause: err });
   }
 }
