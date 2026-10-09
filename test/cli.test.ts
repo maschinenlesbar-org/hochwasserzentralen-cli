@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { HochwasserzentralenClient } from "../src/client/client.js";
-import { HochwasserzentralenNetworkError } from "../src/client/errors.js";
+import { HochwasserzentralenNetworkError, toWellFormed } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
@@ -600,4 +600,19 @@ test("--geojson names the alerts it leaves off the map, to a file and to stdout 
   const complete = makeCli(() => jsonResponse(fx.alertsJson));
   assert.equal(await run(["alerts", "--geojson"], complete.deps), 0);
   assert.equal(complete.err.join("\n"), "");
+});
+
+test("a skipped item's label is cut on a character boundary: jsonl stays readable (result 02 Bug B02-1)", async () => {
+  const good = fx.stationsJson.data[0]!;
+  for (const id of ["a" + "\u{1f600}".repeat(45), "\u{1f600}".repeat(45)]) {
+    const body = { ...fx.stationsJson, data: [{ ...good, id, name: "b" + "\u{1f30a}".repeat(45), coordinates: null }, good] };
+    const cli = makeCli(() => jsonResponse(body));
+    assert.equal(await run(["--log-format", "jsonl", "stations", "--geojson"], cli.deps), 0);
+    const records = cli.err.map((line) => JSON.parse(line) as { msg: string });
+    assert.equal(records.length, 1, cli.err.join("\n"));
+    const msg = records[0]!.msg;
+    assert.match(msg, /^1 station left off the map/);
+    assert.equal(toWellFormed(msg), msg, "no half character");
+    assert.doesNotMatch(cli.err[0]!, /\\ud[89ab]/i, "no escaped lone surrogate in the line");
+  }
 });

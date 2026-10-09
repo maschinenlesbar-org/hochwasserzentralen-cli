@@ -26,6 +26,7 @@ import {
   HochwasserzentralenValidationError,
   credentialsIn,
   cutForMessage,
+  cutText,
   redactCredentials,
 } from "./errors.js";
 import { assertValid, baseUrlProblem, headerNameProblem, headerValueProblem, knownKeysProblem } from "./validate.js";
@@ -302,7 +303,7 @@ function decodeBody(body: Buffer, contentType: string, path: string): string {
     decoder = new TextDecoder(charset);
   } catch {
     throw new HochwasserzentralenParseError(
-      `Unsupported response charset "${sanitizeServerText(charset).slice(0, 100)}" from ${path}.`,
+      `Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${path}.`,
     );
   }
   return decoder.decode(body);
@@ -633,7 +634,7 @@ export class RequestEngine {
       // Say why (run.ts prints only the message, never `cause`): a proxy's HTML page, a
       // cut-off body and a stray byte read alike otherwise. An HTML or other non-JSON type
       // is named, else the parser's reason.
-      const type = sanitizeServerText(res.contentType.split(";")[0] ?? "").slice(0, 100);
+      const type = cutText(sanitizeServerText(res.contentType.split(";")[0] ?? ""), 100);
       const reason =
         type !== "" && !/json/i.test(type)
           ? `: expected JSON, got Content-Type "${type}"`

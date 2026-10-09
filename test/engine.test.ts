@@ -5,6 +5,9 @@ import {
   HochwasserzentralenApiError,
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
+  cutForMessage,
+  cutText,
+  toWellFormed,
 } from "../src/client/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -294,4 +297,31 @@ test("server text in a message is cut at 500 characters; a parse error says why"
   await assert.rejects(new RequestEngine({ transport: html.transport }).getJson("/x"), /expected JSON, got Content-Type "text\/html"/);
   const cut = makeMockTransport(() => rawResponse('{"data":[', "application/json"));
   await assert.rejects(new RequestEngine({ transport: cut.transport }).getJson("/x"), /Failed to parse JSON response from \/x: \S/);
+});
+
+test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
+  assert.equal(cutText("ab\u{1f600}cd", 3), "ab");
+  assert.equal(cutText("ab\u{1f600}cd", 4), "ab\u{1f600}");
+  assert.equal(cutText("short", 10), "short");
+  assert.equal(toWellFormed("a\ud83d b\ude00 \u{1f600}"), "a\ufffd b\ufffd \u{1f600}");
+  // cutForMessage (500) uses it too.
+  assert.equal(toWellFormed(cutForMessage("a" + "\u{1f600}".repeat(400))), cutForMessage("a" + "\u{1f600}".repeat(400)));
+});
+
+test("server text cut to a length limit keeps the library's messages well-formed (result 02 Bug B02-1)", async () => {
+  for (const text of ["\u{1f600}".repeat(300), "a" + "\u{1f600}".repeat(300)]) {
+    const answers = [
+      jsonResponse({ detail: text }, 500), // the detail, cut at 500
+      rawResponse("x", `text/${text}`), // the Content-Type of a body that isn't JSON, cut at 100
+      rawResponse("x", `application/json; charset=${text}`), // an unknown charset, cut at 100
+      jsonResponse({ status: text, data: [] }), // the envelope's status, cut at 40
+    ];
+    for (const answer of answers) {
+      const client = new HochwasserzentralenClient({ maxRetries: 0, transport: async () => answer });
+      await assert.rejects(client.alerts(), (err: Error) => {
+        assert.equal(toWellFormed(err.message), err.message, err.message);
+        return true;
+      });
+    }
+  }
 });

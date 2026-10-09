@@ -2,7 +2,7 @@
 // CLI: the lhpClass scale check and the per-state situation overview. The API
 // offers no server-side aggregation, so this is the one place it is computed.
 
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError, cutText } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
 import {
@@ -164,9 +164,9 @@ export function stationClass(station: Station): number | null {
   const value = station.lhpClass as unknown;
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4) return value;
-  const shown = sanitizeServerText(JSON.stringify(value) ?? String(value)).slice(0, 40);
+  const shown = cutText(sanitizeServerText(JSON.stringify(value) ?? String(value)), 40);
   throw new HochwasserzentralenParseError(
-    `Unexpected lhpClass ${shown} at station "${sanitizeServerText(String(station.id)).slice(0, 100)}" from /data/stations: ` +
+    `Unexpected lhpClass ${shown} at station "${cutText(sanitizeServerText(String(station.id)), 100)}" from /data/stations: ` +
       `expected an integer from -1 to 4, or null. The API's class scale may have changed.`,
   );
 }

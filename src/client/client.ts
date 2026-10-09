@@ -19,6 +19,7 @@ import {
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
   cutForMessage,
+  cutText,
 } from "./errors.js";
 import {
   LANGS,
@@ -181,7 +182,7 @@ export class HochwasserzentralenClient {
       const detail = message === undefined ? undefined : cutForMessage(sanitizeServerText(this.engine.scrub(message)));
       return new HochwasserzentralenApiError({
         status: 200,
-        apiStatus: sanitizeServerText(this.engine.scrub(apiStatus)).slice(0, 40),
+        apiStatus: cutText(sanitizeServerText(this.engine.scrub(apiStatus)), 40),
         url: this.engine.buildUrl(endpoint, query),
         method: "GET",
         body: this.engine.scrub(JSON.stringify(res)),

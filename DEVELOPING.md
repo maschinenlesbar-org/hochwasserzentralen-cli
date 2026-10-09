@@ -343,8 +343,10 @@ Every rejected input is a `HochwasserzentralenValidationError`, never a raw
 malformed response object handed to one of the exported pure transforms
 (`filterStations`, `aggregateSituation`, `onlyStates`, `stationClass`, the GeoJSON
 converters; `responseArgProblem`). An echoed value or server text in a message is cut at
-500 characters (`cutForMessage`, `MAX_MESSAGE_VALUE_LENGTH`); the error's own properties
-keep the full value. A non-2xx answer's `detail` is the API's own message — its JSend
+500 characters (`cutForMessage`, `MAX_MESSAGE_VALUE_LENGTH`), shorter quotes (a
+Content-Type, an envelope status, a station id, a skipped item's label) at their own
+limits, never inside a surrogate pair (`cutText`), so the message stays well-formed; the
+error's own properties keep the full value. A non-2xx answer's `detail` is the API's own message — its JSend
 `error.message` (`{"status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown
 states"}}`), else a top-level `message`/`description`/`detail`, else a plain-text snippet.
 A body that doesn't parse names why: the Content-Type when it isn't JSON (a proxy's HTML
@@ -449,7 +451,9 @@ and `msg`. A record is always one line: `formatLogRecord` runs `escapeForRecord`
 the message (text) or the whole JSON object (jsonl), which writes CR and LF as `\r`/`\n`,
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
-forge another one or steer the terminal. The areas are `cli` (usage errors, commander's messages and the help it shows
+forge another one or steer the terminal. Before that a lone surrogate (half a
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
+The areas are `cli` (usage errors, commander's messages and the help it shows
 after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP error
 answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
 warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs

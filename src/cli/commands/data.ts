@@ -29,6 +29,7 @@ import {
   stationsWithoutCoordinates,
 } from "../../client/geojson.js";
 import { sanitizeServerText } from "../../client/engine.js";
+import { cutText } from "../../client/errors.js";
 
 /**
  * The shared --states option (validated comma-separated list, e.g. BY,SN). A
@@ -53,10 +54,10 @@ function langOption(): Option {
 
 /**
  * A short label for an item a GeoJSON export left out: its id, class and name (server
- * text, so sanitised and cut), e.g. `BY_577 (class 6, Sehr großes Hochwasser, Donau)`.
+ * text, so sanitised and cut on a character boundary), e.g. `BY_577 (class 6, Sehr großes Hochwasser, Donau)`.
  */
 function label(id: unknown, lhpClass: unknown, ...names: unknown[]): string {
-  const text = (v: unknown): string => sanitizeServerText(String(v)).slice(0, 80);
+  const text = (v: unknown): string => cutText(sanitizeServerText(String(v)), 80);
   const parts: string[] = lhpClass === undefined || lhpClass === null ? [] : [`class ${text(lhpClass)}`];
   for (const name of names) if (typeof name === "string" && name.trim() !== "") parts.push(text(name));
   const detail = parts.join(", ");
