@@ -222,8 +222,11 @@ usage error into 0); any other output error exits 1.
   `redactCredentials(text, list)` replaces each `secret@` with `***@`; `redactUrl` falls
   back to them for a value that doesn't parse. `run()` starts with
   `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
-  of the value part of `--opt=value`) and redacts every line printed on stdout and stderr
-  — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
+  of the value part of `--opt=value`, `redactionFor`) and redacts every line printed on
+  stdout and every log record on stderr. The log replaces them in each record's
+  *message*, before the record is cut and escaped, and writes it to the raw stderr: the
+  frame (time, level, topic) is never touched, and a password with DEL, C1 or bidi
+  characters is matched in its raw form — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
   command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
   checks ten passwords in seven URL shapes at nine argv positions.
   The library keeps them out of what a caller logs: the engine holds the base URL in a
@@ -462,8 +465,9 @@ answers and the redirect hint), `http` (the connection, the size-cap hint, the c
 warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
 the logger from argv before commander parses it, so commander's own usage errors are
-records too, and on top of the redacted `io.err`, so a secret is kept out of the log in
-either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. The
+records too, and with the run's redaction (`withRedactedOutput`), which replaces a secret
+in the message only, before it is escaped: the frame is never touched, and a secret is
+kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. The
 bin shim's last-resort `Unexpected error` (a rejected `run()`) is a record too; the one
 line that is not is `Output error: …`, which `handleOutputErrors` writes straight to
 `process.stderr` when stdout itself fails, outside any run. Conformance test P23 checks
