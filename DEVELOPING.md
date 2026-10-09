@@ -471,8 +471,11 @@ after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP 
 answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
 warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
-the logger from argv before commander parses it, so commander's own usage errors are
-records too: its `error: …` an ERROR of `cli` (a `(Did you mean …?)` line joined to it),
+the logger from argv before commander parses it (`logFormatFromArgv`, which skips the
+value of every global option that takes one, as commander does, takes the first
+`--log-format` as `once()` does, and is used only for the records of a parse error; a
+`preAction` hook then sets the format commander parsed, so `--user-agent
+--log-format=jsonl` logs text), so commander's own usage errors are records too: its `error: …` an ERROR of `cli` (a `(Did you mean …?)` line joined to it),
 the help it shows after one an INFO record per line, and the program run with options
 but no command (or `help <unknown>`) an ERROR "missing command: `hochwasser
 <subcommand>`" before that help, so every failed run has an ERROR record

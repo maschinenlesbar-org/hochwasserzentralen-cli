@@ -655,3 +655,34 @@ test("commander's output is one record per line, and a run without a command has
   assert.equal(await run(["help", "bogus"], help.deps), 2);
   assert.match(untimed(help.err[0] ?? ""), /^ERROR \[hochwasser\.cli\] /);
 });
+
+test("the log format is the one commander parsed, where an option's value looks like --log-format (L6)", async () => {
+  const isJsonl = (line: string): boolean => line.startsWith("{");
+  const notFound = () => jsonResponse({ status: "fail", error: { code: "NOT_FOUND", message: "nope" } }, 404);
+  // commander takes "--log-format=jsonl" as the User-Agent: the record is text (result 03, Known 5).
+  const ua = makeCli(notFound);
+  assert.equal(await run(["--user-agent", "--log-format=jsonl", "stations"], ua.deps), 4);
+  assert.equal(ua.mt.last().headers?.["User-Agent"], "--log-format=jsonl");
+  assert.ok(ua.err.length === 1 && !isJsonl(ua.err[0] as string), ua.err.join("\n"));
+  // "--log-format" as the -o path: commander then sees "jsonl" as the command, and logs text.
+  const output = makeCli(notFound);
+  assert.equal(await run(["-o", "--log-format", "jsonl", "stations"], output.deps), 2);
+  assert.ok(output.err.length > 0 && output.err.every((line) => !isJsonl(line)), output.err.join("\n"));
+  assert.match(untimed(output.err[0] ?? ""), /^ERROR \[hochwasser\.cli\] unknown command 'jsonl'/);
+  // jsonl asked for, then "--log-format" as the value of --user-agent: jsonl.
+  const back = makeCli(notFound);
+  assert.equal(await run(["--log-format", "jsonl", "--user-agent", "--log-format", "stations"], back.deps), 4);
+  assert.ok(back.err.length === 1 && isJsonl(back.err[0] as string), back.err.join("\n"));
+  // A parse error after such a value is logged in the format commander would have used.
+  const parse = makeCli(notFound);
+  assert.equal(await run(["--log-format", "jsonl", "--user-agent", "--log-format", "stations", "--bogus"], parse.deps), 2);
+  assert.ok(parse.err.length > 0 && parse.err.every(isJsonl), parse.err.join("\n"));
+  // A global option is commander's wherever it stands, after a command's value option too.
+  const water = makeCli(notFound);
+  assert.equal(await run(["stations", "--water", "--log-format", "jsonl"], water.deps), 2);
+  assert.ok(water.err.length > 0 && water.err.every(isJsonl), water.err.join("\n"));
+  // Given twice, the first counts: commander keeps it and rejects the second (once()).
+  const twice = makeCli(notFound);
+  assert.equal(await run(["--log-format", "jsonl", "--log-format", "text", "stations"], twice.deps), 2);
+  assert.ok(twice.err.length > 0 && twice.err.every(isJsonl), twice.err.join("\n"));
+});
