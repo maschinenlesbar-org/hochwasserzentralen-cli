@@ -452,8 +452,11 @@ the message (text) or the whole JSON object (jsonl), which writes CR and LF as `
 every other C0 control but TAB, DEL and C1 as `\u00XX`, and U+2028, U+2029 and the bidi
 controls as `\uXXXX`, so no text that reaches a record, by whatever path, can split it,
 forge another one or steer the terminal. Before that a lone surrogate (half a
-character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`).
-The areas are `cli` (usage errors, commander's messages and the help it shows
+character, which jq rejects, stopping the whole stream) becomes U+FFFD (`toWellFormed`),
+and a message longer than `MAX_RECORD_MESSAGE` (4000 characters, exported) is cut at a
+code point and ends in `… (N more characters)`. Own messages already bound what they quote
+at the source (`cutForMessage`, 500; the `-o` path is left to the record cap, it names a
+file the user chose). The areas are `cli` (usage errors, commander's messages and the help it shows
 after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP error
 answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
 warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
