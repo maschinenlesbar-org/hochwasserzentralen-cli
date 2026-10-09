@@ -310,6 +310,12 @@ shorten it: `Retry-After: 0` or a date in the past waits the normal backoff, so 
 never burst, and a long one is clamped to 30 s so a hostile value cannot hang the CLI.
 `HochwasserzentralenApiError` exposes `isRetryable`. CLI: `--max-retries`.
 `test/conformance-p6-retry-policy.test.ts` covers it.
+Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
+`{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (credentials
+masked) `}`) is called once per retry right before the sleep, never when there is none, and
+a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
+`hochwasser.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
+seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory
 exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
@@ -479,7 +485,7 @@ envelope whose `status` isn't `success`, the redirect hint, and a malformed answ
 `HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, the
 GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
 deeply to print), `http` (the connection, the size-cap hint, the cleartext
-warning) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
+warning, one WARN per retry before it waits) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
 failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refused overwrite;
 and a stdout write error). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds

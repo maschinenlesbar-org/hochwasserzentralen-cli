@@ -161,6 +161,7 @@ and ends in `… (N more characters)`:
 
 ```text
 2026-10-09T14:03:12.481Z WARN  [hochwasser.http] requests to mirror.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.700Z WARN  [hochwasser.http] HTTP 503 from api.hochwasserzentralen.de: retry 1 of 2 in 200 ms
 2026-10-09T14:03:12.902Z ERROR [hochwasser.api] HTTP 503 for GET https://api.hochwasserzentralen.de/public/v1/data/stations: …
 ```
 
@@ -222,7 +223,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`). Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one warning record (`WARN  [hochwasser.http] … sent unencrypted to <host> (http:, not https:)`) on stderr per run, naming the base URL's credentials when it carries some (never their value); stdout and the exit code are unchanged. A `user:password@` in it is sent as Basic auth and shown as `***@` in every message; echoed back by a server (the `Basic` value, `user:password`, the password), it is shown as `***` |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; `0` = none; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
-| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried) |
+| `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried). Each retry logs one WARN record of `hochwasser.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `-o, --output <file>` | Write output to this file instead of stdout (`-o -` means stdout) |
 | `--force` | Overwrite the `--output` file if it already exists |
