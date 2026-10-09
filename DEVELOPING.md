@@ -217,10 +217,12 @@ usage error into 0); any other output error exits 1.
   shared check (P21).
 - **Credentials in `--base-url` never reach the output.** A `user:password@` in the
   base URL (a mirror behind a login) is sent as Basic auth, but never printed.
-  `credentialsIn(value)` finds the exact userinfo of a URL-like value, parseable or not,
-  with a prefix (`--base-url=…`) or without a scheme (`user:pw@host`), and
+  `credentialsIn(value)` finds the exact userinfo of a URL, parseable or not, and
   `redactCredentials(text, list)` replaces each `secret@` with `***@`; `redactUrl` falls
-  back to them for a value that doesn't parse. `run()` starts with
+  back to them for a value that doesn't parse. Only a value that starts with a scheme
+  counts (a bare `a:b@c` is a file name, `-o flood:map@v2.geojson`, or a User-Agent as
+  often as a credential), except as the `--base-url` value, which is read as if it had
+  one. `run()` starts with
   `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
   of the value part of `--opt=value`, `redactionFor`) and redacts every line printed on
   stdout and every log record on stderr. The forms a server echoes a userinfo back in
@@ -230,7 +232,8 @@ usage error into 0); any other output error exits 1.
   frame (time, level, topic) is never touched, and a password with DEL, C1 or bidi
   characters is matched in its raw form — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
   command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
-  checks ten passwords in seven URL shapes at nine argv positions.
+  checks ten passwords in seven URL shapes at nine argv positions (the schemeless shape
+  as the `--base-url` value only).
   The library keeps them out of what a caller logs: the engine holds the base URL in a
   real `#private` field (so `console.log(client)`, `util.inspect` and `JSON.stringify`
   never show it), `HochwasserzentralenApiError.url` and its message go through

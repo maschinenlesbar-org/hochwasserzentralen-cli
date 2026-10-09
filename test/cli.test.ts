@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
 import { HochwasserzentralenClient } from "../src/client/client.js";
-import { HochwasserzentralenNetworkError, toWellFormed } from "../src/client/errors.js";
+import { HochwasserzentralenNetworkError, credentialsIn, toWellFormed } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
 import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
@@ -615,4 +615,18 @@ test("a skipped item's label is cut on a character boundary: jsonl stays readabl
     assert.equal(toWellFormed(msg), msg, "no half character");
     assert.doesNotMatch(cli.err[0]!, /\\ud[89ab]/i, "no escaped lone surrogate in the line");
   }
+});
+
+test("an a:b@c argument (a User-Agent, an -o path) is neither a credential in the log nor rewritten in the JSON on stdout (L14)", async () => {
+  const good = fx.stationsJson.data[0]!;
+  const body = { ...fx.stationsJson, data: [{ ...good, name: "run:2026-10-09@x" }] };
+  const cli = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["--user-agent", "run:2026-10-09@x", "stations"], cli.deps), 0);
+  assert.match(cli.out.join("\n"), /"name": "run:2026-10-09@x"/);
+  const written = makeCli(() => jsonResponse(body));
+  assert.equal(await run(["-o", "flood:map@v2.geojson", "stations", "--geojson"], written.deps), 0);
+  assert.match(untimed(written.err.join("\n")), /^INFO  \[hochwasser\.output\] Wrote 1 feature \(\d+ bytes\) to flood:map@v2\.geojson$/);
+  assert.match(written.files["flood:map@v2.geojson"]?.toString() ?? "", /"name": "run:2026-10-09@x"/);
+  assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
+  assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
 });
