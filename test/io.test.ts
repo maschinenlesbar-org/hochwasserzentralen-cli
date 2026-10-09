@@ -5,6 +5,7 @@ import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defaultIO, handleOutputErrors } from "../src/cli/io.js";
+import { createLogger } from "../src/cli/log.js";
 
 function writeError(code: string): NodeJS.ErrnoException {
   const err: NodeJS.ErrnoException = new Error(`write ${code}`);
@@ -14,13 +15,17 @@ function writeError(code: string): NodeJS.ErrnoException {
 
 function setup() {
   const stdout = new EventEmitter();
-  const stderr = new EventEmitter();
+  const written: string[] = [];
+  const stderr = Object.assign(new EventEmitter(), { write: (text: string) => written.push(text) > 0 });
   const exits: number[] = [];
+  const records: string[] = [];
+  const log = createLogger({ format: "jsonl", write: (line) => records.push(line), now: () => new Date("2026-01-02T03:04:05.678Z") });
   handleOutputErrors(
     { stdout: stdout as unknown as NodeJS.WriteStream, stderr: stderr as unknown as NodeJS.WriteStream },
     (code) => exits.push(code),
+    log,
   );
-  return { stdout, stderr, exits };
+  return { stdout, stderr, exits, written, records };
 }
 
 test("EPIPE on stdout (reader closed early, e.g. | head) exits 0 instead of crashing", () => {
@@ -28,6 +33,29 @@ test("EPIPE on stdout (reader closed early, e.g. | head) exits 0 instead of cras
   // Without a listener, emitting 'error' would throw — the raw stack trace of the bug.
   s.stdout.emit("error", writeError("EPIPE"));
   assert.deepEqual(s.exits, [0]);
+  assert.deepEqual(s.records, []);
+});
+
+test("another stdout write error is an ERROR record of hochwasser.output, in the run's format, and exits 1 (result 04, Known 7)", () => {
+  const s = setup();
+  s.stdout.emit("error", writeError("EBADF"));
+  assert.deepEqual(s.exits, [1]);
+  assert.deepEqual(s.records.map((line) => JSON.parse(line)), [
+    { ts: "2026-01-02T03:04:05.678Z", level: "ERROR", topic: "hochwasser.output", msg: "Could not write to stdout: write EBADF" },
+  ]);
+  assert.deepEqual(s.written, []);
+});
+
+test("without a logger, a stdout write error is a text ERROR record on the streams' stderr", () => {
+  const stdout = new EventEmitter();
+  const written: string[] = [];
+  const stderr = Object.assign(new EventEmitter(), { write: (text: string) => written.push(text) > 0 });
+  const exits: number[] = [];
+  handleOutputErrors({ stdout: stdout as unknown as NodeJS.WriteStream, stderr: stderr as unknown as NodeJS.WriteStream }, (code) => exits.push(code));
+  stdout.emit("error", writeError("EBADF"));
+  assert.deepEqual(exits, [1]);
+  assert.equal(written.length, 1);
+  assert.match(written[0] ?? "", /^\S+Z ERROR \[hochwasser\.output\] Could not write to stdout: write EBADF\n$/);
 });
 
 test("ENOTCONN (stdout is a socket whose reader has gone) is treated like EPIPE", () => {
