@@ -398,8 +398,9 @@ npm test          # builds, then runs `node --test` over dist/test
 - **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are
   P23's.
-- **`io.test.ts`** — `handleOutputErrors` with fake streams (a closed pipe, a stdout
-  write error as a record) and the default `-o` writer.
+- **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` with fake streams (a
+  closed pipe, a stdout write error as a record, a record held behind stdout's backlog)
+  and the default `-o` writer.
 - **`validate.test.ts`** — `assertValid`, the `run.ts` mapping of
   `HochwasserzentralenValidationError`, and the `parity()` helper (`test/helpers.ts`),
   which sends one input through `run()` and through the library on one recording mock
@@ -498,5 +499,8 @@ stdout write error (`handleOutputErrors`) as an ERROR of `hochwasser.output`, an
 last-resort `Unexpected error: …` when `run()` itself rejects as an ERROR of
 `hochwasser.cli`, and Node's own process warnings (`NODE_TLS_REJECT_UNAUTHORIZED=0`) as
 WARN records of `hochwasser.cli`: the shim installs `installWarningLog`, which removes
-Node's default `warning` listener and logs `(node) <name>: <message>`. Conformance test P23 checks
+Node's default `warning` listener and logs `(node) <name>: <message>`. In `defaultDeps`
+a record waits for stdout (`stderrAfterStdout`): it is held while stdout has a backlog and
+written, in order, once it is gone, so with `2>&1 |` and a slow reader it never lands
+inside the data. Conformance test P23 checks
 all of this, and its body is shared across the *-cli repos.
