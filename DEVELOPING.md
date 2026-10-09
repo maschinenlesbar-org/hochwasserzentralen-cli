@@ -223,8 +223,10 @@ usage error into 0); any other output error exits 1.
   back to them for a value that doesn't parse. `run()` starts with
   `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
   of the value part of `--opt=value`, `redactionFor`) and redacts every line printed on
-  stdout and every log record on stderr. The log replaces them in each record's
-  *message*, before the record is cut and escaped, and writes it to the raw stderr: the
+  stdout and every log record on stderr. The forms a server echoes a userinfo back in
+  are replaced too: the `Basic` value and the decoded `user:password` on stdout and
+  stderr, the password alone (4 characters or more) on stderr only, since it may well
+  occur in the data. The log replaces them in each record's *message*, before the record is cut and escaped, and writes it to the raw stderr: the
   frame (time, level, topic) is never touched, and a password with DEL, C1 or bidi
   characters is matched in its raw form — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
   command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
@@ -232,8 +234,10 @@ usage error into 0); any other output error exits 1.
   The library keeps them out of what a caller logs: the engine holds the base URL in a
   real `#private` field (so `console.log(client)`, `util.inspect` and `JSON.stringify`
   never show it), `HochwasserzentralenApiError.url` and its message go through
-  `redactUrl`, and the userinfo (raw and percent-decoded) is scrubbed from error bodies,
-  details, transport error text and the `cause` chain. Whatever a custom transport
+  `redactUrl`, and the userinfo (raw and percent-decoded) and the forms a server echoes it
+  back in (the `Basic` value, the decoded `user:password`, the password alone from 4
+  characters: `echoedCredentialForms`) are scrubbed from error bodies, details, transport
+  error text and the `cause` chain. Whatever a custom transport
   throws becomes a `HochwasserzentralenNetworkError` with the original (scrubbed) as
   `cause`. `test/conformance-p2-library-redaction.test.ts` checks the client, nine
   failing transports and five rejected base URLs.
