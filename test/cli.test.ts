@@ -630,3 +630,28 @@ test("an a:b@c argument (a User-Agent, an -o path) is neither a credential in th
   assert.deepEqual(credentialsIn("run:2026-10-09@x"), []);
   assert.deepEqual(credentialsIn("https://alice:pw@host"), ["alice:pw"]);
 });
+
+test("commander's output is one record per line, and a run without a command has an ERROR (L5)", async () => {
+  // Options but no command: commander shows the help as an error.
+  const none = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["--compact"], none.deps), 2);
+  const lines = none.err.map(untimed);
+  assert.equal(lines[0], "ERROR [hochwasser.cli] missing command: `hochwasser <subcommand>`");
+  assert.ok(lines.slice(1).every((line) => line.startsWith("INFO  [hochwasser.cli] ") && !line.includes("\\n")), lines.join("\n"));
+  assert.ok(lines.some((line) => line === "INFO  [hochwasser.cli] Usage: hochwasser [options] [command]"), lines.join("\n"));
+
+  // A typo: the suggestion is part of the ERROR, the help one INFO record per line.
+  const typo = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["situaton"], typo.deps), 2);
+  const typoLines = typo.err.map(untimed);
+  assert.equal(typoLines[0], "ERROR [hochwasser.cli] unknown command 'situaton' (Did you mean situation?)");
+  assert.ok(typoLines.slice(1).every((line) => line.startsWith("INFO  [hochwasser.cli] ") && !line.includes("\\n")), typoLines.join("\n"));
+  const option = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["stations", "--wate", "Elbe"], option.deps), 2);
+  assert.equal(untimed(option.err[0] ?? ""), "ERROR [hochwasser.cli] unknown option '--wate' (Did you mean --water?)");
+
+  // An unknown help topic is an ERROR too (result 03, Known 2: it used to be an INFO only).
+  const help = makeCli(() => jsonResponse(fx.alertsJson));
+  assert.equal(await run(["help", "bogus"], help.deps), 2);
+  assert.match(untimed(help.err[0] ?? ""), /^ERROR \[hochwasser\.cli\] /);
+});

@@ -472,7 +472,11 @@ answers and the redirect hint), `http` (the connection, the size-cap hint, the c
 warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
 the logger from argv before commander parses it, so commander's own usage errors are
-records too, and with the run's redaction (`withRedactedOutput`), which replaces a secret
+records too: its `error: …` an ERROR of `cli` (a `(Did you mean …?)` line joined to it),
+the help it shows after one an INFO record per line, and the program run with options
+but no command (or `help <unknown>`) an ERROR "missing command: `hochwasser
+<subcommand>`" before that help, so every failed run has an ERROR record
+(`writeCommanderErr`). The log is built with the run's redaction (`withRedactedOutput`), which replaces a secret
 in the message only, before it is escaped: the frame is never touched, and a secret is
 kept out of the log in either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. The
 bin shim's last-resort `Unexpected error` (a rejected `run()`) is a record too; the one
