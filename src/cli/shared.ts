@@ -3,9 +3,9 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
-import { logOf, type CliDeps } from "./io.js";
+import { OutputError, logOf, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
-import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
+import { HochwasserzentralenError } from "../client/errors.js";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
 import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "../client/validate.js";
 import { normalizeStates } from "../client/client.js";
@@ -155,19 +155,20 @@ export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClien
   return options;
 }
 
-function refuseOverwrite(path: string): HochwasserzentralenValidationError {
-  return new HochwasserzentralenValidationError(
+function refuseOverwrite(path: string): OutputError {
+  return new OutputError(
     `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
+    { refused: true },
   );
 }
 
 /**
  * Write bytes to the --output file, refusing to clobber an existing file — or to
  * write through a symlink, dangling or not — unless --force is set (fail-secure: no
- * silent data loss), and wrapping raw filesystem errors in a typed error instead of
- * an untyped "Unexpected error: ENOENT: …". The overwrite refusal is a usage
- * condition (fix: pass --force or pick another path), so it maps to exit code 2 via
- * HochwasserzentralenValidationError.
+ * silent data loss), and wrapping raw filesystem errors (or anything a `CliIO`
+ * throws) in an OutputError instead of an untyped "Unexpected error: ENOENT: …". Every
+ * failure is logged under `hochwasser.output`. The overwrite refusal is a usage
+ * condition (fix: pass --force or pick another path), so it exits 2 (`refused`).
  */
 function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, data: Buffer): void {
   const force = global.force === true;
@@ -182,7 +183,7 @@ function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, dat
     // user error, not an internal fault — surface it cleanly. Drop the
     // `, open '<path>'` tail since we already name the path ourselves.
     const reason = err instanceof Error ? err.message.replace(/,\s*open\s+'.*'$/, "") : String(err);
-    throw new HochwasserzentralenError(`Could not write to ${path}: ${reason}`);
+    throw new OutputError(`Could not write to ${path}: ${reason}`, { cause: err });
   }
 }
 

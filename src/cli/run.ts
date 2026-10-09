@@ -4,7 +4,7 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import { logOf, type CliDeps } from "./io.js";
+import { OutputError, logOf, type CliDeps } from "./io.js";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   HochwasserzentralenApiError,
@@ -241,6 +241,11 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return err.exitCode === 0 ? 0 : EXIT.USAGE;
     }
     const log = logOf(deps);
+    if (err instanceof OutputError) {
+      // Every -o failure: a refused overwrite is a usage condition (2), a failed write 1.
+      log.error("output", err.message);
+      return err.refused ? EXIT.USAGE : EXIT.OTHER;
+    }
     if (err instanceof HochwasserzentralenValidationError) {
       log.error("cli", err.message);
       return EXIT.USAGE;

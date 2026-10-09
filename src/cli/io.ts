@@ -4,6 +4,23 @@
 import { lstatSync, writeFileSync } from "node:fs";
 import type { HochwasserzentralenClient, HochwasserzentralenClientOptions } from "../client/client.js";
 import { createLogger, type Logger } from "./log.js";
+import { HochwasserzentralenError } from "../client/errors.js";
+
+/**
+ * Writing the output to the `-o` file failed (a missing directory, a directory, EACCES,
+ * …), or was refused (`refused`: an existing file without `--force`). Logged as an ERROR
+ * of `hochwasser.output`; exit 1, or 2 for a refusal (a usage condition: pass --force or
+ * pick another path).
+ */
+export class OutputError extends HochwasserzentralenError {
+  /** True for the overwrite refusal (exit 2), false for a failed write (exit 1). */
+  readonly refused: boolean;
+
+  constructor(message: string, options: { cause?: unknown; refused?: boolean } = {}) {
+    super(message, options.cause === undefined ? undefined : { cause: options.cause });
+    this.refused = options.refused === true;
+  }
+}
 
 export interface CliIO {
   out(text: string): void;

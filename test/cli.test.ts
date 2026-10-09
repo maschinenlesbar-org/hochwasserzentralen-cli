@@ -686,3 +686,32 @@ test("the log format is the one commander parsed, where an option's value looks 
   assert.equal(await run(["--log-format", "jsonl", "--log-format", "text", "stations"], twice.deps), 2);
   assert.ok(twice.err.length > 0 && twice.err.every(isJsonl), twice.err.join("\n"));
 });
+
+test("every -o failure is an ERROR record of hochwasser.output: a write failure exits 1, a refused overwrite 2 (L8)", async () => {
+  // result 01, Known 9: a missing directory was an ERROR of hochwasser.cli.
+  for (const thrown of [
+    Object.assign(new Error("ENOENT: no such file or directory, open '/nonexistent/x'"), { code: "ENOENT" }),
+    Object.assign(new Error("EACCES: permission denied, open '/nonexistent/x'"), { code: "EACCES" }),
+    Object.assign(new Error("EISDIR: illegal operation on a directory, open '/nonexistent/x'"), { code: "EISDIR" }),
+    "not an Error",
+  ]) {
+    const cli = makeCli(() => jsonResponse(fx.alertsJson));
+    cli.deps.io.writeFile = () => {
+      throw thrown;
+    };
+    assert.equal(await run(["-o", "/nonexistent/x", "alerts"], cli.deps), 1);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.output\] Could not write to \/nonexistent\/x: /);
+    assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
+  }
+  // An existing file without --force: refused before any request, exit 2, and at write time too.
+  const exists = makeCli(() => jsonResponse(fx.alertsJson), ["exists.json"]);
+  assert.equal(await run(["-o", "exists.json", "alerts"], exists.deps), 2);
+  assert.equal(exists.mt.calls.length, 0);
+  assert.match(untimed(exists.err.join("\n")), /^ERROR \[hochwasser\.output\] Refusing to overwrite existing file "exists\.json"/);
+  const race = makeCli(() => jsonResponse(fx.alertsJson));
+  race.deps.io.writeFile = () => {
+    throw Object.assign(new Error("EEXIST: file already exists, open 'race.json'"), { code: "EEXIST" });
+  };
+  assert.equal(await run(["-o", "race.json", "alerts"], race.deps), 2);
+  assert.match(untimed(race.err.join("\n")), /^ERROR \[hochwasser\.output\] Refusing to overwrite existing file "race\.json"/);
+});

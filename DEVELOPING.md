@@ -471,7 +471,9 @@ at the source (`cutForMessage`, 500; the `-o` path is left to the record cap, it
 file the user chose). The areas are `cli` (usage errors, commander's messages and the help it shows
 after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP error
 answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
-warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
+warning) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
+failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refused overwrite;
+and a stdout write error). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
 the logger from argv before commander parses it (`logFormatFromArgv`, which skips the
 value of every global option that takes one, as commander does, takes the first
