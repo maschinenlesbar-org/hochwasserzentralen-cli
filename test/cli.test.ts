@@ -5,7 +5,7 @@ import { HochwasserzentralenClient } from "../src/client/client.js";
 import { HochwasserzentralenNetworkError } from "../src/client/errors.js";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "../src/client/http.js";
-import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
 import * as fx from "./fixtures.js";
 
 function makeCli(
@@ -194,7 +194,7 @@ test("stations --geojson -o writes the file and reports the feature count", asyn
   const fc = JSON.parse(written.toString("utf8")) as { type: string; features: unknown[] };
   assert.equal(fc.type, "FeatureCollection");
   assert.equal(fc.features.length, 4);
-  assert.match(cli.err.join("\n"), /Wrote 4 features \(\d+ bytes\) to \/tmp\/stations\.geojson/);
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[hochwasser\.output\] Wrote 4 features \(\d+ bytes\) to \/tmp\/stations\.geojson/);
 });
 
 test("stations --geojson --min-class filters before export", async () => {
@@ -268,14 +268,14 @@ test("a network failure exits 6", async () => {
   });
   const code = await run(["stations"], cli.deps);
   assert.equal(code, 6);
-  assert.match(cli.err.join("\n"), /ENOTFOUND/);
+  assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.http\] .*ENOTFOUND/);
 });
 
 test("a server 3xx exits 1 (runtime) with a base-url hint, not usage (2)", async () => {
   const cli = makeCli(() => rawResponse("", "text/html", 302));
   const code = await run(["alerts"], cli.deps);
   assert.equal(code, 1);
-  assert.match(cli.err.join("\n"), /redirected \(3xx\)/);
+  assert.match(untimed(cli.err.join("\n")), /^INFO  \[hochwasser\.api\] the server redirected \(3xx\)/m);
   assert.equal(cli.mt.calls.length, 1); // the redirect was not followed
 });
 
@@ -402,7 +402,7 @@ test("a null data item exits 1 with a typed parse error, not Unexpected error", 
   for (const argv of [["stations", "--water", "w"], ["stations", "--geojson"], ["situation"]]) {
     const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [null] }));
     assert.equal(await run(argv, cli.deps), 1);
-    assert.match(cli.err.join("\n"), /^Error: Unexpected response shape from \/data\/stations/);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.cli\] Unexpected response shape from \/data\/stations/);
   }
 });
 
@@ -502,7 +502,7 @@ test("--min-class and situation share one classification: an off-scale lhpClass 
     for (const argv of [["stations", "--min-class", "3"], ["situation"]]) {
       const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data }));
       assert.equal(await run(argv, cli.deps), 1, `${JSON.stringify(bad)} ${argv.join(" ")}`);
-      assert.match(cli.err.join("\n"), /^Error: Unexpected lhpClass .* at station "BY_10088003" .*expected an integer from -1 to 4, or null/);
+      assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.cli\] Unexpected lhpClass .* at station "BY_10088003" .*expected an integer from -1 to 4, or null/);
       assert.deepEqual(cli.out, []);
     }
   }
@@ -524,12 +524,12 @@ test("a deeply nested response gives a clear error, not a stack overflow", async
   const body = `{"apiVersion":"x","status":"success","lang":"de","source":"s","sourceName":"s","licence":"l","licenceName":"l","title":"t","description":"d","updated":"u","data":[],"extra":${deep}}`;
   const pretty = makeCli(() => rawResponse(body, "application/json"));
   assert.equal(await run(["stations", "--states", "HH"], pretty.deps), 1);
-  assert.equal(pretty.err.join("\n"), "Error: The response is nested too deeply to pretty-print; try --compact.");
+  assert.equal(untimed(pretty.err.join("\n")), "ERROR [hochwasser.cli] The response is nested too deeply to pretty-print; try --compact.");
   const compact = makeCli(() => rawResponse(body, "application/json"));
   const code = await run(["--compact", "stations", "--states", "HH"], compact.deps);
   if (code !== 0) {
     assert.equal(code, 1);
-    assert.equal(compact.err.join("\n"), "Error: The response is nested too deeply to print.");
+    assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.cli] The response is nested too deeply to print.");
   }
 });
 
@@ -589,13 +589,13 @@ test("--geojson names the alerts it leaves off the map, to a file and to stdout 
   };
   const toFile = makeCli(() => jsonResponse(body));
   assert.equal(await run(["alerts", "--geojson", "-o", "map.geojson"], toFile.deps), 0);
-  const err = toFile.err.join("\n");
-  assert.match(err, /^Wrote 1 feature \(\d+ bytes\) to map\.geojson; 2 alerts skipped \(no usable geometry\)$/m);
-  assert.match(err, /^Note: 2 alerts left off the map \(no usable geometry\): BY_1 \(class 6, Sehr großes Hochwasser, Donau\), BY_2/m);
+  const err = untimed(toFile.err.join("\n"));
+  assert.match(err, /^INFO  \[hochwasser\.output\] Wrote 1 feature \(\d+ bytes\) to map\.geojson; 2 alerts skipped \(no usable geometry\)$/m);
+  assert.match(err, /^INFO  \[hochwasser\.output\] 2 alerts left off the map \(no usable geometry\): BY_1 \(class 6, Sehr großes Hochwasser, Donau\), BY_2/m);
   const toStdout = makeCli(() => jsonResponse(body));
   assert.equal(await run(["alerts", "--geojson"], toStdout.deps), 0);
   assert.equal((JSON.parse(toStdout.out.join("\n")) as { features: unknown[] }).features.length, 1);
-  assert.match(toStdout.err.join("\n"), /^Note: 2 alerts left off the map/);
+  assert.match(untimed(toStdout.err.join("\n")), /^INFO  \[hochwasser\.output\] 2 alerts left off the map/);
   // A complete export says nothing extra.
   const complete = makeCli(() => jsonResponse(fx.alertsJson));
   assert.equal(await run(["alerts", "--geojson"], complete.deps), 0);

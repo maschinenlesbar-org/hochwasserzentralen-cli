@@ -3,7 +3,7 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "../client/client.js";
 import { HochwasserzentralenError, HochwasserzentralenValidationError } from "../client/errors.js";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl } from "../client/engine.js";
@@ -241,7 +241,7 @@ export function renderJson(deps: CliDeps, global: GlobalOptions, value: unknown)
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
     writeOutputFile(deps, global, global.output, data);
-    deps.io.err(`Wrote ${data.length} bytes to ${global.output}`);
+    logOf(deps).info("output", `Wrote ${data.length} bytes to ${global.output}`);
   } else {
     deps.io.out(text);
   }
@@ -276,7 +276,8 @@ export function renderGeoJson(
   if (global.output) {
     const data = Buffer.from(text + "\n", "utf8");
     writeOutputFile(deps, global, global.output, data);
-    deps.io.err(
+    logOf(deps).info(
+      "output",
       `Wrote ${fc.features.length} feature${fc.features.length === 1 ? "" : "s"} (${data.length} bytes) to ${global.output}` +
         (left === undefined ? "" : `; ${leftCount} skipped (${left.reason})`),
     );
@@ -286,7 +287,7 @@ export function renderGeoJson(
   if (left !== undefined) {
     const shown = left.labels.slice(0, 20).join(", ");
     const more = left.labels.length > 20 ? `, and ${left.labels.length - 20} more` : "";
-    deps.io.err(`Note: ${leftCount} left off the map (${left.reason}): ${shown}${more}`);
+    logOf(deps).info("output", `${leftCount} left off the map (${left.reason}): ${shown}${more}`);
   }
 }
 
@@ -326,7 +327,7 @@ export function action(
     // One warning per run, before the first request, when the base URL is plain http: to
     // a host other than loopback. Help, version and usage errors never get here.
     const cleartext = cleartextProblem(global.baseUrl ?? DEFAULT_BASE_URL);
-    if (cleartext !== undefined) deps.io.err(`warning: ${cleartext}`);
+    if (cleartext !== undefined) logOf(deps).warn("http", cleartext);
     await fn({ client, global, opts: command.opts() }, positionals);
   };
 }

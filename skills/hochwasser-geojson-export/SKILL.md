@@ -53,10 +53,10 @@ add `--force` on your own initiative.
 
 ## Step 2 — Verify and report
 
-On success the CLI confirms on stderr, e.g.:
+On success the CLI confirms on stderr with an `INFO` record, e.g.:
 
 ```text
-Wrote 243 features (130359 bytes) to bayern-flooding.geojson
+2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 ```
 
 **Report the path and the feature count back to the user** — and sanity-check:
@@ -93,8 +93,8 @@ Wrote 243 features (130359 bytes) to bayern-flooding.geojson
 >   skipped by the export; the reported feature count is the count actually
 >   written. When anything was skipped the CLI says so on stderr —
 >   `Wrote 1 feature (…) to map.geojson; 2 alerts skipped (no usable geometry)`
->   and a `Note: 2 alerts left off the map (no usable geometry): BY_577 (class
->   6, Sehr großes Hochwasser, …), …` line. **Tell the user which warnings are
+>   and an `INFO  [hochwasser.output] 2 alerts left off the map (no usable geometry):
+>   BY_577 (class 6, Sehr großes Hochwasser, …), …` record. **Tell the user which warnings are
 >   missing from the map** (id, class, area), most severe first — a map that
 >   silently lacks a warning reads as complete.
 > - **Border gauges are exported twice**, once per reporting state, as two

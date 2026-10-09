@@ -174,7 +174,8 @@ src/
     stations.ts  # pure /data/stations transforms: stationClass, filterStations, aggregateSituation
     client.ts    # HochwasserzentralenClient — alerts() / stations() / situation() over the engine
   cli/
-    io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists)
+    io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists), the logger and the clock
+    log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers (states! min-class!), global-option resolver, JSON/GeoJSON renderers
     commands/    # data.ts — alerts / stations / situation (rendering the library's results)
     program.ts   # assembles the commander program from injectable deps
@@ -202,7 +203,7 @@ usage error into 0); any other output error exits 1.
   `redirect: "manual"` (fetch follows by default, and the engine would then accept
   another host's answer without seeing the 3xx).
 - **A plain-`http:` base URL warns.** To a host other than loopback (`localhost`,
-  `127.0.0.0/8`, `::1`) the CLI writes one `warning: <sentence>` line on stderr per run,
+  `127.0.0.0/8`, `::1`) the CLI writes one `WARN` record of `hochwasser.http` on stderr per run,
   before the first request (`action()` in `shared.ts`). The sentence comes from the exported
   `cleartextProblem(baseUrl, secrets?)`: it names the host and, for a `user:password@`, "the
   base URL's credentials" (never the value). Help, version and usage errors never warn;
@@ -318,7 +319,7 @@ computing `bbox` (`[west, south, east, north]`) from the exported features
 rather than copying the API's `[west, north, east, south]` Germany box, and
 carrying attribution + `updated` as foreign members. `alertsWithoutGeometry` /
 `stationsWithoutCoordinates` list what the converters leave out; the CLI names those
-items on stderr (`Note: 2 alerts left off the map (no usable geometry): …`) and adds
+items on stderr (an `INFO` record of `hochwasser.output`: `2 alerts left off the map (no usable geometry): …`) and adds
 the count to the `-o` confirmation, so a map that lacks a warning never looks complete.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
@@ -358,7 +359,7 @@ reason a value is invalid, or `undefined`. The library enforces it with
 with the message `Invalid <name>: <reason>` before any request (a constructor throws; a
 method returning a promise rejects). The CLI's commander parsers turn the same reason
 into a usage error (exit 2), and `run.ts` maps a `HochwasserzentralenValidationError`
-raised during an action to exit 2 too, printed as `Error: <message>`.
+raised during an action to exit 2 too, logged as an `ERROR` record of `hochwasser.cli`.
 
 ## Testing
 
@@ -435,3 +436,22 @@ Dual-licensed under **[AGPL-3.0-or-later](LICENSE)** or a commercial license —
 **[LICENSING.md](LICENSING.md)**. This project does **not** accept external code
 contributions; see **[CONTRIBUTING.md](CONTRIBUTING.md)**. The upstream **data**
 is CC BY 4.0 — see **[DATA_LICENSE.md](DATA_LICENSE.md)**.
+
+## The log on stderr
+
+Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+(`ERROR`, `WARN`, `INFO`) and a topic, `hochwasser.<area>`. `--log-format text` (the
+default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
+`--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
+and `msg`. The areas are `cli` (usage errors, commander's messages and the help it shows
+after one, answers the CLI can't use, unexpected errors), `api` (the API's HTTP error
+answers and the redirect hint), `http` (the connection, the size-cap hint, the cleartext
+warning) and `output` (`Wrote …` and what a GeoJSON export left off the map). Code logs
+through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
+the logger from argv before commander parses it, so commander's own usage errors are
+records too, and on top of the redacted `io.err`, so a secret is kept out of the log in
+either format. `CliDeps.now` makes the timestamps testable. stdout carries data only. The
+bin shim's last-resort `Unexpected error` (a rejected `run()`) is a record too; the one
+line that is not is `Output error: …`, which `handleOutputErrors` writes straight to
+`process.stderr` when stdout itself fails, outside any run. Conformance test P23 checks
+all of this, and its body is shared across the *-cli repos.

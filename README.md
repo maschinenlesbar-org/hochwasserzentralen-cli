@@ -79,7 +79,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated; repeatable, `--states BY --states SN` = `BY,SN`) |
 | `--cap` | include the CAP (Common Alerting Protocol) detail block per alert |
 | `--lang <de\|en>` | response language (default `de`) |
-| `--geojson` | output the alert areas as a GeoJSON `FeatureCollection`; alerts without a usable geometry are left out and named on stderr (`Note: 2 alerts left off the map …`) |
+| `--geojson` | output the alert areas as a GeoJSON `FeatureCollection`; alerts without a usable geometry are left out and named on stderr (`INFO  [hochwasser.output] 2 alerts left off the map …`) |
 
 ### `stations` options
 
@@ -111,7 +111,7 @@ reports the feature count after writing:
 
 ```bash
 hochwasser stations --states BY --geojson -o bayern-pegel.geojson
-# stderr: Wrote 243 features (130359 bytes) to bayern-pegel.geojson
+# stderr: 2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-pegel.geojson
 ```
 
 The exported collection carries `source`, `licence` and `updated` as top-level
@@ -146,6 +146,22 @@ hochwasser --compact stations | jq -r '.updated'
 
 Use `--compact` for single-line JSON in pipelines. Global options work before
 or after the command.
+
+Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
+`INFO`) and a topic, the program and the area it comes from (`hochwasser.cli` for usage
+errors and answers the CLI can't use, `hochwasser.api` for the API's error answers,
+`hochwasser.http` for the connection, `hochwasser.output` for `-o` files and what a
+GeoJSON export left out). By default it is written log4j style; `--log-format jsonl`
+writes one JSON object per line instead:
+
+```text
+2026-10-09T14:03:12.481Z WARN  [hochwasser.http] requests to mirror.example are sent unencrypted (http:, not https:)
+2026-10-09T14:03:12.902Z ERROR [hochwasser.api] HTTP 503 for GET https://api.hochwasserzentralen.de/public/v1/data/stations: …
+```
+
+```bash
+hochwasser --log-format jsonl stations 2>log.jsonl   # {"ts":"…","level":"ERROR","topic":"hochwasser.api","msg":"HTTP 503 …"}
+```
 
 **Exit codes** make the CLI easy to use in scripts:
 
@@ -197,7 +213,8 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `-V, --version` | Print the version number |
 | `-h, --help` | Show help for the program or a command |
 | `--compact` | Print JSON on a single line instead of pretty-printed |
-| `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`). Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one `warning: … sent unencrypted to <host> (http:, not https:)` line on stderr per run, naming the base URL's credentials when it carries some (never their value); stdout and the exit code are unchanged |
+| `--log-format <format>` | How errors, warnings and notes are written to stderr: `text` (default; log4j style, `2026-10-09T14:03:12.481Z WARN  [hochwasser.http] …`) or `jsonl` (one JSON object per line: `ts`, `level`, `topic`, `msg`). stdout is not affected |
+| `--base-url <url>` | API base URL (default `https://api.hochwasserzentralen.de/public/v1`; append `/test` for the test system; http/https, no query or fragment, no surrounding whitespace; a literal `%` in a password is written `%25`). Plain `http:` to a host other than loopback (`localhost`, `127.0.0.0/8`, `::1`) prints one warning record (`WARN  [hochwasser.http] … sent unencrypted to <host> (http:, not https:)`) on stderr per run, naming the base URL's credentials when it carries some (never their value); stdout and the exit code are unchanged |
 | `--timeout <ms>` | Time limit per request in milliseconds, reading the whole response included (default `30000`; `0` = none; at most `2147483647`) |
 | `--user-agent <ua>` | `User-Agent` header value |
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried) |

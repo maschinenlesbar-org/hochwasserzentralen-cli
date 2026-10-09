@@ -4,7 +4,8 @@
 
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
-import type { CliDeps } from "./io.js";
+import { logOf, type CliDeps } from "./io.js";
+import { createLogger, logFormatFromArgv } from "./log.js";
 import {
   HochwasserzentralenApiError,
   HochwasserzentralenError,
@@ -38,7 +39,15 @@ function configureTree(command: Command, deps: CliDeps): void {
   command.exitOverride();
   command.configureOutput({
     writeOut: (str) => deps.io.out(str.replace(/\n$/, "")),
-    writeErr: (str) => deps.io.err(str.replace(/\n$/, "")),
+    // commander's own messages are log records too: its "error: …" an ERROR, the help it
+    // shows after one an INFO. The blank line showHelpAfterError writes between the two
+    // is no record.
+    writeErr: (str) => {
+      const text = str.replace(/\n$/, "");
+      if (text === "") return;
+      if (text.startsWith("error: ")) logOf(deps).error("cli", text.slice("error: ".length));
+      else logOf(deps).info("cli", text);
+    },
   });
   for (const child of command.commands) configureTree(child, deps);
 }
@@ -85,6 +94,13 @@ export function withRedactedOutput(deps: CliDeps, argv: readonly string[]): CliD
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   deps = withRedactedOutput(deps, argv);
+  // Every record goes through the redacted `io.err`, so a secret is kept out of the
+  // log in either format.
+  const redacted = deps;
+  deps = {
+    ...deps,
+    log: createLogger({ format: logFormatFromArgv(argv), write: (line) => redacted.io.err(line), ...(deps.now === undefined ? {} : { now: deps.now }) }),
+  };
   const program = buildProgram(deps);
   configureTree(program, deps);
 
@@ -105,12 +121,13 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // the catch-all).
       return err.exitCode === 0 ? 0 : EXIT.USAGE;
     }
+    const log = logOf(deps);
     if (err instanceof HochwasserzentralenValidationError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return EXIT.USAGE;
     }
     if (err instanceof HochwasserzentralenApiError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("api", err.message);
       if (err.status === 404) return EXIT.NOT_FOUND;
       // A 3xx means the server redirected. This client deliberately does not
       // follow redirects (the canonical host answers directly), so this usually
@@ -118,8 +135,9 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       // runtime condition, not CLI misuse, so it exits OTHER (1) with a pointed
       // hint rather than USAGE (2), which scripts reserve for bad flags/arguments.
       if (err.status >= 300 && err.status < 400) {
-        deps.io.err(
-          "Hint: the server redirected (3xx); redirects are not followed — check --base-url " +
+        log.info(
+          "api",
+          "the server redirected (3xx); redirects are not followed — check --base-url " +
             "points at the canonical host (https://api.hochwasserzentralen.de/public/v1).",
         );
         return EXIT.OTHER;
@@ -127,20 +145,21 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
       return EXIT.OTHER;
     }
     if (err instanceof HochwasserzentralenNetworkError) {
-      deps.io.err(`Error: ${err.message}`);
+      log.error("http", err.message);
       if (/maxResponseBytes/.test(err.message)) {
-        deps.io.err(
-          "Hint: the response exceeded the size cap. Raise --max-response-bytes <n> (0 = unlimited).",
+        log.info(
+          "http",
+          "the response exceeded the size cap. Raise --max-response-bytes <n> (0 = unlimited).",
         );
       }
       return EXIT.NETWORK;
     }
     if (err instanceof HochwasserzentralenError) {
       // Includes HochwasserzentralenParseError (a non-JSON body).
-      deps.io.err(`Error: ${err.message}`);
+      log.error("cli", err.message);
       return EXIT.OTHER;
     }
-    deps.io.err(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    log.error("cli", `Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     return EXIT.OTHER;
   }
 }

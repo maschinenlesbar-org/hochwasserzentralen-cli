@@ -106,7 +106,7 @@ The CLI refuses to overwrite an existing file (exit 2) unless you pass
 confirms what it wrote on stderr:
 
 ```text
-Wrote 243 features (130359 bytes) to bayern-pegel.geojson
+2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-pegel.geojson
 ```
 
 Items without a usable geometry (an alert area without a GeoJSON geometry, a gauge
@@ -115,8 +115,8 @@ without coordinates, a position outside ±180/±90) can't go on a map and are le
 file and to stdout alike:
 
 ```text
-Wrote 1 feature (13599 bytes) to map.geojson; 2 alerts skipped (no usable geometry)
-Note: 2 alerts left off the map (no usable geometry): BY_1 (class 6, Sehr großes Hochwasser, Donau), BY_2 (class 2, …)
+2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 1 feature (13599 bytes) to map.geojson; 2 alerts skipped (no usable geometry)
+2026-10-09T14:03:12.481Z INFO  [hochwasser.output] 2 alerts left off the map (no usable geometry): BY_1 (class 6, Sehr großes Hochwasser, Donau), BY_2 (class 2, …)
 ```
 
 Open the file at https://geojson.io or load it into Leaflet/QGIS. Coordinates
@@ -136,9 +136,9 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test stations --min-class 2
 ```
 
-A `--base-url` on plain `http:` to a host other than loopback (a mirror) gets one stderr line
-before the first request — `warning: requests to <host> are sent unencrypted (http:, not
-https:)`, or "the base URL's credentials are sent unencrypted …" with a `user:password@` (never
+A `--base-url` on plain `http:` to a host other than loopback (a mirror) gets one warning record
+on stderr before the first request — `WARN  [hochwasser.http] requests to <host> are sent
+unencrypted (http:, not https:)`, or "the base URL's credentials are sent unencrypted …" with a `user:password@` (never
 printed). stdout and the exit code are unchanged.
 
 ## Scripting patterns
