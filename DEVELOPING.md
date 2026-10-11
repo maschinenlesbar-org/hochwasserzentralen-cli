@@ -55,14 +55,14 @@ front of the API serves one representation for all `Accept` and
 `Accept-Language` values of a URL. So a request for `application/json` can get
 the `application/geo+json` body (seen live 2026-09-15: `Content-Type:
 application/geo+json`, `Age: 21`), and `Accept-Language: en` can get `lang: "de"`.
-`assertDataArray` in [`src/client/client.ts`](src/client/client.ts) turns the
+`assertDataArray` in [`packages/client/src/client.ts`](packages/client/src/client.ts) turns the
 first case into a `HochwasserzentralenParseError` that says so and suggests a
 retry; the client does not convert the GeoJSON body.
 
-The types in [`src/client/types.ts`](src/client/types.ts) model the plain-JSON
+The types in [`packages/client/src/types.ts`](packages/client/src/types.ts) model the plain-JSON
 shapes. The CLI's `--geojson` flag does **not** switch the Accept header — it
 rebuilds a `FeatureCollection` locally via
-[`src/client/geojson.ts`](src/client/geojson.ts), which lets `--water` /
+[`packages/client/src/geojson.ts`](packages/client/src/geojson.ts), which lets `--water` /
 `--min-class` filter first and lets the export carry the CC-BY attribution
 foreign members.
 
@@ -76,14 +76,14 @@ via `EngineOptions.defaultHeaders`.
 
 ```bash
 npm install
-npm run build        # compiles TypeScript to dist/
+npm run build        # compiles every workspace (tsc -b) to its dist/
 ```
 
 Run the locally built CLI without a global install:
 
 ```bash
-node dist/src/cli/index.js --help
-# or, after `npm link`:
+node apps/cli/dist/src/cli/index.js --help    # or: npm start -- --help
+# or, after `npm link --workspace apps/cli`:
 hochwasser --help
 ```
 
@@ -161,9 +161,46 @@ default transport's per-hop scheme check).
 
 ## Architecture
 
+The repository is an **npm workspace** with two folders: `apps/` holds the programs it
+publishes, `packages/` the libraries they are built from.
+
 ```
-src/
-  client/
+package.json         # private workspace manifest: no version, never packed
+apps/cli/            # @maschinenlesbar.org/hochwasserzentralen-cli — the published package
+  package.json       # its version, bin, files, bundleDependencies
+  src/index.ts       # library entry: re-exports @maschinenlesbar.org/hochwasserzentralen-client
+  src/cli/           # the CLI (below)
+  test/              # CLI tests and every conformance-*.test.ts
+packages/client/     # @maschinenlesbar.org/hochwasserzentralen-client — private, bundled into the CLI
+  src/               # the API client (below)
+  test/              # tests that only touch the client, + the transport helpers and fixtures
+tools/pack/          # prepack/postpack: bundle the client and commander into the tarball
+tools/bump.mjs       # version bump + commit + tag (npm run bump)
+tsconfig.docs.json   # TypeDoc only: the package entry, with the client read from its sources
+```
+
+- **The client is its own package** so a later MCP app can share it with the CLI. It is
+  never published on its own: `apps/cli`'s `prepack` copies it (and commander) into the
+  app's `node_modules`, and `bundleDependencies` ships it inside the tarball. The library
+  entry re-exports the client's `"."`, so `import { HochwasserzentralenClient } from
+  "@maschinenlesbar.org/hochwasserzentralen-cli"` is unchanged.
+- **The client's exports:** `"."` is the public library surface (`src/index.ts`);
+  `"./internal/*"` maps to any module (`…/hochwasserzentralen-client/internal/engine`) for
+  what the CLI needs beyond that; `"./test/*"` reaches the client's test helpers and
+  fixtures from the CLI's tests (not bundled). Only `"."` is part of the library.
+- **Dependencies point one way:** the app depends on the client, the client on nothing
+  in the workspace.
+- **The version lives in `apps/cli/package.json`.** The root has none; a plain
+  `npm version` at the root is refused. Release with `npm run bump -- <patch|minor|major>`,
+  which bumps the app, commits (the bare version as the message) and tags `vX.Y.Z`.
+- **TypeScript:** `tsconfig.base.json` holds the compiler options; every workspace has a
+  `tsconfig.json` (`src/`) and a `tsconfig.test.json` (`test/`), and the root
+  `tsconfig.json`/`tsconfig.test.json` reference them, built with `tsc -b`.
+
+The client (`packages/client/src/`) and the CLI (`apps/cli/src/`):
+
+```
+packages/client/src/
     types.ts     # envelopes, AlertArea / Station / CAP shapes, state codes, lhpClass names
     query.ts     # dependency-free query-string builder
     http.ts      # the Transport interface + default node:http/https transport
@@ -173,7 +210,8 @@ src/
     geojson.ts   # pure plain-JSON -> FeatureCollection converters (alerts + stations)
     stations.ts  # pure /data/stations transforms: stationClass, filterStations, aggregateSituation
     client.ts    # HochwasserzentralenClient — alerts() / stations() / situation() over the engine
-  cli/
+    index.ts     # the client's public surface (the library entry re-exports it)
+apps/cli/src/cli/
     io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers (states! min-class!), global-option resolver, JSON/GeoJSON renderers
@@ -189,7 +227,7 @@ stderr is ignored, so a failed run keeps its own exit code (`2>&1 | true` used t
 usage error into 0); any other stdout write error is an ERROR record of
 `hochwasser.output` (`Could not write to stdout: …`, in the format argv asks for:
 `processLogger`) and exits 1; any other stderr error exits 1.
-`test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin for both.
+`apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin for both.
 
 **Design notes**
 
@@ -209,13 +247,13 @@ usage error into 0); any other stdout write error is an ERROR record of
   before the first request (`action()` in `shared.ts`). The sentence comes from the exported
   `cleartextProblem(baseUrl, secrets?)`: it names the host and, for a `user:password@`, "the
   base URL's credentials" (never the value). Help, version and usage errors never warn;
-  stdout and the exit code are untouched. `test/conformance-p20-cleartext-warning.test.ts`
+  stdout and the exit code are untouched. `apps/cli/test/conformance-p20-cleartext-warning.test.ts`
   is the shared check (P20; its environment and API-key cases are skipped: no variable,
   no key).
 - **README links work on npmjs.com.** The README ships in the npm tarball and is what
   npmjs.com shows, so a relative link in it points only at a file `files` ships
   (`LICENSE`, `LICENSING.md`, `CONTRIBUTING.md`, `DATA_LICENSE.md`); every other document is
-  linked by its absolute GitHub URL. `test/conformance-p21-readme-links.test.ts` is the
+  linked by its absolute GitHub URL. `apps/cli/test/conformance-p21-readme-links.test.ts` is the
   shared check (P21).
 - **Credentials in `--base-url` never reach the output.** A `user:password@` in the
   base URL (a mirror behind a login) is sent as Basic auth, but never printed.
@@ -233,7 +271,7 @@ usage error into 0); any other stdout write error is an ERROR record of
   occur in the data. The log replaces them in each record's *message*, before the record is cut and escaped, and writes it to the raw stderr: the
   frame (time, level, topic) is never touched, and a password with DEL, C1 or bidi
   characters is matched in its raw form — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
-  command '…'`, `too many arguments … got 1: …`). `test/conformance-p1-cli-redaction.test.ts`
+  command '…'`, `too many arguments … got 1: …`). `apps/cli/test/conformance-p1-cli-redaction.test.ts`
   checks ten passwords in seven URL shapes at nine argv positions (the schemeless shape
   as the `--base-url` value only).
   The library keeps them out of what a caller logs: the engine holds the base URL in a
@@ -244,7 +282,7 @@ usage error into 0); any other stdout write error is an ERROR record of
   characters: `echoedCredentialForms`) are scrubbed from error bodies, details, transport
   error text and the `cause` chain. Whatever a custom transport
   throws becomes a `HochwasserzentralenNetworkError` with the original (scrubbed) as
-  `cause`. `test/conformance-p2-library-redaction.test.ts` checks the client, nine
+  `cause`. `apps/cli/test/conformance-p2-library-redaction.test.ts` checks the client, nine
   failing transports and five rejected base URLs.
 - **Every option value is validated** — `--states` against the 16 codes (parse
   time, exit 2), `--lang` via commander `.choices()`, `--min-class` bounded to
@@ -257,7 +295,7 @@ usage error into 0); any other stdout write error is an ERROR record of
   instead of commander's "last one wins"; `--states` is the exception and collects
   (`--states BY --states SN` = `--states BY,SN`). `--base-url` therefore has no
   commander default — the library's `DEFAULT_BASE_URL` applies.
-  `test/conformance-p10-strict-filters.test.ts` covers keys, codes, value types and
+  `apps/cli/test/conformance-p10-strict-filters.test.ts` covers keys, codes, value types and
   the repeated flags.
 - **`--states` is enforced locally, too.** The API filters by `?states=`, but a server
   that ignores the parameter (a mirror or proxy via `--base-url`, an upstream
@@ -274,24 +312,24 @@ usage error into 0); any other stdout write error is an ERROR record of
   feature count. (This is stricter than some siblings — deliberate here, since
   the flagship use-case is file export.)
   `-o -` means stdout, as in other Unix tools — the same as no `-o`; it used to
-  create a file named `-` (`test/conformance-p12-output-dash.test.ts`).
+  create a file named `-` (`apps/cli/test/conformance-p12-output-dash.test.ts`).
 - **CC BY 4.0 plumbing:** the API envelope's `source*`/`licence*`/`updated`
   fields are never stripped — they survive filtering (`--water`/`--min-class`),
   appear in the `situation` aggregate, and ride along as GeoJSON foreign members.
 
 ### Library & technical terms
 
-**API client (`HochwasserzentralenClient`).** [`src/client/client.ts`](src/client/client.ts) —
+**API client (`HochwasserzentralenClient`).** [`packages/client/src/client.ts`](packages/client/src/client.ts) —
 the typed wrapper over the API: `alerts(params)`, `stations(params)` (with the
 `water` / `minClass` filters of `stations --water / --min-class`, applied after the
 fetch by the exported pure `filterStations`) and
 `situation(params)`, the per-state overview the `situation` command prints (one
 `/data/stations` request, aggregated by the exported pure `aggregateSituation` in
-[`src/client/stations.ts`](src/client/stations.ts); an off-scale `lhpClass` is a
+[`packages/client/src/stations.ts`](packages/client/src/stations.ts); an off-scale `lhpClass` is a
 `HochwasserzentralenParseError` via the exported `stationClass`). Usable as a library
 independently of the CLI.
 
-**Request engine (`RequestEngine`).** [`src/client/engine.ts`](src/client/engine.ts)
+**Request engine (`RequestEngine`).** [`packages/client/src/engine.ts`](packages/client/src/engine.ts)
 — builds URLs, serialises queries, applies retry/backoff, decodes JSON and maps
 errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
 `TEST_BASE_URL` appends `/test`. A body is decoded by the charset its Content-Type
@@ -299,7 +337,7 @@ names (UTF-8 when it names none; a byte order mark is dropped); an unknown chars
 is a `HochwasserzentralenParseError`.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
-([`src/client/http.ts`](src/client/http.ts)). The default (`nodeHttpTransport`) uses Node's
+([`packages/client/src/http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses Node's
 built-in `http`/`https`; tests inject a mock. This is the only HTTP seam.
 
 **Retry / backoff.** Transient `429` (rate limit) and `503` responses, and reset
@@ -309,13 +347,13 @@ HTTP-date as an IMF-fixdate; any other value counts as absent) can lengthen a wa
 shorten it: `Retry-After: 0` or a date in the past waits the normal backoff, so retries
 never burst, and a long one is clamped to 30 s so a hostile value cannot hang the CLI.
 `HochwasserzentralenApiError` exposes `isRetryable`. CLI: `--max-retries`.
-`test/conformance-p6-retry-policy.test.ts` covers it.
+`apps/cli/test/conformance-p6-retry-policy.test.ts` covers it.
 Each retry is announced: the engine option `onRetry(event: RetryEvent)` (exported type:
 `{ retry` (1-based), `maxRetries`, `delayMs`, `status?` (absent for a reset), `url` (credentials
 masked) `}`) is called once per retry right before the sleep, never when there is none, and
 a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` record of
 `hochwasser.http`, `HTTP 503 from <host>: retry 1 of 3 in 2 s` (`retryMessage`; host only, whole
-seconds, ms under 1 s). Tests: `test/engine.test.ts`, `test/retry-log.test.ts`.
+seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`, `apps/cli/test/retry-log.test.ts`.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory
 exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
@@ -328,9 +366,9 @@ against `maxResponseBytes`, headers are read from a plain object in any key case
 realm), a reset connection (`ECONNRESET`, `EPIPE`, `ECONNABORTED`, undici's
 `UND_ERR_SOCKET`, anywhere in the cause chain) is retried like a 503, and whatever a
 transport throws or returns malformed becomes a `HochwasserzentralenNetworkError`.
-`test/conformance-p5-transport-contract.test.ts` covers it.
+`apps/cli/test/conformance-p5-transport-contract.test.ts` covers it.
 
-**GeoJSON converters.** [`src/client/geojson.ts`](src/client/geojson.ts) — pure
+**GeoJSON converters.** [`packages/client/src/geojson.ts`](packages/client/src/geojson.ts) — pure
 functions `alertsToGeoJson` / `stationsToGeoJson` producing RFC-7946
 FeatureCollections (`[lon, lat]`), skipping items without usable geometry,
 computing `bbox` (`[west, south, east, north]`) from the exported features
@@ -341,11 +379,11 @@ items on stderr (an `INFO` record of `hochwasser.output`: `2 alerts left off the
 the count to the `-o` confirmation, so a map that lacks a warning never looks complete.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`src/cli/io.ts`](src/cli/io.ts)): a client factory plus an I/O object
+([`apps/cli/src/cli/io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object
 (`out`/`err`/`writeFile`/`fileExists`). Lets the whole CLI run in tests with a
 mocked client and captured output — no subprocess.
 
-**Error types.** [`src/client/errors.ts`](src/client/errors.ts):
+**Error types.** [`packages/client/src/errors.ts`](packages/client/src/errors.ts):
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx, and a 2xx whose envelope
 `status` isn't `"success"` — then `status` is 200 and `apiStatus` holds the envelope's
 status; carries `status`, `detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
@@ -369,12 +407,12 @@ error's own properties keep the full value. A non-2xx answer's `detail` is the A
 `error.message` (`{"status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown
 states"}}`), else a top-level `message`/`description`/`detail`, else a plain-text snippet.
 A body that doesn't parse names why: the Content-Type when it isn't JSON (a proxy's HTML
-page), else the parser's reason. `test/conformance-p8-p9-p13-responses-and-errors.test.ts`
+page), else the parser's reason. `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts`
 checks the declared charset (P8), the envelope (P9) and the wrong-typed calls (P13).
 
 **Input validation.** The library owns every rule about what a request may contain;
 the CLI calls the same functions instead of keeping its own copy. A rule is a pure,
-exported `Problem` ([`src/client/validate.ts`](src/client/validate.ts)): it returns the
+exported `Problem` ([`packages/client/src/validate.ts`](packages/client/src/validate.ts)): it returns the
 reason a value is invalid, or `undefined`. The library enforces it with
 `assertValid(name, value, problem)`, which throws `HochwasserzentralenValidationError`
 with the message `Invalid <name>: <reason>` before any request (a constructor throws; a
@@ -385,8 +423,13 @@ raised during an action to exit 2 too, logged as an `ERROR` record of `hochwasse
 ## Testing
 
 ```bash
-npm test          # builds, then runs `node --test` over dist/test
+npm test          # builds, then runs `node --test` over each workspace's dist/test
+npm run coverage  # the same tests in one run, with a coverage report
+node --test apps/cli/dist/test/cli.test.js   # one file, after a build
 ```
+
+The client's tests are in `packages/client/test/` (`query`, `http`, `engine`, `client`),
+everything that drives the CLI is in `apps/cli/test/`.
 
 - **`query.test.ts`** — query-string serialisation (states join, cap boolean).
 - **`http.test.ts`** — the default transport against a real loopback `http.createServer`.
@@ -397,18 +440,18 @@ npm test          # builds, then runs `node --test` over dist/test
   fixtures, GeoJSON converters, `situation()` / `aggregateSituation` / `stationClass`
   — mocked transport.
 - **`parity.test.ts`** — CLI <-> library parity: the same input through `run()` and the
-  library (`parity()` in `test/helpers.ts`) gives the same requests and outcome.
+  library (`parity()` in `apps/cli/test/helpers.ts`) gives the same requests and outcome.
 - **`cli.test.ts`** — end-to-end command parsing, filter validation (exit 2 paths),
   the situation aggregation, GeoJSON export + overwrite guard, exit codes (0/2/4/6/1)
   — mocked client, captured output.
-- **`log.test.ts`** — the record helpers of `src/cli/log.ts` on their own
+- **`log.test.ts`** — the record helpers of `apps/cli/src/cli/log.ts` on their own
   (`escapeForRecord`, `formatLogRecord`, `installWarningLog`); the CLI-level checks are
   P23's.
 - **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` with fake streams (a
   closed pipe, a stdout write error as a record, a record held behind stdout's backlog)
   and the default `-o` writer.
 - **`validate.test.ts`** — `assertValid`, the `run.ts` mapping of
-  `HochwasserzentralenValidationError`, and the `parity()` helper (`test/helpers.ts`),
+  `HochwasserzentralenValidationError`, and the `parity()` helper (`apps/cli/test/helpers.ts`),
   which sends one input through `run()` and through the library on one recording mock
   transport so a test can assert both give the same outcome.
 
@@ -419,16 +462,18 @@ npm test          # builds, then runs `node --test` over dist/test
   exit codes (runs the built bin), P8/P9/P13 charset, envelope and error classes, P10
   strict keys and repeated flags, P12 `-o -`.
 
-Run one file after building: `node --test dist/test/cli.test.js`.
-
 ## Continuous integration
 
 GitHub Actions workflows under `.github/workflows/`:
 
-- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR.
-- **release.yml** — on a `v*` tag: verify the tag matches `package.json`, test, `npm pack`,
-  generate CycloneDX SBOMs, and create a GitHub Release with the artifacts.
-- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): publish to npm via OIDC **Trusted Publishing**
+- **ci.yml** — type-check, build and test on Node 22/24 for every push and PR; then pack the
+  real tarball, check the pack left nothing behind, install it globally with the registry out
+  of reach and run the bin.
+- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
+  `apps/cli/package.json`, test, generate CycloneDX SBOMs (scoped to the `apps/cli`
+  workspace), then `npm pack --workspace apps/cli`, and create a GitHub Release with the
+  artifacts.
+- **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing**
   (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
   under `/api/`, and deploy both to GitHub Pages on each `v*` tag.
@@ -446,8 +491,10 @@ and deployed by `docs.yml` together with the TypeDoc API reference under `/api/`
 comes from this repository: the README intro and quick start, the command tree of the built CLI
 (`site/scripts/cli-reference.mjs`), `Usage.md`, `GLOSSARY.md` and its German version
 `GLOSSARY.de.md`, the skills, and the skill examples in `EXAMPLE.md` and `EXAMPLE.de.md`. The
-only repo-specific files are `site/_config.yml` and `site/_data/project.yml` (the German intro
-and the access requirements); the rest of `site/` is identical in every maschinenlesbar.org
+only repo-specific files are `site/_config.yml` (which also says where the published manifest
+and the built program are: `manifest: apps/cli/package.json`, `program:
+apps/cli/dist/src/cli/program.js`) and `site/_data/project.yml` (the German intro and the
+access requirements); the rest of `site/` is identical in every maschinenlesbar.org
 CLI, so change it in all of them together. When the README intro changes, update the German
 intro in `site/_data/project.yml`.
 
@@ -466,7 +513,7 @@ is CC BY 4.0 — see **[DATA_LICENSE.md](DATA_LICENSE.md)**.
 
 ## The log on stderr
 
-Every diagnostic line on stderr is a log record (`src/cli/log.ts`): a timestamp, a level
+Every diagnostic line on stderr is a log record (`apps/cli/src/cli/log.ts`): a timestamp, a level
 (`ERROR`, `WARN`, `INFO`) and a topic, `hochwasser.<area>`. `--log-format text` (the
 default) writes it log4j style, `<ISO 8601 UTC> <LEVEL padded to 5> [<topic>] <message>`;
 `--log-format jsonl` writes one JSON object per line with exactly `ts`, `level`, `topic`
