@@ -4,7 +4,7 @@
 [![Release](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/actions/workflows/release.yml/badge.svg)](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/actions/workflows/release.yml)
 [![npm](https://img.shields.io/npm/v/@maschinenlesbar.org/hochwasserzentralen-cli)](https://www.npmjs.com/package/@maschinenlesbar.org/hochwasserzentralen-cli)
 
-**Website:** [English](https://maschinenlesbar-org.github.io/hochwasserzentralen-cli/) · [Deutsch](https://maschinenlesbar-org.github.io/hochwasserzentralen-cli/de/) — command reference, guides and API docs
+**Website:** [English](https://maschinenlesbar.org/hochwasserzentralen-cli/) · [Deutsch](https://maschinenlesbar.org/hochwasserzentralen-cli/de/) — command reference, guides and API docs
 
 Check Germany's official flood warnings and the flood situation at ~1600 gauges
 from your terminal. `hochwasser` is a command-line tool over the official
