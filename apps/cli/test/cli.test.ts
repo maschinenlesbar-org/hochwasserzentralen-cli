@@ -836,3 +836,22 @@ test("terminal controls are escaped in chunks: the same text as one pass, across
   assert.equal(out[0], expected);
   assert.deepEqual(JSON.parse(out[0]!), { text });
 });
+
+test("a password in a URL inside any argument is redacted on stderr, padded, mid-phrase or not (T15)", async () => {
+  const url = "https://bob:s3cretpw@host.example/";
+  const argvs = [
+    ["stations", "--states", url], ["stations", "--states", ` ${url}`], ["stations", "--states", `BY,\t${url}`],
+    ["alerts", `--states= ${url}`], ["stations", "--water", ` -${url}\u200b`], ["stations", "--water", `Elbe ${url}\u00ad`],
+    ["-o", ` ${url}`, "alerts"], ["-o", `-${url}`, "alerts"], ["alerts", `x ${url}`], [`--base-url`, `x ${url}`, "alerts"],
+    ["--user-agent", `ua ${url}\u0001`, "alerts"],
+  ];
+  for (const argv of argvs) {
+    for (const format of ["text", "jsonl"]) {
+      const cli = makeCli(() => jsonResponse({ status: "fail", error: { message: `nothing at ${url}` } }, 404));
+      await run(["--log-format", format, ...argv], cli.deps);
+      const err = cli.err.join("\n");
+      assert.ok(err.length > 0, JSON.stringify(argv));
+      assert.doesNotMatch(err, /s3cretpw|bob%3As3|s3cretpw%40/, `${JSON.stringify(argv)} ${format}: ${err}`);
+    }
+  }
+});

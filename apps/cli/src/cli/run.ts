@@ -179,9 +179,11 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const passwords = new Set<string>();
   // A base URL typed without its scheme is read as if it had one.
   const baseUrls = flagValues(argv, BASE_URL_FLAGS).map((value) => (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value) ? value : `http://${value}`));
-  for (const source of [...values, ...baseUrls]) {
+  for (const source of [...values.flatMap(urlsWithin), ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
+      // As a request URL carries it, percent-encoded (`bob%3As3cret`).
+      secrets.add(encodeURIComponent(secret));
       // Commander's echo of it is escaped (escapeTerminalText), a JSON-quoted one JSON-escaped.
       secrets.add(escapeTerminalText(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
@@ -200,6 +202,22 @@ export function redactionFor(argv: readonly string[]): Redaction {
   const passwordList = [...passwords].sort((a, b) => b.length - a.length);
   const out = (text: string): string => redactSecrets(redactUserinfo(redactCredentials(text, list)), echoedList);
   return { out, err: (text) => redactSecrets(out(text), passwordList) };
+}
+
+/** Where a scheme (`https://`) starts inside a value: anywhere, not only at its start. */
+const SCHEME_START = /[A-Za-z][A-Za-z0-9+.-]*:\/\//g;
+
+/**
+ * `value` and the rest of it from each place a URL starts inside it, for `credentialsIn`
+ * (which reads a URL at the start of its input only). A value is checked and echoed trimmed or
+ * as typed, so a padded `" https://user:pw@host"`, one after a dash (`-o -https://…`, which the
+ * dash guard quotes) or inside a phrase (`--water "Elbe https://…"`) reaches the messages that
+ * quote it.
+ */
+function urlsWithin(value: string): string[] {
+  const found = [value];
+  for (const match of value.matchAll(SCHEME_START)) if (match.index > 0) found.push(value.slice(match.index));
+  return found;
 }
 
 /**

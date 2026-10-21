@@ -301,7 +301,9 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   often as a credential), except as the `--base-url` value, which is read as if it had
   one. `run()` starts with
   `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
-  of the value part of `--opt=value`, `redactionFor`) and redacts every line printed on
+  of the value part of `--opt=value`, `redactionFor`; of every URL that starts anywhere inside
+  an argument, `urlsWithin`, so a padded `--states " https://u:pw@h"`, a dash-led `-o -https://…`
+  or a URL inside a `--water` phrase is covered, and in its percent-encoded form too) and redacts every line printed on
   stdout and every log record on stderr. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may well
