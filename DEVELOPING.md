@@ -361,9 +361,11 @@ names (UTF-8 when it names none; a byte order mark is dropped); an unknown chars
 is a `HochwasserzentralenParseError`. JSON.parse rounds and overflows numbers silently, so
 `getJson` scans the body after parsing: a number out of a double's range (`1e400`), past 2^53
 in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
-non-zero and too small (`1e-400`) is a `HochwasserzentralenParseError` (`Unexpected response
+non-zero and too small (`1e-400`), or a subnormal that doesn't print as written (`3e-324`, which a
+double holds as `5e-324`), is a `HochwasserzentralenParseError` (`Unexpected response
 from /data/stations: the number … cannot be represented exactly.`), never a changed value.
-Below 2^53 a decimal fraction keeps a double's precision (the coordinates). Past 2^53 the number
+Below 2^53 and above the smallest normal double (2.2250738585072014e-308) a decimal fraction keeps
+a double's precision (the coordinates). Past 2^53 the number
 as printed (`String(value)`, the shortest decimal that reads back as the same double) is compared
 with the number as written (`exactAtTheEdges`/`decimalOf`, no BigInt): `12345678901234567890`
 prints as `12345678901234567000` and is refused, while `1E23` or `1.7976931348623157E308`, a

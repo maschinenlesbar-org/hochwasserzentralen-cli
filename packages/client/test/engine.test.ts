@@ -429,6 +429,8 @@ test("a number JSON.parse can't carry exactly is a parse error, never a changed 
     "12345678901234567890", "-9007199254740993", "1e400", "-1E400", "12345678901234567890.0", "9007199254740993e0",
     "90071992547409930E-1", "9007199254740992.5", "-9007199254740992.5", "1e-400", "-0.0001e-399",
     "123456789012345678901234567890",
+    // Below the smallest normal double a subnormal has fewer digits: 3e-324 became 5e-324 (D4).
+    "3e-324", "4e-324", "-4.9e-324", "1.2345678901234567e-310", "2.225073858507201e-309",
   ];
   for (const literal of inexact) {
     const e = new RequestEngine({ transport: makeMockTransport(() => rawResponse(`{"data":[],"n":${literal}}`, "application/json")).transport });
@@ -448,6 +450,8 @@ test("a number JSON.parse can't carry exactly is a parse error, never a changed 
     // same number: not a changed value, though the decimal is not the double's exact binary value.
     ["1e23", 1e23], ["100000000000000000000000", 1e23], ["1E23", 1e23], ["1.7976931348623157E308", Number.MAX_VALUE], ["-1.7976931348623157e308", -Number.MAX_VALUE],
     ["4.35e30", 4.35e30],
+    // A subnormal or the smallest normal double that prints as written (D4).
+    ["-5e-324", -5e-324], ["1e-310", 1e-310], ["2.2250738585072014e-308", 2.2250738585072014e-308],
   ];
   for (const [literal, value] of exact) {
     const e = new RequestEngine({
