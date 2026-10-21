@@ -360,7 +360,11 @@ is a `HochwasserzentralenParseError`. JSON.parse rounds and overflows numbers si
 in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
 non-zero and too small (`1e-400`) is a `HochwasserzentralenParseError` (`Unexpected response
 from /data/stations: the number … cannot be represented exactly.`), never a changed value.
-Below 2^53 a decimal fraction keeps a double's precision (the coordinates).
+Below 2^53 a decimal fraction keeps a double's precision (the coordinates). Past 2^53 the number
+as printed (`String(value)`, the shortest decimal that reads back as the same double) is compared
+with the number as written (`exactAtTheEdges`/`decimalOf`, no BigInt): `12345678901234567890`
+prints as `12345678901234567000` and is refused, while `1E23` or `1.7976931348623157E308`, a
+double a server printed in its own shortest form, prints as the same number and passes.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
 ([`packages/client/src/http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses Node's
