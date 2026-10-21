@@ -238,7 +238,10 @@ unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeS
 iterative, allocation-free walk): on Node 26
 the fast path aborts the process on a ~250 MB string from JSON.parse, while the gap path
 (`JSON.stringify(value, null, "")`, the same text) prints it; the fast path stays the default
-because on Node 26 only it prints very deep nesting.
+because on Node 26 only it prints very deep nesting. `escapeControlChars` (DEL, C1 and the bidi
+controls as `\uXXXX`) measures its output first, so one past V8's longest string is `The answer is
+too large to print (N characters once its control characters are escaped).`, and then builds it in
+chunks of 64 Ki characters joined once, so 100 MB of DEL characters stay within memory.
 
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (`io.ts`) before `run()`:
 an EPIPE on stdout (`| head`, a `jq` that exits early) exits 0 quietly; an EPIPE on
