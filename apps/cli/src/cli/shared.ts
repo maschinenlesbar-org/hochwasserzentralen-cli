@@ -6,7 +6,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
 import { OutputError, isDirectoryError, logOf, nodeFiles, refuseOverwrite, writeFailure, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError, quoteValue } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
+import { HochwasserzentralenValidationError, quoteValue } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
 import {
   baseUrlProblem,
@@ -242,7 +242,7 @@ const ESCAPE_CHUNK = 1 << 16;
  * Checked by char code so the source stays free of control bytes.
  *
  * Each such character becomes six, so the output is measured first: one longer than V8's
- * longest string is a HochwasserzentralenParseError ("too large to print"), before anything is
+ * longest string is an OutputError ("too large to print", an ERROR of `hochwasser.output`, exit 1), before anything is
  * built. Then the output is built in chunks of ESCAPE_CHUNK characters, each made flat at once,
  * and joined once: one `+=` per character made a rope of 100 M pieces on an answer of DEL
  * characters, and the process died of a heap out-of-memory crash.
@@ -253,7 +253,7 @@ export function escapeControlChars(json: string): string {
   if (count === 0) return json;
   const length = json.length + 5 * count;
   if (length > MAX_TEXT_LENGTH) {
-    throw new HochwasserzentralenParseError(
+    throw new OutputError(
       `The answer is too large to print (${length} characters once its control characters are escaped).`,
     );
   }
@@ -278,9 +278,9 @@ export function escapeControlChars(json: string): string {
 const MAX_TEXT_LENGTH = constants.MAX_STRING_LENGTH;
 
 /**
- * JSON.stringify, pretty or compact. Printing can fail two ways, both a
- * HochwasserzentralenParseError (an answer the CLI can't use, logged under `hochwasser.api`,
- * exit 1) that names the cause, never "Unexpected error":
+ * JSON.stringify, pretty or compact. Printing can fail two ways, both an OutputError (the
+ * output failed: an ERROR of `hochwasser.output`, exit 1, as the kit has it) that names the
+ * cause, never "Unexpected error":
  * - an answer nested too deeply (hostile or broken) overflows the stack: "nested too deeply";
  * - a text longer than V8's longest string ("Invalid string length"): "too large to print".
  * "try --compact" is added only when the compact form of this very answer prints: it is probed,
@@ -301,7 +301,7 @@ function stringifyJson(value: unknown, compact: boolean): string {
     const deep = /call stack/i.test(err.message);
     const cause = deep ? "nested too deeply" : `too large (more than ${MAX_TEXT_LENGTH} characters of JSON)`;
     const hint = !compact && compactPrints(value) ? "; try --compact" : "";
-    throw new HochwasserzentralenParseError(`The answer is ${cause} to ${compact ? "print" : "pretty-print"}${hint}.`, { cause: err });
+    throw new OutputError(`The answer is ${cause} to ${compact ? "print" : "pretty-print"}${hint}.`, { cause: err });
   }
 }
 

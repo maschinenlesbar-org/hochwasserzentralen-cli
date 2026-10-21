@@ -541,11 +541,11 @@ test("an answer nested too deeply is a clean error; it suggests --compact only w
   assert.deepEqual(pretty.out, []);
   assert.equal(
     untimed(pretty.err.join("\n")),
-    `ERROR [hochwasser.api] The answer is nested too deeply to pretty-print${compactPrints ? "; try --compact" : ""}.`,
+    `ERROR [hochwasser.output] The answer is nested too deeply to pretty-print${compactPrints ? "; try --compact" : ""}.`,
   );
   const compact = makeCli(() => rawResponse(body, "application/json"));
   assert.equal(await run(["--compact", "stations", "--states", "HH"], compact.deps), compactPrints ? 0 : 1);
-  if (!compactPrints) assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.api] The answer is nested too deeply to print.");
+  if (!compactPrints) assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.output] The answer is nested too deeply to print.");
 });
 
 test("an answer too large to print is called too large, not too deep; the hint only where --compact prints (D7)", (t) => {

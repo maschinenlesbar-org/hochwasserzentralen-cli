@@ -234,7 +234,7 @@ apps/cli/src/cli/
 ```
 
 **Printing JSON.** `renderJson`/`renderGeoJson` (`shared.ts`) pretty-print by default. An answer
-that can't be printed is a `HochwasserzentralenParseError` (exit 1, an ERROR of `hochwasser.api`)
+that can't be printed is an `OutputError` (exit 1, an ERROR of `hochwasser.output`, as in the kit)
 that names the cause: `The answer is nested too deeply to pretty-print.` (the recursion overflows
 the stack) or `The answer is too large (more than 536870888 characters of JSON) to pretty-print.`
 (past V8's longest string); `; try --compact` is added only when the compact form of this very
@@ -471,8 +471,8 @@ input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (
 the client sends no Accept-Encoding and doesn't decompress), a number a double can't carry exactly, or a
 top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `"status": "success"`, a `data` item that is not a JSON object, a station without a string
-`id`, a nationwide `/data/stations` answer without any station; the CLI raises it too
-for an answer nested too deeply to print; logged under `hochwasser.api`), all
+`id`, a nationwide `/data/stations` answer without any station; logged under
+`hochwasser.api`), all
 extending the base `HochwasserzentralenError`.
 
 Every rejected input is a `HochwasserzentralenValidationError`, never a raw
@@ -635,11 +635,10 @@ after one, unexpected errors), `api` (the API's answers: an HTTP error status, a
 envelope whose `status` isn't `success`, the redirect hint, a WARN when text of an answer was
 replaced with U+FFFD (`onWarning`), and a malformed answer, a
 `HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, an inexact number, the
-GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
-deeply to print), `http` (the connection, the size-cap hint, the cleartext
+GeoJSON representation, an off-scale `lhpClass`, an unknown charset), `http` (the connection, the size-cap hint, the cleartext
 warning, one WARN per retry before it waits) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
 failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refusal before the request;
-and a stdout write error). Code logs
+an answer too deep or too large to print, also an `OutputError`, exit 1; and a stdout write error). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
 the logger from argv before commander parses it (`logFormatFromArgv`, which skips the
 value of every global option that takes one, as commander does, takes the first

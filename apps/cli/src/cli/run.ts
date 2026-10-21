@@ -241,8 +241,7 @@ export function processLogger(argv: readonly string[]): Logger {
  * The log area of a `HochwasserzentralenError` that is neither an API, network, output
  * nor usage error: a malformed answer (`api`: bad JSON, a proxy's HTML page, the wrong
  * shape, the GeoJSON representation instead of plain JSON, an off-scale `lhpClass`, an
- * unknown charset, an answer nested too deeply to print — the API's answer as much as an
- * error status is), else `cli`.
+ * unknown charset — the API's answer as much as an error status is), else `cli`.
  */
 function areaOf(err: HochwasserzentralenError): string {
   if (err instanceof HochwasserzentralenParseError) return "api";
