@@ -492,7 +492,12 @@ everything that drives the CLI is in `apps/cli/test/`.
   library redaction, P4 base-URL validation (its P19 part is skipped: this CLI reads no
   environment variable), P5 the transport contract, P6 the retry policy, P7 pipes and
   exit codes (runs the built bin), P8/P9/P13 charset, envelope and error classes, P10
-  strict keys and repeated flags, P12 `-o -`.
+  strict keys and repeated flags, P12 `-o -`. From the 2026-10-21 kit: P24 the input corpus
+  (its lists are empty here: `--water` is matched client-side, never sent, and both endpoints
+  are fixed paths), P25 the response corpus (a number a double can't carry, an empty
+  answer), P26 `-o` integrity (runs the built bin under `ulimit -f`: a write cut short leaves
+  the old file and nothing else). `kitParity` in `apps/cli/test/helpers.ts` gives `parity`
+  the shape their bodies read.
 
 ## Continuous integration
 
