@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { run } from "../src/cli/run.js";
+import { renderGeoJson, renderJson } from "../src/cli/shared.js";
+import type { GeoJsonFeatureCollection } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/geojson";
 import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { HochwasserzentralenNetworkError, credentialsIn, toWellFormed } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import type { CliDeps } from "../src/cli/io.js";
@@ -531,6 +533,27 @@ test("a deeply nested response gives a clear error, not a stack overflow", async
     assert.equal(code, 1);
     assert.equal(untimed(compact.err.join("\n")), "ERROR [hochwasser.api] The response is nested too deeply to print.");
   }
+});
+
+test("--compact takes the gap path only for an answer holding a huge string, the fast path otherwise (K4)", (t) => {
+  // On Node 26 V8's fast stringifier (no gap) aborts the process on a ~250 MB string that
+  // JSON.parse made ("Zone Allocation failed", exit 134); the gap path prints it. Only the fast
+  // path is iterative there, though, and prints nesting the gap path refuses at ~7,000 levels.
+  // So the path is chosen per answer. Too big a body for this suite: this pins the calls.
+  const { deps, out } = makeCli(() => jsonResponse({}));
+  const stringify = t.mock.method(JSON, "stringify", () => '"stub"');
+  const huge = "x".repeat(64 * 1024 * 1024);
+  renderJson(deps, { compact: true }, { id: "a1", text: huge });
+  renderJson(deps, { compact: true }, { id: "a1", x: [[["Elbe"]]], text: huge.slice(1) });
+  renderJson(deps, { compact: true }, { [huge]: 1 });
+  renderJson(deps, { compact: true }, [[huge]]);
+  renderJson(deps, {}, { id: "a1" });
+  renderGeoJson(deps, { compact: true }, { type: "FeatureCollection", features: [], name: huge } as unknown as GeoJsonFeatureCollection);
+  renderGeoJson(deps, { compact: true }, { type: "FeatureCollection", features: [] });
+  const calls = stringify.mock.calls.map((call) => call.arguments);
+  stringify.mock.restore();
+  assert.deepEqual(calls.map((args) => (args.length >= 3 ? args[2] : "none")), ["", "none", "", "", 2, "", "none"]);
+  assert.deepEqual(out, Array(7).fill('"stub"'));
 });
 
 test("a 200 envelope whose status isn't success is an error with the API's message, exit 1, never written", async () => {

@@ -227,6 +227,14 @@ apps/cli/src/cli/
     index.ts     # #! bin shim
 ```
 
+**Printing JSON.** `renderJson`/`renderGeoJson` (`shared.ts`) pretty-print by default; an answer
+nested too deeply to pretty-print is a `HochwasserzentralenParseError` that suggests `--compact`
+(exit 1, an ERROR of `hochwasser.api`). `--compact` takes V8's fast path (`JSON.stringify(value)`)
+unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`): on Node 26
+the fast path aborts the process on a ~250 MB string from JSON.parse, while the gap path
+(`JSON.stringify(value, null, "")`, the same text) prints it; the fast path stays the default
+because on Node 26 only it prints very deep nesting.
+
 **Closed pipes.** The bin shim installs `handleOutputErrors()` (`io.ts`) before `run()`:
 an EPIPE on stdout (`| head`, a `jq` that exits early) exits 0 quietly; an EPIPE on
 stderr is ignored, so a failed run keeps its own exit code (`2>&1 | true` used to turn a
