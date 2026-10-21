@@ -250,6 +250,11 @@ usage error into 0); any other stdout write error is an ERROR record of
 `hochwasser.output` (`Could not write to stdout: …`, in the format argv asks for:
 `processLogger`) and exits 1; any other stderr error exits 1.
 `apps/cli/test/conformance-p7-pipes-exit-codes.test.ts` runs the built bin for both.
+When stdout is a regular file (`> out.json`), `defaultIO.out` writes every byte itself
+(`stdoutWriter`, `writeAll`): Node's stream took a short write (a file-size limit, a full disk)
+as success, so the file was cut with exit 0 and nothing on stderr. A failure (EFBIG, ENOSPC) is
+emitted as stdout's `error`, so it is `Could not write to stdout: …` and exit 1 as above. Pipes and
+terminals go through the stream as before. P26 checks it under `ulimit -f`.
 
 **Design notes**
 

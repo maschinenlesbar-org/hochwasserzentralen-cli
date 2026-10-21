@@ -7,7 +7,7 @@ import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "../src/cli/run.js";
-import type { CliDeps } from "../src/cli/io.js";
+import { stdoutWriter, type CliDeps } from "../src/cli/io.js";
 import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
 import * as fx from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
@@ -253,5 +253,32 @@ test("a write the file system refuses is an ERROR of the output area naming the 
       chmodSync(locked, 0o700);
     }
     assert.deepEqual(readdirSync(dir).sort(), ["locked"]);
+  });
+});
+
+test("stdout to a regular file gets every byte or an error: a short write is never exit 0 (D6)", async () => {
+  await inTempDir(async (dir) => {
+    const { openSync, closeSync } = await import("node:fs");
+    const path = join(dir, "stdout.txt");
+    const fd = openSync(path, "w");
+    try {
+      const errors: Error[] = [];
+      const streamed: string[] = [];
+      const fake = { fd, write: (text: string) => streamed.push(text), emit: (_event: "error", err: Error) => errors.push(err) };
+      // The real writer: every byte reaches the file, none goes through the stream.
+      stdoutWriter(fake)("x".repeat(100_000));
+      assert.equal(readFileSync(path, "utf8").length, 100_000);
+      assert.deepEqual(streamed, []);
+      // A write the file system cuts short: the error reaches stdout's "error" event (exit 1 there).
+      const efbig = Object.assign(new Error("EFBIG: file too large, write"), { code: "EFBIG" });
+      stdoutWriter(fake, () => { throw efbig; })("more");
+      assert.deepEqual(errors, [efbig]);
+    } finally {
+      closeSync(fd);
+    }
+    // Not a file (a pipe, a terminal): the stream writes it, as before.
+    const piped: string[] = [];
+    stdoutWriter({ write: (text: string) => piped.push(text), emit: () => true })("data");
+    assert.deepEqual(piped, ["data"]);
   });
 });
