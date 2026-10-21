@@ -370,6 +370,10 @@ as printed (`String(value)`, the shortest decimal that reads back as the same do
 with the number as written (`exactAtTheEdges`/`decimalOf`, no BigInt): `12345678901234567890`
 prints as `12345678901234567000` and is refused, while `1E23` or `1.7976931348623157E308`, a
 double a server printed in its own shortest form, prints as the same number and passes.
+The engine option `bigIntegerKeys` (a set of member names) declares members whose numbers may
+pass 2^53: such a member's value is delivered as its exact literal, as a JSON string, whatever its
+size (`scanNumbers`, the same linear pass, quotes it before parsing). The LHP answers have none,
+so the client declares none; every number is checked.
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
 ([`packages/client/src/http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses Node's
