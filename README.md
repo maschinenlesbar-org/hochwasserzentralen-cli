@@ -76,7 +76,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 
 | Flag | Meaning |
 | --- | --- |
-| `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated; repeatable, `--states BY --states SN` = `BY,SN`) |
+| `--states <codes>` | comma-separated state codes, e.g. `BY,SN` (case-insensitive; validated, an empty item such as `BY,,SN` or one with an invisible character is refused; repeatable, `--states BY --states SN` = `BY,SN`) |
 | `--cap` | include the CAP (Common Alerting Protocol) detail block per alert |
 | `--lang <de\|en>` | response language (default `de`) |
 | `--geojson` | output the alert areas as a GeoJSON `FeatureCollection`; alerts without a usable geometry are left out and named on stderr (`INFO  [hochwasser.output] 2 alerts left off the map …`) |
@@ -87,7 +87,7 @@ situation   per-state aggregate: station count per lhpClass + worst class
 | --- | --- |
 | `--states <codes>` | comma-separated state codes (validated); only these states' gauges are returned, also if the server sent others |
 | `--lang <de\|en>` | response language |
-| `--water <name>` | only stations whose water (river) name contains this text, case-insensitive (`ß` matches `ss`, `ä`/`ö`/`ü` match `ae`/`oe`/`ue` and `a`/`o`/`u`, in any Unicode form; whitespace runs — double spaces, tabs, no-break spaces — count as one space) |
+| `--water <name>` | only stations whose water (river) name contains this text, case-insensitive (`ß` matches `ss`, `ä`/`ö`/`ü` match `ae`/`oe`/`ue` and `a`/`o`/`u`, in any Unicode form; whitespace runs — double spaces, tabs, no-break spaces — count as one space). A value with an invisible character (a soft hyphen or zero-width space pasted along) is refused (exit `2`), since it would match nothing |
 | `--min-class <n>` | only stations with `lhpClass >= n` (`-1` no data … `4` sehr großes Hochwasser); gauges without a class (`lhpClass: null`) never match |
 | `--geojson` | output the stations as a GeoJSON `FeatureCollection` of points |
 

@@ -8,7 +8,15 @@ import { OutputError, isDirectoryError, logOf, nodeFiles, refuseOverwrite, write
 import type { HochwasserzentralenClientOptions } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
-import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/validate";
+import {
+  baseUrlProblem,
+  headerValueProblem,
+  minClassProblem,
+  nonBlankProblem,
+  splitList,
+  statesProblem,
+  textProblem,
+} from "@maschinenlesbar.org/hochwasserzentralen-client/internal/validate";
 import { normalizeStates } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import type { GeoJsonFeatureCollection } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/geojson";
 
@@ -48,6 +56,17 @@ export function parseNonEmpty(value: string): string {
 }
 
 /**
+ * commander value-parser for a text filter (`--water`): the library's `textProblem` rule (not
+ * blank, no invisible or control character, no half character), as a usage error before any
+ * request. The library folds the value it matches, so the CLI passes it on as typed.
+ */
+export function parseText(value: string): string {
+  const problem = textProblem(value);
+  if (problem !== undefined) throw new InvalidArgumentError(problem);
+  return value;
+}
+
+/**
  * Wrap a commander value-parser for a single-valued option so that a second
  * occurrence is a usage error. commander otherwise keeps only the last value, so
  * `--min-class 3 --min-class 1` silently became `--min-class 1`. (The option must have
@@ -81,13 +100,13 @@ export function parseOutputPath(value: string): string {
 
 /**
  * commander value-parser for --states: a comma-separated list of state codes. The
- * only CLI step is the comma split; the rule ({@link statesProblem}) and the
- * normalisation ({@link normalizeStates}: trim, upper case, de-duplicate) are the
- * library's, so a typo fails at parse time (exit 2) with the library's message
+ * only CLI step is the comma split (`splitList`); the rule ({@link statesProblem}: every item a
+ * known code, an empty or invisible item refused) and the normalisation
+ * ({@link normalizeStates}: trim, NFC, upper case, de-duplicate) are the library's, so a typo fails at parse time (exit 2) with the library's message
  * instead of becoming a silently-dropped filter that returns the nationwide set.
  */
 export function parseStates(value: string): string[] {
-  const codes = value.split(",");
+  const codes = splitList(value);
   const problem = statesProblem(codes);
   if (problem !== undefined) throw new InvalidArgumentError(problem);
   return normalizeStates(codes);

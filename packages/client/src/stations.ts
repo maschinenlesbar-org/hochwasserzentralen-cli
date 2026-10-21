@@ -9,9 +9,10 @@ import {
   assertValid,
   knownKeysProblem,
   minClassProblem,
-  nonBlankProblem,
+  normalizeToken,
   responseArgProblem,
   statesProblem,
+  textProblem,
 } from "./validate.js";
 
 /**
@@ -64,15 +65,16 @@ export interface StationFilter {
 }
 
 /**
- * Check a {@link StationFilter} before any request: `water` must be a non-blank
- * string and `minClass` an integer from -1 to 4, or a
+ * Check a {@link StationFilter} before any request: `water` must be a usable text
+ * ({@link textProblem}: not blank, no invisible or control character, no half character) and
+ * `minClass` an integer from -1 to 4, or a
  * HochwasserzentralenValidationError is thrown. `undefined` means "not given".
  */
 export function assertStationFilter(filter: StationFilter): void {
   if (typeof filter !== "object" || filter === null || Array.isArray(filter)) {
     throw new HochwasserzentralenValidationError("Invalid filter: Expected an object.");
   }
-  if (filter.water !== undefined) assertValid("water", filter.water, nonBlankProblem);
+  if (filter.water !== undefined) assertValid("water", filter.water, textProblem);
   if (filter.minClass !== undefined) assertValid("minClass", filter.minClass, minClassProblem);
 }
 
@@ -117,8 +119,8 @@ export function normalizeStates(states: readonly string[]): string[] {
   assertValid("states", states, statesProblem);
   const out: string[] = [];
   for (const raw of states) {
-    const code = raw.trim().toUpperCase();
-    if (code !== "" && !out.includes(code)) out.push(code);
+    const code = normalizeToken(raw).toUpperCase();
+    if (!out.includes(code)) out.push(code);
   }
   return out;
 }

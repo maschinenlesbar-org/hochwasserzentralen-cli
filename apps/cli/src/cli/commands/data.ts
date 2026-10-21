@@ -16,8 +16,8 @@ import {
   choiceOption,
   once,
   parseMinClass,
-  parseNonEmpty,
   parseStates,
+  parseText,
   renderGeoJson,
   renderJson,
 } from "../shared.js";
@@ -104,7 +104,7 @@ export function registerCommands(program: Command, deps: CliDeps): void {
     .option(
       "--water <name>",
       "only stations whose water (river) name contains this text (case-insensitive; ß = ss, ä/ö/ü = ae/oe/ue, any whitespace run = one space)",
-      once(parseNonEmpty),
+      once(parseText),
     )
     .option(
       "--min-class <n>",

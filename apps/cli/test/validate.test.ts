@@ -147,13 +147,39 @@ test("baseUrlProblem: blank, unparseable, non-http(s), query or fragment", () =>
   assert.equal(baseUrlProblem("https://h/a\tb"), "A base URL cannot contain control characters.");
 });
 
-test("statesProblem: known codes only, at least one, blank entries skipped", () => {
-  assert.equal(statesProblem(["by", " SN ", ""]), undefined);
+test("statesProblem: known codes only, at least one, an empty or invisible item refused, visibly (D8, D10)", () => {
+  assert.equal(statesProblem(["by", " SN "]), undefined);
   assert.match(statesProblem([" xx "]) ?? "", /^Unknown state code "xx"\. Expected one of: BB, BE, .*, TH\.$/);
-  assert.match(statesProblem([" ", ""]) ?? "", /^No usable state code given\. Expected one or more of: BB, .*, TH\.$/);
-  assert.match(statesProblem([]) ?? "", /^No usable state code given\./);
+  assert.equal(statesProblem(["by", " SN ", ""]), "item 3 of 3: Expected a non-empty value.");
+  assert.equal(statesProblem([" ", ""]), "item 1 of 2: Expected a non-empty value.");
+  assert.match(statesProblem([]) ?? "", /^No state code given\. Expected one or more of: BB, .*, TH\.$/);
   assert.equal(statesProblem(["BY", 3] as unknown as string[]), "Expected an array of state codes.");
-  assert.deepEqual(lib.normalizeStates([" by ", "sn", "BY", ""]), ["BY", "SN"]);
+  // An invisible character is refused and shown escaped: "BY\u200b" no longer reads as BY.
+  assert.equal(statesProblem(["BY\u200b"]), '"BY\\u200b" contains an invisible or control character (U+200B).');
+  assert.equal(statesProblem(["B\u00adY"]), '"B\\u00adY" contains an invisible or control character (U+00AD).');
+  assert.equal(statesProblem(["\u0301"]), "Expected a non-empty value.");
+  assert.match(statesProblem(["SN", "\ud800"]) ?? "", /^item 2 of 2: "\\ud800" contains half of a character/);
+  // NFC: a decomposed letter is no state code either way, but the message shows it as typed.
+  assert.deepEqual(lib.normalizeStates([" by ", "sn", "BY"]), ["BY", "SN"]);
   assert.deepEqual(lib.normalizeStates(lib.normalizeStates(["sn", "by"])), ["SN", "BY"]);
   assert.throws(() => lib.normalizeStates(["xx"]), /^HochwasserzentralenValidationError: Invalid states: Unknown state code "xx"/);
+  assert.throws(() => lib.normalizeStates(["BY", ""]), /^HochwasserzentralenValidationError: Invalid states: item 2 of 2: Expected a non-empty value\.$/);
+});
+
+test("textProblem refuses a blank, invisible, control or half character in --water, showing it escaped (D8, D10)", () => {
+  assert.equal(lib.textProblem("Elbe"), undefined);
+  assert.equal(lib.textProblem("  Weiße  Elster\t"), undefined);
+  assert.equal(lib.textProblem("a\u200db"), undefined); // ZWJ is allowed (emoji, scripts)
+  for (const blank of ["", " ", "\u00a0", "\u200b", "\u00ad", "\u0301\u0308", " \u200b "]) {
+    assert.equal(lib.textProblem(blank), "Expected a non-empty value.", JSON.stringify(blank));
+  }
+  assert.equal(lib.textProblem("Mul\u00adde"), '"Mul\\u00adde" contains an invisible character (U+00AD).');
+  assert.equal(lib.textProblem("El\u200bbe"), '"El\\u200bbe" contains an invisible character (U+200B).');
+  assert.equal(lib.textProblem("El\u2060be"), '"El\\u2060be" contains an invisible character (U+2060).');
+  assert.equal(lib.textProblem("a\u001bb"), '"a\\u001bb" contains a control character (U+001B).');
+  assert.equal(lib.textProblem("x\ud83d"), '"x\\ud83d" contains half of a character (a lone surrogate).');
+  assert.equal(lib.normalizeText(" Mu\u0308lde "), "Mülde");
+  assert.deepEqual(lib.splitList("BY,,SN"), ["BY", "", "SN"]);
+  assert.equal(lib.listProblem([]), "Expected at least one value.");
+  assert.equal(lib.normalizeToken(" e\u0301 "), "é");
 });

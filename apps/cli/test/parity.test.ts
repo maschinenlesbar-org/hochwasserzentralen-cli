@@ -241,9 +241,11 @@ test("parity: a base URL with a trailing slash requests the same URL on both sid
 const CODES = "BB, BE, BW, BY, HB, HE, HH, MV, NI, NW, RP, SH, SL, SN, ST, TH";
 for (const [command, flag, states, reason] of [
   ["alerts", " xx ", [" xx "], `Unknown state code "xx". Expected one of: ${CODES}.`],
-  ["stations", "BY,xx", ["BY", "xx"], `Unknown state code "xx". Expected one of: ${CODES}.`],
+  ["stations", "BY,xx", ["BY", "xx"], `item 2 of 2: Unknown state code "xx". Expected one of: ${CODES}.`],
   ["situation", " xx ", [" xx "], `Unknown state code "xx". Expected one of: ${CODES}.`],
-  ["alerts", " , ,", [" ", "", " "], `No usable state code given. Expected one or more of: ${CODES}.`],
+  ["alerts", " , ,", [" ", "", " "], "item 1 of 3: Expected a non-empty value."],
+  ["alerts", "BY,,SN", ["BY", "", "SN"], "item 2 of 3: Expected a non-empty value."],
+  ["stations", "BY\u200b", ["BY\u200b"], '"BY\\u200b" contains an invisible or control character (U+200B).'],
 ] as const) {
   test(`parity: ${command} --states ${JSON.stringify(flag)} is rejected with one message on both sides`, async () => {
     const { cli, lib } = await parity(
@@ -293,6 +295,26 @@ for (const ua of ["", "   ", "\t"]) {
 test("toEngineOptions passes a set User-Agent through unchanged and leaves an unset one to the library", () => {
   assert.deepEqual(toEngineOptions({ userAgent: " x " }), { userAgent: " x " });
   assert.deepEqual(toEngineOptions({}), {});
+});
+
+test("parity: --water with an invisible, control or half character is refused on both sides, shown escaped (04-1, D8)", async () => {
+  for (const [water, shown] of [["Mul\u00adde", "\\u00ad"], ["El\u200bbe", "\\u200b"], ["El\u2060be", "\\u2060"], ["\u200b", ""], ["x\ud800", "\\ud800"]] as const) {
+    const { cli, lib } = await parity(
+      ["--compact", "stations", "--water", water],
+      (transport) => new HochwasserzentralenClient({ transport }).stations({ water }),
+      () => jsonResponse(fx.stationsJson),
+    );
+    assert.equal(cli.code, 2, `${JSON.stringify(water)}: ${cli.err}`);
+    assert.equal(cli.requests.length, 0);
+    assert.equal(lib.ok, false);
+    assert.equal(lib.requests.length, 0);
+    const error = lib.ok ? undefined : lib.error;
+    assert.ok(error instanceof HochwasserzentralenValidationError);
+    if (shown !== "") {
+      assert.ok(cli.err.includes(shown) && error.message.includes(shown), `${cli.err} | ${error.message}`);
+      assert.ok(!cli.err.includes(water), "shown raw");
+    }
+  }
 });
 
 test("parity: a refused value shows its invisible characters escaped, on both sides (04-2, D10)", async () => {

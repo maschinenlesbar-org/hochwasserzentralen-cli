@@ -156,8 +156,14 @@ their documented keys (`ENGINE_OPTION_KEYS`; `states`/`cap`/`lang` for `alerts()
 `minclass`, a `__proto__` from `JSON.parse`) throws a `HochwasserzentralenValidationError`
 naming it (`knownKeysProblem`) instead of being ignored. `cap` must be a boolean.
 `alerts()`/`stations()`/`situation()` reject a `states` that is not an array of strings and a
-`lang` other than `de`/`en` before any request, and `stations()` a blank or non-string
-`water` and a `minClass` that is not an integer from -1 to 4. Both are
+`lang` other than `de`/`en` before any request, and `stations()` a non-string `water` or one
+`textProblem` refuses (blank, only invisible characters or combining marks, a control or format
+character such as a soft hyphen, a lone surrogate) and a `minClass` that is not an integer from
+-1 to 4. Each state code is a token (`tokenProblem`: not blank, no control or format character,
+no half character; sent as `normalizeToken`, trimmed and NFC, upper-cased), and a list with an
+empty item (`["BY", ""]`, `--states BY,,SN`) is refused, never shortened (`listProblem`, naming
+`item i of n`). The rules (`textProblem`, `tokenProblem`, `listProblem`, `splitList`,
+`normalizeText`, `normalizeToken`) are exported. Both are
 `HochwasserzentralenValidationError` — a configuration mistake, never a
 `HochwasserzentralenNetworkError`, which is kept for transport failures (including the
 default transport's per-hop scheme check).
@@ -314,9 +320,10 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
 - **Every option value is validated** — `--states` against the 16 codes (parse
   time, exit 2), `--lang` via commander `.choices()`, `--min-class` bounded to
   -1..4. A typo never becomes a silently-dropped filter that returns the full
-  nationwide set. The rules are the library's: `--states` splits the comma list and
-  calls the exported `statesProblem` / `normalizeStates`, the same check (and the same
-  message) `alerts()`/`stations()`/`situation()` apply for library users.
+  nationwide set. The rules are the library's: `--states` splits the comma list
+  (`splitList`) and calls the exported `statesProblem` / `normalizeStates`, the same check
+  (and the same message) `alerts()`/`stations()`/`situation()` apply for library users;
+  `--water` calls `textProblem` (`parseText`).
 - **A value option takes one value.** Given twice (`--min-class 3 --min-class 1`,
   `--base-url a --base-url b`), it is a usage error (exit 2, `once()` in `shared.ts`)
   instead of commander's "last one wins"; `--states` is the exception and collects

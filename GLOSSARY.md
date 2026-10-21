@@ -101,8 +101,8 @@ DWD and BBK/NINA). With `--cap`, each alert carries a `cap` block:
 ## State codes (Bundesländer)
 
 The `--states` filter takes a comma-separated subset of these 16 codes
-(case-insensitive; validated — a typo exits 2 rather than silently returning
-everything). The API filters by it, and the CLI applies it again to the answer: only
+(case-insensitive; validated — a typo, an empty item such as `BY,,SN` or an invisible
+character exits 2 rather than silently returning everything). The API filters by it, and the CLI applies it again to the answer: only
 the requested states' gauges are returned and counted, so a server that ignored the
 filter can't change the result:
 
