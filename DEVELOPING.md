@@ -227,10 +227,15 @@ apps/cli/src/cli/
     index.ts     # #! bin shim
 ```
 
-**Printing JSON.** `renderJson`/`renderGeoJson` (`shared.ts`) pretty-print by default; an answer
-nested too deeply to pretty-print is a `HochwasserzentralenParseError` that suggests `--compact`
-(exit 1, an ERROR of `hochwasser.api`). `--compact` takes V8's fast path (`JSON.stringify(value)`)
-unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`): on Node 26
+**Printing JSON.** `renderJson`/`renderGeoJson` (`shared.ts`) pretty-print by default. An answer
+that can't be printed is a `HochwasserzentralenParseError` (exit 1, an ERROR of `hochwasser.api`)
+that names the cause: `The answer is nested too deeply to pretty-print.` (the recursion overflows
+the stack) or `The answer is too large (more than 536870888 characters of JSON) to pretty-print.`
+(past V8's longest string); `; try --compact` is added only when the compact form of this very
+answer prints (probed, not assumed: on Node 22 and 24 the compact printer overflows at the same
+depth). `--compact` takes V8's fast path (`JSON.stringify(value)`)
+unless the answer holds a string or key of 64 Mi characters or more (`holdsHugeString`, an
+iterative, allocation-free walk): on Node 26
 the fast path aborts the process on a ~250 MB string from JSON.parse, while the gap path
 (`JSON.stringify(value, null, "")`, the same text) prints it; the fast path stays the default
 because on Node 26 only it prints very deep nesting.
