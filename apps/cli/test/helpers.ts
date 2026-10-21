@@ -4,7 +4,7 @@
 // helpers from one place.
 
 import type { Transport, HttpRequest, HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
-import type { CliDeps } from "../src/cli/io.js";
+import { refuseOverwrite, type CliDeps, type OutputFiles } from "../src/cli/io.js";
 import { run } from "../src/cli/run.js";
 import { defaultDeps } from "../src/cli/program.js";
 import { jsonResponse, makeMockTransport } from "@maschinenlesbar.org/hochwasserzentralen-client/test/helpers";
@@ -21,6 +21,36 @@ export * from "@maschinenlesbar.org/hochwasserzentralen-client/test/helpers";
  */
 export function untimed(text: string): string {
   return text.replace(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z /gm, "");
+}
+
+// ---- the -o file seam ------------------------------------------------------
+
+/** An `-o` seam that writes nothing: no path exists, a write is dropped (P23's `-o` runs). */
+export const discardFiles: OutputFiles = { state: () => "absent", write: () => {} };
+
+/** An `-o` seam for tests that must not write: no path exists, a write is an error. */
+export const noFiles: OutputFiles = {
+  state: () => "absent",
+  write: () => {
+    throw new Error("the CLI tried to write a file");
+  },
+};
+
+/**
+ * An in-memory `-o` file system: the `existing` paths are there, a write lands in `written`
+ * and is refused (as `nodeFiles` refuses it) for a path that exists unless `overwrite`.
+ */
+export function memoryFiles(existing: readonly string[] = []): OutputFiles & { written: Record<string, Buffer> } {
+  const written: Record<string, Buffer> = {};
+  const files: OutputFiles & { written: Record<string, Buffer> } = {
+    written,
+    state: (path) => (existing.includes(path) || written[path] !== undefined ? "exists" : "absent"),
+    write: (path, data, overwrite) => {
+      if (!overwrite && files.state(path) !== "absent") throw refuseOverwrite(path);
+      written[path] = data;
+    },
+  };
+  return files;
 }
 
 // ---- CLI <-> library parity ---------------------------------------------------
@@ -56,14 +86,8 @@ export async function parity(
   const out: string[] = [];
   const err: string[] = [];
   const deps: CliDeps = {
-    io: {
-      out: (s) => out.push(s),
-      err: (s) => err.push(s),
-      writeFile: () => {
-        throw new Error("parity(): the CLI tried to write a file");
-      },
-      fileExists: () => false,
-    },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    files: noFiles,
     createClient: (opts) => defaultDeps.createClient({ ...opts, transport: mt.transport }),
   };
   const code = await run(argv, deps);

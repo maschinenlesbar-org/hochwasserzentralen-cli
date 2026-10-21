@@ -3,9 +3,9 @@
 
 import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
-import { OutputError, logOf, type CliDeps } from "./io.js";
+import { OutputError, isDirectoryError, logOf, nodeFiles, refuseOverwrite, writeFailure, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
-import { HochwasserzentralenParseError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
 import { baseUrlProblem, headerValueProblem, minClassProblem, nonBlankProblem, statesProblem } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/validate";
 import { normalizeStates } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
@@ -155,36 +155,35 @@ export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClien
   return options;
 }
 
-function refuseOverwrite(path: string): OutputError {
-  return new OutputError(
-    `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
-    { refused: true },
-  );
+/**
+ * Check `-o` before any request, so a refused target costs none (exit 2): `--force` without
+ * `-o` is a usage error (`hochwasser.cli`); a directory, and an existing path (a symlink, even
+ * a dangling one) without `--force`, are refused (`hochwasser.output`). `-o -` is stdout, also
+ * with `--force`. The write checks again: a file that appears during the request is refused
+ * too.
+ */
+export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
+  if (global.force === true && global.output === undefined) {
+    throw new HochwasserzentralenValidationError("--force needs --output (it only allows overwriting the -o file).");
+  }
+  if (global.output === undefined || global.output === "-") return;
+  const state = (deps.files ?? nodeFiles).state(global.output);
+  if (state === "directory") throw isDirectoryError(global.output);
+  if (state === "exists" && global.force !== true) throw refuseOverwrite(global.output);
 }
 
 /**
- * Write bytes to the --output file, refusing to clobber an existing file — or to
- * write through a symlink, dangling or not — unless --force is set (fail-secure: no
- * silent data loss), and wrapping raw filesystem errors (or anything a `CliIO`
- * throws) in an OutputError instead of an untyped "Unexpected error: ENOENT: …". Every
- * failure is logged under `hochwasser.output`. The overwrite refusal is a usage
- * condition (fix: pass --force or pick another path), so it exits 2 (`refused`).
+ * Write bytes to the --output file through the file seam (`nodeFiles`: atomic, an exclusive
+ * claim without --force, the old file's mode kept, --force writes through a symlink). Every
+ * failure is an OutputError logged under `hochwasser.output`: a refusal (an existing path, a
+ * directory) exits 2, a failed write 1; whatever else a custom seam throws becomes a failed
+ * write, never an untyped "Unexpected error".
  */
 function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, data: Buffer): void {
-  const force = global.force === true;
-  if (!force && deps.io.fileExists(path)) throw refuseOverwrite(path);
   try {
-    // Without --force the write is an exclusive create, so a symlink (even a
-    // dangling one) or a file that appeared since the check is refused too.
-    deps.io.writeFile(path, data, force);
+    (deps.files ?? nodeFiles).write(path, data, global.force === true);
   } catch (err) {
-    if (!force && (err as NodeJS.ErrnoException | undefined)?.code === "EEXIST") throw refuseOverwrite(path);
-    // A bad --output path (missing directory, a directory, no permission) is a
-    // user error, not an internal fault — surface it cleanly. Drop the
-    // `, open '<path>'` tail since we already name the path ourselves; the `s` flag lets
-    // it span a path with a line break in it.
-    const reason = err instanceof Error ? err.message.replace(/,\s*open\s+'.*'$/s, "") : String(err);
-    throw new OutputError(`Could not write to ${path}: ${reason}`, { cause: err });
+    throw err instanceof OutputError ? err : writeFailure(path, err);
   }
 }
 
@@ -357,15 +356,13 @@ export function action(
     const command = args[args.length - 1] as Command;
     const positionals = args.slice(0, Math.max(0, args.length - 2)) as string[];
     const global = command.optsWithGlobals() as GlobalOptions;
+    // Refuse a bad --output target before any request, so the refusal costs no download
+    // (and no wait up to --timeout). writeOutputFile checks again at write time with an
+    // exclusive create, which also catches a file that appears meanwhile.
+    checkOutputTarget(deps, global);
     // `-o -` means stdout, as in other Unix tools: from here on it is the same as no -o
     // (it used to create a file named "-", and the next run refused to overwrite it).
     if (global.output === "-") delete global.output;
-    // Refuse an existing --output file before any request, so the refusal costs no
-    // download (and no wait up to --timeout). writeOutputFile checks again at write
-    // time with an exclusive create, which also catches a file that appears meanwhile.
-    if (global.output !== undefined && global.force !== true && deps.io.fileExists(global.output)) {
-      throw refuseOverwrite(global.output);
-    }
     const options = toEngineOptions(global);
     options.onRetry = (event) => logOf(deps).warn("http", retryMessage(event));
     const client = deps.createClient(options);

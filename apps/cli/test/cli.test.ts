@@ -7,7 +7,8 @@ import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentra
 import { HochwasserzentralenNetworkError, credentialsIn, toWellFormed } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
-import { makeMockTransport, jsonResponse, rawResponse, untimed } from "./helpers.js";
+import { makeMockTransport, jsonResponse, memoryFiles, rawResponse, untimed } from "./helpers.js";
+import { refuseOverwrite } from "../src/cli/io.js";
 import * as fx from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
 
 function makeCli(
@@ -16,20 +17,14 @@ function makeCli(
 ) {
   const out: string[] = [];
   const err: string[] = [];
-  const files: Record<string, Buffer> = {};
+  const seam = memoryFiles(existingFiles);
   const mt = makeMockTransport(responder);
   const deps: CliDeps = {
-    io: {
-      out: (s) => out.push(s),
-      err: (s) => err.push(s),
-      writeFile: (p, d) => {
-        files[p] = d;
-      },
-      fileExists: (p) => existingFiles.includes(p) || files[p] !== undefined,
-    },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s) },
+    files: seam,
     createClient: (opts) => new HochwasserzentralenClient({ ...opts, transport: mt.transport }),
   };
-  return { deps, out, err, mt, files };
+  return { deps, out, err, mt, files: seam.written };
 }
 
 test("alerts renders the envelope incl. the updated timestamp and attribution", async () => {
@@ -356,12 +351,15 @@ test("a --base-url with a query or fragment is rejected (exit 2), no request", a
   }
 });
 
-test("a file that appears between the check and the write (EEXIST) is refused like an existing one", async () => {
+test("a file that appears between the check and the write is refused like an existing one", async () => {
   const cli = makeCli(() => jsonResponse(fx.stationsJson));
   let overwriteFlag: boolean | undefined;
-  cli.deps.io.writeFile = (_p, _d, overwrite) => {
-    overwriteFlag = overwrite;
-    throw Object.assign(new Error("EEXIST: file already exists"), { code: "EEXIST" });
+  cli.deps.files = {
+    state: () => "absent",
+    write: (p, _d, overwrite) => {
+      overwriteFlag = overwrite;
+      throw refuseOverwrite(p);
+    },
   };
   assert.equal(await run(["-o", "race.json", "stations"], cli.deps), 2);
   assert.equal(overwriteFlag, false);
@@ -371,8 +369,11 @@ test("a file that appears between the check and the write (EEXIST) is refused li
 test("--force writes with overwrite allowed", async () => {
   const cli = makeCli(() => jsonResponse(fx.stationsJson));
   let overwriteFlag: boolean | undefined;
-  cli.deps.io.writeFile = (_p, _d, overwrite) => {
-    overwriteFlag = overwrite;
+  cli.deps.files = {
+    state: () => "absent",
+    write: (_p, _d, overwrite) => {
+      overwriteFlag = overwrite;
+    },
   };
   assert.equal(await run(["--force", "-o", "x.json", "stations"], cli.deps), 0);
   assert.equal(overwriteFlag, true);
@@ -719,11 +720,14 @@ test("every -o failure is an ERROR record of hochwasser.output: a write failure 
     "not an Error",
   ]) {
     const cli = makeCli(() => jsonResponse(fx.alertsJson));
-    cli.deps.io.writeFile = () => {
-      throw thrown;
+    cli.deps.files = {
+      state: () => "absent",
+      write: () => {
+        throw thrown;
+      },
     };
     assert.equal(await run(["-o", "/nonexistent/x", "alerts"], cli.deps), 1);
-    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.output\] Could not write to \/nonexistent\/x: /);
+    assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.output\] Could not write to "\/nonexistent\/x": /);
     assert.doesNotMatch(cli.err.join("\n"), /Unexpected error/);
   }
   // An existing file without --force: refused before any request, exit 2, and at write time too.
@@ -732,8 +736,11 @@ test("every -o failure is an ERROR record of hochwasser.output: a write failure 
   assert.equal(exists.mt.calls.length, 0);
   assert.match(untimed(exists.err.join("\n")), /^ERROR \[hochwasser\.output\] Refusing to overwrite existing file "exists\.json"/);
   const race = makeCli(() => jsonResponse(fx.alertsJson));
-  race.deps.io.writeFile = () => {
-    throw Object.assign(new Error("EEXIST: file already exists, open 'race.json'"), { code: "EEXIST" });
+  race.deps.files = {
+    state: () => "absent",
+    write: (p) => {
+      throw refuseOverwrite(p);
+    },
   };
   assert.equal(await run(["-o", "race.json", "alerts"], race.deps), 2);
   assert.match(untimed(race.err.join("\n")), /^ERROR \[hochwasser\.output\] Refusing to overwrite existing file "race\.json"/);
@@ -742,13 +749,16 @@ test("every -o failure is an ERROR record of hochwasser.output: a write failure 
 test("the -o failure drops Node's \", open '<path>'\" tail also when the path holds a line break", async () => {
   for (const path of ["/nonexistent\nZZ/x", "/nonexistent\u2028ZZ/x", "/nonexistent\rZZ/x", "/nonexistent/x"]) {
     const cli = makeCli(() => jsonResponse(fx.alertsJson));
-    cli.deps.io.writeFile = (p) => {
-      throw Object.assign(new Error(`ENOENT: no such file or directory, open '${p}'`), { code: "ENOENT" });
+    cli.deps.files = {
+      state: () => "absent",
+      write: (p) => {
+        throw Object.assign(new Error(`ENOENT: no such file or directory, open '${p}'`), { code: "ENOENT" });
+      },
     };
     assert.equal(await run(["-o", path, "alerts"], cli.deps), 1);
     assert.equal(cli.err.length, 1, cli.err.join("\n"));
     const msg = untimed(cli.err[0] as string);
-    assert.match(msg, /^ERROR \[hochwasser\.output\] Could not write to \/nonexistent.*: ENOENT: no such file or directory$/);
+    assert.match(msg, /^ERROR \[hochwasser\.output\] Could not write to "\/nonexistent.*": ENOENT: no such file or directory$/);
     assert.doesNotMatch(msg, /open '/);
   }
 });

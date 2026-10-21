@@ -22,6 +22,7 @@ import type { HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-clie
 
 // ---- adapter (per repo) -------------------------------------------------------------
 import { run } from "../src/cli/run.js";
+import { discardFiles } from "./helpers.js";
 import { HochwasserzentralenClient as Client } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { MAX_RECORD_MESSAGE } from "../src/cli/log.js";
 import { alertsJson } from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
@@ -75,7 +76,8 @@ function makeDeps(out: string[], err: string[], now: () => Date, answer?: HttpRe
     body: Buffer.from(JSON.stringify(okBody)),
   };
   return {
-    io: { out: (s) => out.push(s), err: (s) => err.push(s), writeFile: () => {}, fileExists: () => false },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s), },
+    files: discardFiles,
     now,
     createClient: (opts) => new Client({ ...opts, transport }),
   };

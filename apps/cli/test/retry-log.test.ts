@@ -7,7 +7,7 @@ import { run } from "../src/cli/run.js";
 import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import type { CliDeps } from "../src/cli/io.js";
 import type { HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
-import { untimed } from "./helpers.js";
+import { discardFiles, untimed } from "./helpers.js";
 import * as fx from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
 
 async function exercise(extra: string[], failures: number, retryAfter?: string) {
@@ -19,7 +19,8 @@ async function exercise(extra: string[], failures: number, retryAfter?: string) 
       ? { status: 503, headers: retryAfter ? { "retry-after": retryAfter } : {}, body: Buffer.from("{}") }
       : { status: 200, headers: { "content-type": "application/json" }, body: Buffer.from(JSON.stringify(fx.alertsJson)) };
   const deps: CliDeps = {
-    io: { out: (s) => out.push(s), err: (s) => err.push(s), writeFile: () => {}, fileExists: () => false },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s), },
+    files: discardFiles,
     now: () => new Date("2026-01-02T03:04:05.678Z"),
     createClient: (opts) => new HochwasserzentralenClient({ ...opts, transport, sleep: async () => {} }),
   };

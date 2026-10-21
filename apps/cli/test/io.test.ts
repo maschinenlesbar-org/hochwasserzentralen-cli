@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultIO, handleOutputErrors, stderrAfterStdout } from "../src/cli/io.js";
+import { OutputError, handleOutputErrors, nodeFiles, stderrAfterStdout } from "../src/cli/io.js";
 import { createLogger } from "../src/cli/log.js";
 
 function writeError(code: string): NodeJS.ErrnoException {
@@ -77,25 +77,26 @@ test("another stderr write error exits 1", () => {
   assert.deepEqual(s.exits, [1]);
 });
 
-test("defaultIO: a dangling symlink counts as existing and is never written through without --force", () => {
+test("nodeFiles: a dangling symlink counts as existing and is never written through without --force", () => {
   const dir = mkdtempSync(join(tmpdir(), "hochwasser-io-"));
   try {
     const target = join(dir, "target-created.txt");
     const link = join(dir, "dangling");
     symlinkSync(target, link);
-    assert.equal(defaultIO.fileExists(link), true);
+    assert.equal(nodeFiles.state(link), "exists");
     assert.throws(
-      () => defaultIO.writeFile(link, Buffer.from("x"), false),
-      (err: NodeJS.ErrnoException) => err.code === "EEXIST",
+      () => nodeFiles.write(link, Buffer.from("x"), false),
+      (err: unknown) => err instanceof OutputError && err.refused && /Refusing to overwrite existing file/.test(err.message),
     );
     assert.equal(existsSync(target), false);
 
     const plain = join(dir, "plain.json");
-    assert.equal(defaultIO.fileExists(plain), false);
-    defaultIO.writeFile(plain, Buffer.from("one"), false);
-    assert.throws(() => defaultIO.writeFile(plain, Buffer.from("two"), false), /EEXIST/);
-    defaultIO.writeFile(plain, Buffer.from("three"), true);
+    assert.equal(nodeFiles.state(plain), "absent");
+    nodeFiles.write(plain, Buffer.from("one"), false);
+    assert.throws(() => nodeFiles.write(plain, Buffer.from("two"), false), /Refusing to overwrite/);
+    nodeFiles.write(plain, Buffer.from("three"), true);
     assert.equal(readFileSync(plain, "utf8"), "three");
+    assert.equal(nodeFiles.state(dir), "directory");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

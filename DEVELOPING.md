@@ -218,7 +218,7 @@ packages/client/src/
     client.ts    # HochwasserzentralenClient — alerts() / stations() / situation() over the engine
     index.ts     # the client's public surface (the library entry re-exports it)
 apps/cli/src/cli/
-    io.ts        # injectable I/O seam (stdout/stderr/writeFile/fileExists), the logger and the clock
+    io.ts        # injectable I/O seam (stdout/stderr), the -o file seam (OutputFiles, nodeFiles), the logger and the clock
     log.ts       # the stderr log: records with ts, level, topic; --log-format text|jsonl
     shared.ts    # option parsers (states! min-class!), global-option resolver, JSON/GeoJSON renderers
     commands/    # data.ts — alerts / stations / situation (rendering the library's results)
@@ -318,13 +318,20 @@ usage error into 0); any other stdout write error is an ERROR record of
   `stateId` read case-insensitively, else the id prefix), and `aggregateSituation(res,
   states)` normalises `states` and covers exactly those. Nationwide (no `states`), every
   gauge counts; one with an unknown state gets an entry of its own rather than being lost.
-- **`-o/--output` never silently overwrites.** An existing file is refused with
-  exit 2 unless `--force` is passed, before any request is sent (the `action()`
-  wrapper in `shared.ts`), and again at write time. The check uses `lstat` and the write is an
-  exclusive create (`wx`), so a symlink at the path (even a dangling one) is
-  refused too and never written through; GeoJSON writes additionally report the
-  feature count. (This is stricter than some siblings — deliberate here, since
-  the flagship use-case is file export.)
+- **`-o/--output` never silently overwrites and never leaves half a file.** Before any
+  request (`checkOutputTarget` in `shared.ts`, called by `action()`): `--force` without
+  `-o` is a usage error (exit 2, `hochwasser.cli`); a directory, and an existing path (a
+  symlink, even a dangling one) without `--force`, are refused (exit 2, an ERROR of
+  `hochwasser.output`). The write goes through the `OutputFiles` seam (`CliDeps.files`;
+  `nodeFiles` in `io.ts` for the real file system): without `--force` the name is claimed
+  with an exclusive create (`wx`), so a file that appears during the request is refused
+  too (exit 2); the data goes to a temporary file beside the target, renamed over it, so a
+  write cut short (a full disk, a quota) leaves the old file as it was; an existing file's
+  mode is kept, and `--force` writes through a symlink (over a dangling one it replaces the
+  link). On failure no temporary file and no claimed name is left: `Could not write to
+  "<path>": <reason>` (exit 1). GeoJSON writes additionally report the feature count.
+  Deliberately not kept: the owner and hard links of a replaced file. (This is stricter
+  than some siblings — deliberate here, since the flagship use-case is file export.)
   `-o -` means stdout, as in other Unix tools — the same as no `-o`; it used to
   create a file named `-` (`apps/cli/test/conformance-p12-output-dash.test.ts`).
 - **CC BY 4.0 plumbing:** the API envelope's `source*`/`licence*`/`updated`
@@ -398,9 +405,10 @@ items on stderr (an `INFO` record of `hochwasser.output`: `2 alerts left off the
 the count to the `-o` confirmation, so a map that lacks a warning never looks complete.
 
 **CliDeps / CliIO.** The dependency-injection seam for the CLI
-([`apps/cli/src/cli/io.ts`](apps/cli/src/cli/io.ts)): a client factory plus an I/O object
-(`out`/`err`/`writeFile`/`fileExists`). Lets the whole CLI run in tests with a
-mocked client and captured output — no subprocess.
+([`apps/cli/src/cli/io.ts`](apps/cli/src/cli/io.ts)): a client factory, an I/O object
+(`out`/`err`) and the `-o` file seam (`files`: `state`/`write`; unset, the real file system).
+Lets the whole CLI run in tests with a mocked client, captured output and in-memory files
+(`memoryFiles`, `discardFiles`, `noFiles` in `apps/cli/test/helpers.ts`) — no subprocess.
 
 **Error types.** [`packages/client/src/errors.ts`](packages/client/src/errors.ts):
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx, and a 2xx whose envelope
@@ -470,7 +478,10 @@ everything that drives the CLI is in `apps/cli/test/`.
   P23's.
 - **`io.test.ts`** — `handleOutputErrors` and `stderrAfterStdout` with fake streams (a
   closed pipe, a stdout write error as a record, a record held behind stdout's backlog)
-  and the default `-o` writer.
+  and `nodeFiles`, the real `-o` file system.
+- **`output.test.ts`** — `-o` through `run()` against real files in a temp dir: the checks
+  before any request, the atomic write, `--force`, a file appearing during the request, a
+  write the file system refuses.
 - **`validate.test.ts`** — `assertValid`, the `run.ts` mapping of
   `HochwasserzentralenValidationError`, and the `parity()` helper (`apps/cli/test/helpers.ts`),
   which sends one input through `run()` and through the library on one recording mock

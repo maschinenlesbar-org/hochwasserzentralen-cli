@@ -226,7 +226,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
 | `--max-retries <n>` | Retries for transient `429`/`503` responses and reset connections, honouring a longer `Retry-After` up to 30 s, never retrying faster than the backoff (default `2`; a refused connection, DNS failure or timeout is not retried). Each retry logs one WARN record of `hochwasser.http` before it waits (`HTTP 503 from host: retry 1 of 3 in 2 s`) |
 | `--max-response-bytes <n>` | Cap response body size in bytes (`0` = unlimited; default 100 MiB) |
 | `-o, --output <file>` | Write output to this file instead of stdout (`-o -` means stdout) |
-| `--force` | Overwrite the `--output` file if it already exists |
+| `--force` | Overwrite the `--output` file if it already exists (needs `-o`) |
 
 Every value option takes one value: giving it twice (`--min-class 3 --min-class 1`) is a
 usage error (exit `2`), not "the last one wins". Only `--states` collects repeats.

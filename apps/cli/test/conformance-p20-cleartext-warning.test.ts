@@ -11,6 +11,7 @@ import type { HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-clie
 
 // ---- adapter (per repo) -------------------------------------------------------------
 import { run } from "../src/cli/run.js";
+import { noFiles } from "./helpers.js";
 import { HochwasserzentralenClient as Client } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { cleartextProblem } from "../src/index.js";
 import { alertsJson } from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
@@ -37,11 +38,8 @@ function makeDeps(out: string[], err: string[], _env: Record<string, string>): C
     io: {
       out: (s) => out.push(s),
       err: (s) => err.push(s),
-      writeFile: () => {
-        throw new Error("no file output in this test");
-      },
-      fileExists: () => false,
     },
+    files: noFiles,
     createClient: (opts) => new Client({ ...opts, transport }),
   };
 }

@@ -9,6 +9,7 @@ import type { HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-clie
 
 // ---- adapter (per repo) -------------------------------------------------------------
 import { run } from "../src/cli/run.js";
+import { discardFiles } from "./helpers.js";
 import { HochwasserzentralenClient as Client } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import type { Transport } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
 /** The environment variable the CLI reads a base URL from, or undefined if it has none. */
@@ -34,10 +35,11 @@ const okBody = {
 };
 /** How a body goes on the wire. */
 const serialize = (body: unknown): string => JSON.stringify(body);
-/** This repo's CliDeps: no env, and the io also writes files. */
+/** This repo's CliDeps: no env, and a file seam for -o that writes nothing. */
 function makeDeps(out: string[], err: string[], _env: Record<string, string>, transport: Transport): CliDeps {
   return {
-    io: { out: (s) => out.push(s), err: (s) => err.push(s), writeFile: () => {}, fileExists: () => false },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s), },
+    files: discardFiles,
     createClient: (opts) => new Client({ ...opts, transport }),
   };
 }

@@ -101,8 +101,11 @@ hochwasser alerts --geojson -o alerts.geojson
 hochwasser stations --states BY --min-class 0 --geojson -o bayern-pegel.geojson
 ```
 
-The CLI refuses to overwrite an existing file (exit 2) unless you pass
-`--force` — also when a symlink, even a dangling one, sits at that path — and
+The CLI refuses to overwrite an existing file (exit 2, before any request) unless you pass
+`--force` — also when a symlink, even a dangling one, sits at that path; a directory is
+refused too, and `--force` without `-o` is a usage error. The file is written atomically
+(a temporary file beside it, renamed over it), so a failed write leaves the old file as it
+was; with `--force` the old file's mode is kept and a symlink is written through. It
 confirms what it wrote on stderr:
 
 ```text

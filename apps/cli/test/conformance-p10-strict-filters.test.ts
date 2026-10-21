@@ -13,6 +13,7 @@ import type { HttpRequest, HttpResponse } from "@maschinenlesbar.org/hochwasserz
 
 // ---- adapter (per repo) -------------------------------------------------------------
 import { run } from "../src/cli/run.js";
+import { discardFiles } from "./helpers.js";
 import { HochwasserzentralenClient as Client } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { HochwasserzentralenValidationError as ValidationError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 /** The library's filtered call, with its query/parameter object passed through as is. */
@@ -89,7 +90,8 @@ const respond = (_req: HttpRequest): HttpResponse => ({
 });
 /** CliDeps for this repo. */
 const makeDeps = (io: Pick<CliDeps["io"], "out" | "err">, transport: (req: HttpRequest) => Promise<HttpResponse>): CliDeps => ({
-  io: { ...io, writeFile: () => {}, fileExists: () => false },
+  io,
+  files: discardFiles,
   createClient: (opts) => new Client({ ...opts, transport }),
 });
 // --------------------------------------------------------------------------------------

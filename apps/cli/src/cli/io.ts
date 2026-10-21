@@ -1,7 +1,10 @@
-// I/O seam for the CLI. Everything the CLI writes goes through a CliIO object so
-// tests can capture output instead of hitting the real stdout/stderr/filesystem.
+// I/O seam for the CLI. Everything the CLI writes goes through a CliIO object, and the
+// `-o` file through OutputFiles, so tests can capture output instead of hitting the real
+// stdout/stderr and file system.
 
-import { lstatSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { chmodSync, closeSync, lstatSync, openSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type { HochwasserzentralenClient, HochwasserzentralenClientOptions } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { createLogger, type Logger } from "./log.js";
 import { HochwasserzentralenError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
@@ -25,17 +28,114 @@ export class OutputError extends HochwasserzentralenError {
 export interface CliIO {
   out(text: string): void;
   err(text: string): void;
+}
+
+/** The file seam for `-o` (`shared.ts`). */
+export interface OutputFiles {
+  /** What is at `path`: nothing, a directory, or anything else (a file, a link: a dangling one too). */
+  state(path: string): "absent" | "directory" | "exists";
   /**
-   * Persist bytes to a file (for --output). Without `overwrite` the file must not
-   * exist yet (exclusive create): anything at `path` — a file, or a symlink, even a
-   * dangling one — makes it throw an `EEXIST` error instead of writing through it.
+   * Write `data` to `path` atomically: the old file stays as it was until the new one is
+   * complete. Without `overwrite` an existing path is refused, checked by an exclusive create
+   * that closes the race with a file appearing meanwhile. Throws an {@link OutputError}:
+   * {@link refuseOverwrite}, {@link isDirectoryError} (both `refused`), or {@link writeFailure}.
    */
-  writeFile(path: string, data: Buffer, overwrite: boolean): void;
-  /**
-   * True if a filesystem entry already exists at `path` (the --force guard); a
-   * dangling symlink counts.
-   */
-  fileExists(path: string): boolean;
+  write(path: string, data: Buffer, overwrite: boolean): void;
+}
+
+/** The refusal for an existing `-o` path without `--force` (exit 2). */
+export function refuseOverwrite(path: string): OutputError {
+  return new OutputError(
+    `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
+    { refused: true },
+  );
+}
+
+/** The refusal for an `-o` path that is a directory, which `--force` can't fix (exit 2). */
+export function isDirectoryError(path: string): OutputError {
+  return new OutputError(`"${path}" is a directory; give a file path to --output.`, { refused: true });
+}
+
+/**
+ * A failed write of the `-o` file (exit 1). Node's `, open '<path>'` (or `rename '…' -> '…'`)
+ * tail is dropped: the message names the path already, and the tail would name the temporary
+ * file. The `s` flag lets it span a path with a line break in it.
+ */
+export function writeFailure(path: string, cause: unknown): OutputError {
+  const reason = cause instanceof Error ? cause.message.replace(/,\s*(?:open|rename|chmod)\s+'.*'$/s, "") : String(cause);
+  return new OutputError(`Could not write to "${path}": ${reason}`, { cause });
+}
+
+/** The real file system for `-o`. */
+export const nodeFiles: OutputFiles = {
+  state(path) {
+    try {
+      return statSync(path).isDirectory() ? "directory" : "exists";
+    } catch {
+      // statSync follows a link; a dangling one is still something an exclusive create
+      // refuses, so lstat decides between "exists" and "absent".
+      try {
+        lstatSync(path);
+        return "exists";
+      } catch {
+        return "absent";
+      }
+    }
+  },
+  write(path, data, overwrite) {
+    if (nodeFiles.state(path) === "directory") throw isDirectoryError(path);
+    let claimed = false;
+    try {
+      // Without overwrite the name is claimed first with an exclusive create, which fails for
+      // any existing path (a dangling link too, since it never follows one).
+      if (!overwrite) {
+        closeSync(openSync(path, "wx"));
+        claimed = true;
+      }
+      replaceFile(overwrite ? throughLinks(path) : path, data);
+    } catch (cause) {
+      // A write cut short (a full disk, a quota) leaves no file under the new name either, so
+      // the next run isn't refused for a file that holds half a result.
+      if (claimed) rmSync(path, { force: true });
+      if ((cause as NodeJS.ErrnoException | undefined)?.code === "EEXIST" && !claimed) throw refuseOverwrite(path);
+      throw writeFailure(path, cause);
+    }
+  },
+};
+
+/**
+ * Replace `target` with `data` atomically: a temporary file beside it, created exclusively,
+ * renamed over it. A write cut short (a full disk, a killed process) leaves the old file as it
+ * was, never half of the new one. An existing file's mode is kept.
+ */
+function replaceFile(target: string, data: Buffer): void {
+  const temporary = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
+  try {
+    writeFileSync(temporary, data, { flag: "wx" });
+    const mode = modeOf(target);
+    if (mode !== undefined) chmodSync(temporary, mode);
+    renameSync(temporary, target);
+  } catch (err) {
+    rmSync(temporary, { force: true });
+    throw err;
+  }
+}
+
+function modeOf(path: string): number | undefined {
+  try {
+    return statSync(path).mode & 0o7777;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The file a path names, through any symlinks, so --force writes where a link points. */
+function throughLinks(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
 
 export interface CliDeps {
@@ -49,6 +149,8 @@ export interface CliDeps {
   log?: Logger;
   /** The clock the log's timestamps come from. Unset, the real one. */
   now?: () => Date;
+  /** Where `-o` writes. Unset, the real file system (`nodeFiles`). */
+  files?: OutputFiles;
 }
 
 /** The deps' logger, or one that writes text records through `io.err`. */
@@ -146,17 +248,4 @@ export const defaultIO: CliIO = {
   out: (text) => process.stdout.write(text + "\n"),
   // A record never lands inside the data when both streams share a pipe.
   err: stderrLine,
-  // "wx" = O_CREAT|O_EXCL: never follows a symlink planted at `path` and closes the
-  // gap between the fileExists check and the write.
-  writeFile: (path, data, overwrite) => writeFileSync(path, data, { flag: overwrite ? "w" : "wx" }),
-  // lstat, not existsSync: existsSync follows a symlink and reports a dangling one
-  // as absent, so -o would create a file wherever the link points.
-  fileExists: (path) => {
-    try {
-      lstatSync(path);
-      return true;
-    } catch {
-      return false;
-    }
-  },
 };

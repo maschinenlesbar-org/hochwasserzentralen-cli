@@ -15,7 +15,7 @@ import { HochwasserzentralenError, HochwasserzentralenValidationError } from "@m
 import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
 import { run } from "../src/cli/run.js";
 import type { CliDeps } from "../src/cli/io.js";
-import { jsonResponse, parity, untimed } from "./helpers.js";
+import { discardFiles, jsonResponse, parity, untimed } from "./helpers.js";
 import * as fx from "@maschinenlesbar.org/hochwasserzentralen-client/test/fixtures";
 
 const nonBlank: Problem<string> = (v) => (v.trim() === "" ? "Expected a non-empty value." : undefined);
@@ -43,7 +43,8 @@ test("run() maps a HochwasserzentralenValidationError raised in an action to exi
   const out: string[] = [];
   const err: string[] = [];
   const deps: CliDeps = {
-    io: { out: (s) => out.push(s), err: (s) => err.push(s), writeFile: () => {}, fileExists: () => false },
+    io: { out: (s) => out.push(s), err: (s) => err.push(s), },
+    files: discardFiles,
     createClient: () => {
       throw new HochwasserzentralenValidationError("Invalid thing: Expected a non-empty value.");
     },
