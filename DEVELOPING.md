@@ -340,8 +340,10 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
 - **`--states` is enforced locally, too.** The API filters by `?states=`, but a server
   that ignores the parameter (a mirror or proxy via `--base-url`, an upstream
   regression) would have let a Bavarian class-3 gauge set `situation --states RP`'s
-  `worstClass`. `stations()` keeps only the requested states' gauges (`onlyStates`, by
-  `stateId` read case-insensitively, else the id prefix), and `aggregateSituation(res,
+  `worstClass`, and a Saxon warning appear in `alerts --states BY`. `stations()` keeps only the
+  requested states' gauges (`onlyStates`, by `stateId` read case-insensitively, else the id
+  prefix), `alerts()` only their alerts (`alertsOnlyStates`, by the id prefix, `BY_577`; an
+  alert without one is no requested state's), and `aggregateSituation(res,
   states)` normalises `states` and covers exactly those. Nationwide (no `states`), every
   gauge counts; one with an unknown state gets an entry of its own rather than being lost.
 - **`-o/--output` never silently overwrites and never leaves half a file.** Before any

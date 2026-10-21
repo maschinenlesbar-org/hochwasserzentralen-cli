@@ -102,8 +102,9 @@ nach dem sie handeln können.
 Der Filter `--states` akzeptiert eine kommagetrennte Teilmenge dieser 16 Kürzel
 (Groß-/Kleinschreibung egal; validiert – ein Tippfehler, ein leerer Eintrag wie `BY,,SN` oder ein
 unsichtbares Zeichen endet mit Exit-Code 2, statt stillschweigend alles zurückzugeben). Die API filtert danach, und die CLI wendet den Filter
-noch einmal auf die Antwort an: Nur die Pegel der angefragten Länder werden ausgegeben und
-gezählt, ein Server, der den Filter ignoriert, kann das Ergebnis also nicht verändern:
+noch einmal auf die Antwort an: Nur die Warnungen und Pegel der angefragten Länder werden
+ausgegeben und gezählt (das Land steht vorn in der Kennung, `BY_577`; bei einem Pegel zuerst in
+`stateId`), ein Server, der den Filter ignoriert, kann das Ergebnis also nicht verändern:
 
 | Kürzel | Land | Kürzel | Land |
 | --- | --- | --- | --- |

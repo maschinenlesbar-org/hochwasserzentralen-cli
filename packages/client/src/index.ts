@@ -40,7 +40,7 @@ export {
 export type { Problem } from "./validate.js";
 export type { QueryParams, QueryValue } from "./query.js";
 export { alertsToGeoJson, alertsWithoutGeometry, stationsToGeoJson, stationsWithoutCoordinates } from "./geojson.js";
-export { aggregateSituation, filterStations, foldName, onlyStates, stationClass } from "./stations.js";
+export { aggregateSituation, alertsOnlyStates, filterStations, foldName, onlyStates, stationClass } from "./stations.js";
 export type { Situation, StateSituation, StationFilter } from "./stations.js";
 export type { GeoJsonFeature, GeoJsonFeatureCollection } from "./geojson.js";
 export {

@@ -4,7 +4,7 @@
 
 import { HochwasserzentralenParseError, HochwasserzentralenValidationError, cutText } from "./errors.js";
 import { sanitizeServerText } from "./engine.js";
-import { STATE_CODES, STATION_CLASS_NAMES, type Station, type StationsResponse } from "./types.js";
+import { STATE_CODES, STATION_CLASS_NAMES, type AlertsResponse, type Station, type StationsResponse } from "./types.js";
 import {
   assertValid,
   knownKeysProblem,
@@ -153,6 +153,27 @@ export function onlyStates(res: StationsResponse, states: readonly string[]): St
   assertValid("res", res as unknown, responseArgProblem);
   const wanted = new Set(normalizeStates(states));
   return { ...res, data: res.data.filter((s) => wanted.has(stateOf(s))) };
+}
+
+/**
+ * The response with only the alerts of `states` (codes, normalised by `normalizeStates`): an
+ * alert's state is its id's prefix (`BY_577` is BY, any case); one whose id has no such prefix
+ * belongs to no requested state. The envelope is kept, the input not changed. `alerts()` applies
+ * it to every `states` request, as `stations()` does with {@link onlyStates}, so a server that
+ * ignores `?states=` (a mirror, a proxy, an upstream regression) can't put a Saxon warning into
+ * a Bavarian answer.
+ */
+export function alertsOnlyStates(res: AlertsResponse, states: readonly string[]): AlertsResponse {
+  assertValid("res", res as unknown, responseArgProblem);
+  const wanted = new Set(normalizeStates(states));
+  return {
+    ...res,
+    data: res.data.filter((a) => {
+      if (typeof a.id !== "string") return false;
+      const idx = a.id.indexOf("_");
+      return idx > 0 && wanted.has(a.id.slice(0, idx).toUpperCase());
+    }),
+  };
 }
 
 /**

@@ -855,3 +855,13 @@ test("a password in a URL inside any argument is redacted on stderr, padded, mid
     }
   }
 });
+
+test("alerts --states drops another state's alert a server sent anyway, also in --geojson (05-2)", async () => {
+  for (const extra of [[], ["--geojson"]]) {
+    const cli = makeCli(() => jsonResponse(fx.alertsJson));
+    assert.equal(await run(["--compact", "alerts", "--states", "BY", ...extra], cli.deps), 0);
+    const printed = JSON.parse(cli.out.join("\n")) as { data?: Array<{ id: string }>; features?: Array<{ properties: { id: string } }> };
+    const ids = printed.data?.map((a) => a.id) ?? printed.features?.map((f) => f.properties.id);
+    assert.deepEqual(ids, ["BY_577"], extra.join(" "));
+  }
+});

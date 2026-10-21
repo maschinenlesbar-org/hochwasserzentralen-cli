@@ -38,6 +38,7 @@ const STATIONS_KEYS = ["states", "lang", "water", "minClass"] as const;
 const SITUATION_KEYS = ["states", "lang"] as const;
 import {
   aggregateSituation,
+  alertsOnlyStates,
   assertStationFilter,
   filterStations,
   normalizeStates,
@@ -216,7 +217,9 @@ export class HochwasserzentralenClient {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
     this.checkEnvelope(res, ENDPOINTS.alerts, query, false);
-    return res;
+    // As in stations(): the API filters by `states`, but a server that ignores the parameter
+    // would let another state's warning into the answer. Keep only the requested states' alerts.
+    return params.states === undefined ? res : alertsOnlyStates(res, normalizeStates(params.states));
   }
 
   /**

@@ -8,7 +8,7 @@ import {
 } from "../src/errors.js";
 import { alertsToGeoJson, stationsToGeoJson } from "../src/geojson.js";
 import type { AlertsResponse, Station, StationsResponse } from "../src/types.js";
-import { aggregateSituation, filterStations, foldName, onlyStates, stationClass } from "../src/stations.js";
+import { aggregateSituation, alertsOnlyStates, filterStations, foldName, onlyStates, stationClass } from "../src/stations.js";
 import * as lib from "../src/index.js";
 import { makeMockTransport, jsonResponse, queryOf, rawResponse } from "./helpers.js";
 import * as fx from "./fixtures.js";
@@ -484,4 +484,23 @@ test("alertsWithoutGeometry / stationsWithoutCoordinates list what the converter
   assert.equal(lib.alertsToGeoJson(alerts).features.length + lib.alertsWithoutGeometry(alerts).length, 2);
   const stations = { ...fx.stationsJson, data: [{ ...fx.stationsJson.data[0]!, id: "BE_0", coordinates: [200, 95] }, fx.stationsJson.data[0]!] };
   assert.deepEqual(lib.stationsWithoutCoordinates(stations).map((s) => s.id), ["BE_0"]);
+});
+
+test("alerts({ states }) keeps only the requested states' alerts, also if the server sent others (05-2)", async () => {
+  // A server that ignores ?states= (a mirror, a proxy, an upstream regression) answers with every
+  // state's alerts: the Saxon SN_12 must not be reported for Bavaria.
+  const mt = makeMockTransport(() => jsonResponse(fx.alertsJson));
+  const client = new HochwasserzentralenClient({ transport: mt.transport });
+  const by = await client.alerts({ states: ["by"] });
+  assert.deepEqual(by.data.map((a) => a.id), ["BY_577"]);
+  assert.equal(by.licenceName, fx.alertsJson.licenceName);
+  assert.equal(new URL(mt.last().url).searchParams.get("states"), "BY");
+  assert.deepEqual((await client.alerts({ states: ["SN", "BY"] })).data.map((a) => a.id), ["BY_577", "SN_12"]);
+  // Nationwide, every alert counts.
+  assert.equal((await client.alerts()).data.length, 2);
+  // The pure transform: the state is the id's prefix, any case; one without a readable prefix is no requested state's.
+  const odd = { ...fx.alertsJson, data: [{ ...fx.alertsJson.data[0]!, id: "by_1" }, { ...fx.alertsJson.data[0]!, id: "BY" }, { ...fx.alertsJson.data[0]!, id: 7 as unknown as string }] };
+  assert.deepEqual(alertsOnlyStates(odd, ["BY"]).data.map((a) => a.id), ["by_1"]);
+  assert.equal(fx.alertsJson.data.length, 2, "the input is not changed");
+  assert.throws(() => alertsOnlyStates(odd, ["XX"]), HochwasserzentralenValidationError);
 });
