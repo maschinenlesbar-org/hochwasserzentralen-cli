@@ -112,7 +112,9 @@ was, and an interrupted run (Ctrl-C, `SIGTERM`, `SIGHUP`: exit 130, 143, 129) le
 half-written or temporary file; with `--force` the old file's mode is kept and a symlink is
 written through (a dangling one creates the file it points at). A device, a FIFO or the shell's
 own descriptor (`/dev/null`, `/dev/stdout`, `>(gzip > x.gz)`) is written in place, without
-`--force`. It confirms what it wrote on stderr:
+`--force`. `-o -` means stdout; any other value that starts with a dash (`-o --compact`, a
+forgotten file name) is refused as a missing value (exit 2) — write a file named `-x` as `./-x`.
+It confirms what it wrote on stderr:
 
 ```text
 2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-pegel.geojson

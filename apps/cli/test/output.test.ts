@@ -282,3 +282,26 @@ test("stdout to a regular file gets every byte or an error: a short write is nev
     assert.deepEqual(piped, ["data"]);
   });
 });
+
+test("-o refuses the next option as its file name: a usage error before any request (T13)", async () => {
+  for (const argv of [["-o", "--compact", "alerts"], ["--output=-v", "alerts"], ["alerts", "-o", "--force"]]) {
+    const cli = makeCli();
+    assert.equal(await run(argv, cli.deps), 2, argv.join(" "));
+    assert.equal(cli.mt.calls.length, 0);
+    assert.match(cli.err.join("\n"), /^ERROR \[hochwasser\.cli\] option '-o, --output <file>' argument '-[-\w]+' is invalid\. looks like a missing value — "-[-\w]+" is the next option, .* write \.\/-name\.$/m, argv.join(" "));
+  }
+  // `./-name` is the way to such a file; `-` stays stdout.
+  await inTempDir(async (dir) => {
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+      assert.equal(await run(["--compact", "-o", "./-v", "alerts"], makeCli().deps), 0);
+      assert.deepEqual(readdirSync(dir), ["-v"]);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+  const dash = makeCli();
+  assert.equal(await run(["--compact", "-o", "-", "alerts"], dash.deps), 0);
+  assert.equal(dash.out.length, 1);
+});

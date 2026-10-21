@@ -6,7 +6,7 @@ import type { Command } from "commander";
 import { InvalidArgumentError, Option } from "commander";
 import { OutputError, isDirectoryError, logOf, nodeFiles, refuseOverwrite, writeFailure, type CliDeps } from "./io.js";
 import type { HochwasserzentralenClientOptions } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
-import { HochwasserzentralenParseError, HochwasserzentralenValidationError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
+import { HochwasserzentralenParseError, HochwasserzentralenValidationError, quoteValue } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import { DEFAULT_BASE_URL, cleartextProblem, isBidiControl, type RetryEvent } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
 import {
   baseUrlProblem,
@@ -92,10 +92,21 @@ export function choiceOption(flags: string, description: string, choices: readon
 /**
  * commander value-parser for `-o, --output <file>`. A blank or whitespace-only path
  * is a usage error: `-o ""` used to print to stdout silently. `-` is kept as is and
- * means stdout (see {@link action}).
+ * means stdout (see {@link action}); any other value that starts with a dash is refused as
+ * the next option.
  */
 export function parseOutputPath(value: string): string {
-  return parseNonEmpty(value);
+  parseNonEmpty(value);
+  // commander hands a value option the next argument whatever it looks like: `-o --compact`
+  // wrote a pretty-printed file named "--compact", exit 0. `-o -x` and `--output=-x` give the
+  // parser the same string, so a file whose name starts with a dash is written as `./-x`.
+  if (value !== "-" && value.startsWith("-")) {
+    throw new InvalidArgumentError(
+      `looks like a missing value — ${quoteValue(value)} is the next option, consumed because ` +
+        "this one was left without a value. For a file whose name starts with a dash, write ./-name.",
+    );
+  }
+  return value;
 }
 
 /**

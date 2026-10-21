@@ -717,11 +717,11 @@ test("the log format is the one commander parsed, where an option's value looks 
   assert.equal(await run(["--user-agent", "--log-format=jsonl", "stations"], ua.deps), 4);
   assert.equal(ua.mt.last().headers?.["User-Agent"], "--log-format=jsonl");
   assert.ok(ua.err.length === 1 && !isJsonl(ua.err[0] as string), ua.err.join("\n"));
-  // "--log-format" as the -o path: commander then sees "jsonl" as the command, and logs text.
+  // "--log-format" as the -o path: refused as a missing value (T13), logged as text.
   const output = makeCli(notFound);
   assert.equal(await run(["-o", "--log-format", "jsonl", "stations"], output.deps), 2);
   assert.ok(output.err.length > 0 && output.err.every((line) => !isJsonl(line)), output.err.join("\n"));
-  assert.match(untimed(output.err[0] ?? ""), /^ERROR \[hochwasser\.cli\] unknown command 'jsonl'/);
+  assert.match(untimed(output.err[0] ?? ""), /^ERROR \[hochwasser\.cli\] option '-o, --output <file>' argument '--log-format' is invalid\. looks like a missing value/);
   // jsonl asked for, then "--log-format" as the value of --user-agent: jsonl.
   const back = makeCli(notFound);
   assert.equal(await run(["--log-format", "jsonl", "--user-agent", "--log-format", "stations"], back.deps), 4);
