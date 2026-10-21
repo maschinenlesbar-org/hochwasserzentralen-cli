@@ -155,7 +155,7 @@ Every diagnostic line the CLI writes to stderr: a timestamp, a level (`ERROR`, `
 as one JSON object per line. The areas: `cli` (usage errors, commander's messages,
 unexpected errors), `api` (the API's answers: an error status, an envelope whose `status`
 isn't `success`, the redirect hint, and a malformed answer — bad JSON, a proxy's HTML page,
-the wrong shape, the GeoJSON representation instead of plain JSON), `http` (the
+the wrong shape, a number that can't be carried exactly, the GeoJSON representation instead of plain JSON), `http` (the
 connection, the size-cap hint, the cleartext warning, one WARN per retry before it waits) and `output` (the `-o` file, what a
 GeoJSON export left off the map, a failed write to stdout). A record is always one line;
 control characters in it are escaped.

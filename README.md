@@ -150,7 +150,7 @@ or after the command.
 Each line on stderr is a **log record**: a timestamp (UTC), a level (`ERROR`, `WARN`,
 `INFO`) and a topic, the program and the area it comes from (`hochwasser.cli` for usage
 errors, `hochwasser.api` for the API's answers — an error status, and a malformed answer:
-bad JSON, a proxy's HTML page, the wrong shape —
+bad JSON, a proxy's HTML page, the wrong shape, a number that can't be carried exactly —
 `hochwasser.http` for the connection, `hochwasser.output` for `-o` files, what a
 GeoJSON export left out and a failed write to stdout). By default it is written log4j style; `--log-format jsonl`
 writes one JSON object per line instead. A record is always one line: a line break, a
@@ -177,7 +177,7 @@ hochwasser --log-format jsonl stations 2>log.jsonl   # {"ts":"…","level":"ERRO
 | `2` | bad usage / invalid argument / refused overwrite (nothing was sent or written) |
 | `4` | resource not found (`404`) |
 | `6` | network / transport failure (DNS, connection, timeout, size cap) |
-| `1` | any other error (including a `3xx` — redirects are not followed — bad JSON, and an answer whose envelope `status` isn't `success`) |
+| `1` | any other error (including a `3xx` — redirects are not followed — bad JSON, a number in the answer that can't be carried exactly, and an answer whose envelope `status` isn't `success`) |
 
 ## The test system
 

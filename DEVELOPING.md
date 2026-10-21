@@ -337,7 +337,12 @@ independently of the CLI.
 errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
 `TEST_BASE_URL` appends `/test`. A body is decoded by the charset its Content-Type
 names (UTF-8 when it names none; a byte order mark is dropped); an unknown charset label
-is a `HochwasserzentralenParseError`.
+is a `HochwasserzentralenParseError`. JSON.parse rounds and overflows numbers silently, so
+`getJson` scans the body after parsing: a number out of a double's range (`1e400`), past 2^53
+in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
+non-zero and too small (`1e-400`) is a `HochwasserzentralenParseError` (`Unexpected response
+from /data/stations: the number … cannot be represented exactly.`), never a changed value.
+Below 2^53 a decimal fraction keeps a double's precision (the coordinates).
 
 **Transport.** A single function `(HttpRequest) => Promise<HttpResponse>`
 ([`packages/client/src/http.ts`](packages/client/src/http.ts)). The default (`nodeHttpTransport`) uses Node's
@@ -391,7 +396,7 @@ mocked client and captured output — no subprocess.
 `status` isn't `"success"` — then `status` is 200 and `apiStatus` holds the envelope's
 status; carries `status`, `detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
 failure/timeout/size cap, and anything a custom transport throws), `HochwasserzentralenValidationError` (a rejected
-input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, or a
+input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, a number a double can't carry exactly, or a
 top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `"status": "success"`, a `data` item that is not a JSON object, a station without a string
 `id`, a nationwide `/data/stations` answer without any station; the CLI raises it too
@@ -537,7 +542,7 @@ at the source (`cutForMessage`, 500; the `-o` path is left to the record cap, it
 file the user chose). The areas are `cli` (usage errors, commander's messages and the help it shows
 after one, unexpected errors), `api` (the API's answers: an HTTP error status, an
 envelope whose `status` isn't `success`, the redirect hint, and a malformed answer, a
-`HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, the
+`HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, an inexact number, the
 GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
 deeply to print), `http` (the connection, the size-cap hint, the cleartext
 warning, one WARN per retry before it waits) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every

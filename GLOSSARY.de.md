@@ -154,7 +154,7 @@ Jede Diagnosezeile, die die CLI nach stderr schreibt: ein Zeitstempel, eine Stuf
 Meldungen von commander, unerwartete Fehler), `api` (die Antworten der API: ein
 Fehlerstatus, ein Envelope, dessen `status` nicht `success` ist, der Hinweis bei einer
 Umleitung und eine fehlerhafte Antwort — kein gültiges JSON, die HTML-Seite eines Proxys,
-die falsche Form, die GeoJSON-Darstellung statt reinem JSON), `http` (die Verbindung, der
+die falsche Form, eine Zahl, die sich nicht exakt darstellen lässt, die GeoJSON-Darstellung statt reinem JSON), `http` (die Verbindung, der
 Hinweis zur Größengrenze, die Klartext-Warnung, je Wiederholung eine WARN-Zeile vor dem Warten) und `output` (die `-o`-Datei, was ein
 GeoJSON-Export nicht auf die Karte bringt, ein Schreibfehler auf stdout). Ein Eintrag ist
 immer eine Zeile; Steuerzeichen darin werden maskiert.
