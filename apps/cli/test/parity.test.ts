@@ -294,3 +294,21 @@ test("toEngineOptions passes a set User-Agent through unchanged and leaves an un
   assert.deepEqual(toEngineOptions({ userAgent: " x " }), { userAgent: " x " });
   assert.deepEqual(toEngineOptions({}), {});
 });
+
+test("parity: a refused value shows its invisible characters escaped, on both sides (04-2, D10)", async () => {
+  for (const [states, shown] of [["BY\u200b", "\\u200b"], ["B\u00adY", "\\u00ad"], ["\u202eBY", "\\u202e"]] as const) {
+    const { cli, lib } = await parity(
+      ["--compact", "stations", "--states", states],
+      (transport) => new HochwasserzentralenClient({ transport }).stations({ states: [states] }),
+    );
+    assert.equal(cli.code, 2);
+    const error = lib.ok ? undefined : lib.error;
+    assert.ok(error instanceof HochwasserzentralenValidationError);
+    for (const text of [cli.err, error.message]) {
+      assert.ok(text.includes(shown), `${shown} not shown: ${text}`);
+      assert.ok(!text.includes(states.replace("BY", "").replace("B", "").replace("Y", "")), `shown raw: ${text}`);
+    }
+  }
+  // An unknown key of a parameter object is quoted visibly too.
+  await assert.rejects(new HochwasserzentralenClient().stations({ "Wat\u200ber": "elbe" } as never), /Unknown key "Wat\\u200ber"/);
+});

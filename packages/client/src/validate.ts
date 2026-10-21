@@ -10,7 +10,7 @@
 //   request is made. Methods that return a promise call it inside the async body,
 //   so they reject rather than throw synchronously; constructors throw.
 
-import { HochwasserzentralenValidationError, cutForMessage, cutText } from "./errors.js";
+import { HochwasserzentralenValidationError, cutForMessage, cutText, quoteValue } from "./errors.js";
 import { STATE_CODES } from "./types.js";
 
 /** A validation rule: the reason `value` is invalid, or `undefined` when it is valid. */
@@ -56,7 +56,7 @@ export function knownKeysProblem(known: readonly string[]): Problem<unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return "Expected an object.";
     for (const key of Object.keys(value)) {
       if (!known.includes(key)) {
-        return `Unknown key ${JSON.stringify(cutText(key, 60))}; expected one of ${known.join(", ")}.`;
+        return `Unknown key ${quoteValue(cutText(key, 60))}; expected one of ${known.join(", ")}.`;
       }
     }
     return undefined;
@@ -161,7 +161,7 @@ export const statesProblem: Problem<readonly string[]> = (states) => {
     const code = raw.trim().toUpperCase();
     if (code === "") continue;
     if (!(STATE_CODES as readonly string[]).includes(code)) {
-      return `Unknown state code "${cutForMessage(raw.trim())}". Expected one of: ${STATE_CODES.join(", ")}.`;
+      return `Unknown state code ${quoteValue(raw.trim())}. Expected one of: ${STATE_CODES.join(", ")}.`;
     }
     usable = true;
   }

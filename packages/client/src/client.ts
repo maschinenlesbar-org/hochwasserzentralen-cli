@@ -20,6 +20,7 @@ import {
   HochwasserzentralenValidationError,
   cutForMessage,
   cutText,
+  visibleJson,
 } from "./errors.js";
 import {
   LANGS,
@@ -156,14 +157,19 @@ function checkParams(params: { states?: unknown; lang?: unknown }, keys: readonl
   const { states, lang } = params;
   if (states !== undefined && (!Array.isArray(states) || !states.every((s) => typeof s === "string"))) {
     throw new HochwasserzentralenValidationError(
-      `Invalid states: expected an array of state codes, got ${cutForMessage(JSON.stringify(states) ?? String(states))}.`,
+      `Invalid states: expected an array of state codes, got ${shown(states)}.`,
     );
   }
   if (lang !== undefined && !(LANGS as readonly unknown[]).includes(lang)) {
     throw new HochwasserzentralenValidationError(
-      `Invalid lang: expected one of ${LANGS.join(", ")}, got ${cutForMessage(JSON.stringify(lang) ?? String(lang))}.`,
+      `Invalid lang: expected one of ${LANGS.join(", ")}, got ${shown(lang)}.`,
     );
   }
+}
+
+/** A wrong-typed parameter as a message shows it: as JSON, cut, with invisible characters escaped. */
+function shown(value: unknown): string {
+  return visibleJson(cutForMessage(JSON.stringify(value) ?? String(value)));
 }
 
 /** Options for the client (engine options only — the API needs no auth). */
@@ -200,7 +206,7 @@ export class HochwasserzentralenClient {
     checkParams(params, ALERTS_KEYS);
     if (params.cap !== undefined && typeof params.cap !== "boolean") {
       throw new HochwasserzentralenValidationError(
-        `Invalid cap: expected true or false, got ${cutForMessage(JSON.stringify(params.cap) ?? String(params.cap))}.`,
+        `Invalid cap: expected true or false, got ${shown(params.cap)}.`,
       );
     }
     const query: QueryParams = {};

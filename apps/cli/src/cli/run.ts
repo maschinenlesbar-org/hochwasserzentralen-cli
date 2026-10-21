@@ -55,6 +55,35 @@ function commandPath(command: Command): string {
 }
 
 /**
+ * Escape the characters a terminal acts on, or a reader can't see, in one commander error
+ * message: CR and LF become `\r` and `\n` (as a log record writes them, `escapeForRecord`), the
+ * other C0 controls (tab excepted), DEL, C1 and Unicode format characters (bidi overrides,
+ * zero-width characters, the soft hyphen) `\uXXXX`. Commander repeats a rejected argument raw
+ * (`argument 'BY\u200b' is invalid`), so the record said BY was unknown while listing BY. The
+ * library escapes the values it echoes itself (`quoteValue`).
+ */
+export function escapeTerminalText(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]|\p{Cf}/gu, (ch) =>
+    ch === "\n"
+      ? "\\n"
+      : ch === "\r"
+        ? "\\r"
+        : Array.from({ length: ch.length }, (_, i) => `\\u${ch.charCodeAt(i).toString(16).padStart(4, "0")}`).join(""),
+  );
+}
+
+/**
+ * escapeTerminalText for one commander error message, except for the `\n(Did you mean …?)` line
+ * commander appends after an unknown command or option: built from this CLI's own names, it can
+ * only end the message, after the closing quote of the user's value.
+ */
+function escapeCommanderError(message: string): string {
+  const hint = /\n\(Did you mean [^\n]*\?\)$/.exec(message);
+  if (hint === null) return escapeTerminalText(message);
+  return escapeTerminalText(message.slice(0, hint.index)) + hint[0];
+}
+
+/**
  * commander's stderr output as log records, one per line. Its `error: …` is an ERROR of
  * `cli`, with a following `(Did you mean …?)` line appended to that same record; the
  * help it shows after an error is one INFO record per non-blank line. The program run
@@ -69,7 +98,7 @@ function writeCommanderErr(command: Command, deps: CliDeps, state: { errorLogged
   if (text.trim() === "") return;
   if (text.startsWith("error: ")) {
     state.errorLogged = true;
-    log.error("cli", text.slice("error: ".length).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
+    log.error("cli", escapeCommanderError(text.slice("error: ".length)).replace(/\n(\(Did you mean .*\?\))$/, " $1"));
     return;
   }
   if (!state.errorLogged) {
@@ -152,6 +181,8 @@ export function redactionFor(argv: readonly string[]): Redaction {
   for (const source of [...values, ...baseUrls]) {
     for (const secret of credentialsIn(source)) {
       secrets.add(secret);
+      // Commander's echo of it is escaped (escapeTerminalText), a JSON-quoted one JSON-escaped.
+      secrets.add(escapeTerminalText(secret));
       secrets.add(JSON.stringify(secret).slice(1, -1));
       // What a server echoes back: the Basic value and the decoded user:password on
       // stdout and stderr, the password alone (it may well occur in the data) on stderr.

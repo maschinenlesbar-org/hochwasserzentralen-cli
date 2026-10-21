@@ -476,7 +476,11 @@ converters; `responseArgProblem`). An echoed value or server text in a message i
 500 characters (`cutForMessage`, `MAX_MESSAGE_VALUE_LENGTH`), shorter quotes (a
 Content-Type, an envelope status, a station id, a skipped item's label) at their own
 limits, never inside a surrogate pair (`cutText`), so the message stays well-formed; the
-error's own properties keep the full value. A non-2xx answer's `detail` is the API's own message — its JSend
+error's own properties keep the full value. A value the user gave is quoted visibly
+(`quoteValue`, exported): JSON-quoted, with DEL, C1, U+2028/U+2029 and every Unicode format
+character (a zero-width space, a soft hyphen, a bidi control) written as `\uXXXX`, so a refused
+`"BY\u200b"` no longer reads as a valid `"BY"`; commander's own echo of a rejected argument is
+escaped the same way (`escapeTerminalText` in `run.ts`). A non-2xx answer's `detail` is the API's own message — its JSend
 `error.message` (`{"status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown
 states"}}`), else a top-level `message`/`description`/`detail`, else a plain-text snippet.
 Every error about an answer names the request first, `GET <url>: …` (userinfo redacted; the
