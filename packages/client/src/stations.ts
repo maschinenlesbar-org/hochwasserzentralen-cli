@@ -17,7 +17,10 @@ import {
 
 /**
  * Fold a water name for the case-insensitive `water` match, applied to both sides:
- * NFC (a decomposed umlaut typed or pasted on macOS matches the feed's composed text),
+ * NFKC (a decomposed umlaut typed or pasted on macOS matches the feed's composed text, and
+ * fullwidth or other compatibility forms, `ＥＬＢＥ`, their plain letters), invisible format
+ * characters dropped (a soft hyphen or zero-width space in a name the server sent; the needle
+ * can't hold one, `textProblem` refuses it),
  * lower case, every whitespace run (a double space, a tab, a no-break space from a web
  * page) as one space and the ends trimmed, "ß" as "ss" ("NEISSE" is the upper-case form
  * of "Neiße", and names occur in both spellings, e.g. "…wasserstrasse" /
@@ -28,10 +31,11 @@ export function foldName(text: string): string {
   return baseFold(text).replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue");
 }
 
-/** The fold shared by both match forms: NFC, lower case, whitespace, ß, dashes. */
+/** The fold shared by both match forms: NFKC, invisible format characters dropped, lower case, whitespace, ß, dashes. */
 function baseFold(text: string): string {
   return text
-    .normalize("NFC")
+    .normalize("NFKC")
+    .replace(/\p{Cf}/gu, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim()

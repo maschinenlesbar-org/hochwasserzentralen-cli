@@ -352,6 +352,24 @@ test("water finds names across whitespace runs, umlaut spellings and dropped dia
   assert.deepEqual(ids("Elbe"), ["SN_4"]);
 });
 
+test("water folds compatibility forms (NFKC) and ignores invisible characters in the data (04-1)", () => {
+  const station = (id: string, water: string) => ({ kind: "Station", id, stateId: "DE-SN", water, lhpClass: 0 });
+  const body = {
+    ...fx.stationsJson,
+    data: [station("SN_1", "Elbe"), station("SN_2", "Mul\u00adde"), station("SN_3", "Schwarze Elster"), station("SN_4", "Zschopau\u200b")],
+  } as unknown as StationsResponse;
+  const ids = (water: string) => filterStations(body, { water }).data.map((s) => s.id);
+  // Fullwidth letters (an East Asian input method, a PDF) fold to their ASCII form.
+  assert.deepEqual(ids("\uff25\uff2c\uff22\uff25"), ["SN_1"]);
+  assert.deepEqual(ids("\uff25lbe"), ["SN_1"]);
+  assert.deepEqual(ids("\uff25\uff2c\uff33\uff34\uff25\uff32"), ["SN_3"]);
+  // A soft hyphen or zero-width space inside a name the server sent doesn't hide it.
+  assert.deepEqual(ids("Mulde"), ["SN_2"]);
+  assert.deepEqual(ids("zschopau"), ["SN_4"]);
+  assert.equal(foldName("Mul\u00adde"), "mulde");
+  assert.equal(foldName("\uff2d\uff55\uff4c\uff44\uff45"), "mulde");
+});
+
 test("filterStations keeps the envelope, does not change its input and drops null classes", () => {
   const data = [...fx.stationsJson.data, { ...fx.stationsJson.data[0]!, id: "MV_1", lhpClass: null as unknown as number }];
   const res = { ...fx.stationsJson, data };
