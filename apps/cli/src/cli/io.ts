@@ -10,13 +10,14 @@ import { createLogger, type Logger } from "./log.js";
 import { HochwasserzentralenError } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 
 /**
- * Writing the output to the `-o` file failed (a missing directory, a directory, EACCES,
- * …), or was refused (`refused`: an existing file without `--force`). Logged as an ERROR
+ * Writing the output to the `-o` file failed (a missing directory, EACCES, a file or a
+ * directory that appeared at the path during the request, …), or was refused before the
+ * request (`refused`: an existing path without `--force`, a directory). Logged as an ERROR
  * of `hochwasser.output`; exit 1, or 2 for a refusal (a usage condition: pass --force or
- * pick another path).
+ * pick another path, before anything was sent).
  */
 export class OutputError extends HochwasserzentralenError {
-  /** True for the overwrite refusal (exit 2), false for a failed write (exit 1). */
+  /** True for a refusal before the request (exit 2), false for a failed write (exit 1). */
   readonly refused: boolean;
 
   constructor(message: string, options: { cause?: unknown; refused?: boolean } = {}) {
@@ -37,23 +38,33 @@ export interface OutputFiles {
   /**
    * Write `data` to `path` atomically: the old file stays as it was until the new one is
    * complete. Without `overwrite` an existing path is refused, checked by an exclusive create
-   * that closes the race with a file appearing meanwhile. Throws an {@link OutputError}:
-   * {@link refuseOverwrite}, {@link isDirectoryError} (both `refused`), or {@link writeFailure}.
+   * that closes the race with a file appearing meanwhile. Throws an {@link OutputError} that is
+   * a failed write (exit 1), never a refusal: {@link appearedMeanwhile} or {@link writeFailure}.
    */
   write(path: string, data: Buffer, overwrite: boolean): void;
 }
 
-/** The refusal for an existing `-o` path without `--force` (exit 2). */
+const existingFileMessage = (path: string): string =>
+  `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`;
+const directoryMessage = (path: string): string => `"${path}" is a directory; give a file path to --output.`;
+
+/** The refusal for an existing `-o` path without `--force`, before the request (exit 2). */
 export function refuseOverwrite(path: string): OutputError {
-  return new OutputError(
-    `Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
-    { refused: true },
-  );
+  return new OutputError(existingFileMessage(path), { refused: true });
 }
 
-/** The refusal for an `-o` path that is a directory, which `--force` can't fix (exit 2). */
+/** The refusal for an `-o` path that is a directory, which `--force` can't fix, before the request (exit 2). */
 export function isDirectoryError(path: string): OutputError {
-  return new OutputError(`"${path}" is a directory; give a file path to --output.`, { refused: true });
+  return new OutputError(directoryMessage(path), { refused: true });
+}
+
+/**
+ * A file (or, `directory`, a directory) that appeared at `path` during the request, found by
+ * the write: the same message as the refusal before the request, but a failed write (exit 1),
+ * not a usage error, since nothing the user typed was wrong.
+ */
+export function appearedMeanwhile(path: string, what: "file" | "directory", cause?: unknown): OutputError {
+  return new OutputError(what === "file" ? existingFileMessage(path) : directoryMessage(path), { cause });
 }
 
 /**
@@ -83,7 +94,7 @@ export const nodeFiles: OutputFiles = {
     }
   },
   write(path, data, overwrite) {
-    if (nodeFiles.state(path) === "directory") throw isDirectoryError(path);
+    if (nodeFiles.state(path) === "directory") throw appearedMeanwhile(path, "directory");
     let claimed = false;
     try {
       // Without overwrite the name is claimed first with an exclusive create, which fails for
@@ -97,7 +108,7 @@ export const nodeFiles: OutputFiles = {
       // A write cut short (a full disk, a quota) leaves no file under the new name either, so
       // the next run isn't refused for a file that holds half a result.
       if (claimed) rmSync(path, { force: true });
-      if ((cause as NodeJS.ErrnoException | undefined)?.code === "EEXIST" && !claimed) throw refuseOverwrite(path);
+      if ((cause as NodeJS.ErrnoException | undefined)?.code === "EEXIST" && !claimed) throw appearedMeanwhile(path, "file", cause);
       throw writeFailure(path, cause);
     }
   },

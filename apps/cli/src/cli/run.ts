@@ -255,7 +255,8 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     }
     const log = logOf(deps);
     if (err instanceof OutputError) {
-      // Every -o failure: a refused overwrite is a usage condition (2), a failed write 1.
+      // Every -o failure: a refusal before the request is a usage condition (2), a failed
+      // write 1 (also a file that appeared at the path during the request).
       log.error("output", err.message);
       return err.refused ? EXIT.USAGE : EXIT.OTHER;
     }

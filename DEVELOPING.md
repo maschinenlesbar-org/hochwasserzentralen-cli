@@ -324,8 +324,11 @@ usage error into 0); any other stdout write error is an ERROR record of
   symlink, even a dangling one) without `--force`, are refused (exit 2, an ERROR of
   `hochwasser.output`). The write goes through the `OutputFiles` seam (`CliDeps.files`;
   `nodeFiles` in `io.ts` for the real file system): without `--force` the name is claimed
-  with an exclusive create (`wx`), so a file that appears during the request is refused
-  too (exit 2); the data goes to a temporary file beside the target, renamed over it, so a
+  with an exclusive create (`wx`), so a file that appears during the request is not
+  overwritten either; that is a failed write (`appearedMeanwhile`: exit 1, an ERROR of
+  `hochwasser.output`, the refusal's message), not a usage error, since the check before the
+  request passed and nothing the user typed was wrong (as the kit; a directory that appears
+  then is the same); the data goes to a temporary file beside the target, renamed over it, so a
   write cut short (a full disk, a quota) leaves the old file as it was; an existing file's
   mode is kept, and `--force` writes through a symlink (over a dangling one it replaces the
   link). On failure no temporary file and no claimed name is left: `Could not write to
@@ -579,7 +582,7 @@ envelope whose `status` isn't `success`, the redirect hint, and a malformed answ
 GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
 deeply to print), `http` (the connection, the size-cap hint, the cleartext
 warning, one WARN per retry before it waits) and `output` (`Wrote …`, what a GeoJSON export left off the map, and every
-failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refused overwrite;
+failure of the `-o` file: an `OutputError`, exit 1, or exit 2 for a refusal before the request;
 and a stdout write error). Code logs
 through `logOf(deps)` and never writes diagnostics with `io.err` directly. `run()` builds
 the logger from argv before commander parses it (`logFormatFromArgv`, which skips the

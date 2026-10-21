@@ -86,7 +86,8 @@ test("nodeFiles: a dangling symlink counts as existing and is never written thro
     assert.equal(nodeFiles.state(link), "exists");
     assert.throws(
       () => nodeFiles.write(link, Buffer.from("x"), false),
-      (err: unknown) => err instanceof OutputError && err.refused && /Refusing to overwrite existing file/.test(err.message),
+      // At write time (after the request) this is a failed write, exit 1: not `refused`.
+      (err: unknown) => err instanceof OutputError && !err.refused && /Refusing to overwrite existing file/.test(err.message),
     );
     assert.equal(existsSync(target), false);
 

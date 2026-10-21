@@ -103,7 +103,9 @@ hochwasser stations --states BY --min-class 0 --geojson -o bayern-pegel.geojson
 
 The CLI refuses to overwrite an existing file (exit 2, before any request) unless you pass
 `--force` — also when a symlink, even a dangling one, sits at that path; a directory is
-refused too, and `--force` without `-o` is a usage error. The file is written atomically
+refused too, and `--force` without `-o` is a usage error. A file (or directory) that appears
+at the path while the request runs is not overwritten either: that is a failed write (exit 1,
+an ERROR of `hochwasser.output`), not a usage error. The file is written atomically
 (a temporary file beside it, renamed over it), so a failed write leaves the old file as it
 was; with `--force` the old file's mode is kept and a symlink is written through. It
 confirms what it wrote on stderr:
@@ -181,7 +183,7 @@ hochwasser --timeout 60000 --max-retries 5 stations
 | Code | Meaning |
 | --- | --- |
 | `0` | success (an empty result is success) |
-| `2` | usage error: bad flag, unknown state code, bad `--min-class`, refused overwrite |
+| `2` | usage error: bad flag, unknown state code, bad `--min-class`, refused overwrite (checked before the request) |
 | `4` | HTTP 404 |
 | `6` | network/transport failure |
-| `1` | anything else (unfollowed 3xx redirect, non-JSON body, an envelope whose `status` isn't `success`, a nationwide station list without any gauge, server 5xx after retries) |
+| `1` | anything else (unfollowed 3xx redirect, non-JSON body, an envelope whose `status` isn't `success`, a nationwide station list without any gauge, server 5xx after retries, a failed `-o` write, also a file that appeared at the path during the request) |

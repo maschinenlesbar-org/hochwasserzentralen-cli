@@ -127,19 +127,36 @@ test("--force to a new path creates the file; over a dangling link it replaces t
   });
 });
 
-test("a file that appears during the request is not overwritten: exit 2, the refusal", async () => {
+test("a file that appears during the request is not overwritten: a write failure, exit 1, not a usage error", async () => {
+  // Nothing the user typed was wrong (the check before the request passed), so this is the
+  // write failing, as the kit has it: an ERROR of hochwasser.output, exit 1.
   await inTempDir(async (dir) => {
     const path = join(dir, "race.json");
     const cli = makeCli(() => {
       writeFileSync(path, "theirs");
       return jsonResponse(BIDI);
     });
-    assert.equal(await run(["-o", path, "alerts"], cli.deps), 2);
+    assert.equal(await run(["-o", path, "alerts"], cli.deps), 1);
     assert.equal(readFileSync(path, "utf8"), "theirs");
     assert.deepEqual(cli.err, [
       `ERROR [hochwasser.output] Refusing to overwrite existing file "${path}". Pass --force to overwrite, or choose a different --output path.`,
     ]);
     assert.deepEqual(readdirSync(dir), ["race.json"]);
+  });
+});
+
+test("a directory that appears during the request is a write failure too: exit 1, also with --force", async () => {
+  await inTempDir(async (dir) => {
+    for (const force of [false, true]) {
+      const path = join(dir, `race-dir-${force}`);
+      const cli = makeCli(() => {
+        mkdirSync(path);
+        return jsonResponse(BIDI);
+      });
+      assert.equal(await run(["-o", path, ...(force ? ["--force"] : []), "alerts"], cli.deps), 1, `force ${force}`);
+      assert.deepEqual(cli.err, [`ERROR [hochwasser.output] "${path}" is a directory; give a file path to --output.`]);
+      assert.deepEqual(readdirSync(path), []);
+    }
   });
 });
 

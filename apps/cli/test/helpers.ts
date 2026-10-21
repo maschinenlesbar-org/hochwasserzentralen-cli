@@ -4,7 +4,7 @@
 // helpers from one place.
 
 import type { Transport, HttpRequest, HttpResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
-import { refuseOverwrite, type CliDeps, type OutputFiles } from "../src/cli/io.js";
+import { appearedMeanwhile, type CliDeps, type OutputFiles } from "../src/cli/io.js";
 import { run } from "../src/cli/run.js";
 import { defaultDeps } from "../src/cli/program.js";
 import { jsonResponse, makeMockTransport } from "@maschinenlesbar.org/hochwasserzentralen-client/test/helpers";
@@ -46,7 +46,7 @@ export function memoryFiles(existing: readonly string[] = []): OutputFiles & { w
     written,
     state: (path) => (existing.includes(path) || written[path] !== undefined ? "exists" : "absent"),
     write: (path, data, overwrite) => {
-      if (!overwrite && files.state(path) !== "absent") throw refuseOverwrite(path);
+      if (!overwrite && files.state(path) !== "absent") throw appearedMeanwhile(path, "file");
       written[path] = data;
     },
   };

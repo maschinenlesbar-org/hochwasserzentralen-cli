@@ -174,10 +174,10 @@ hochwasser --log-format jsonl stations 2>log.jsonl   # {"ts":"…","level":"ERRO
 | Code | Meaning |
 | --- | --- |
 | `0` | success (also `--help` / `--version`) |
-| `2` | bad usage / invalid argument / refused overwrite (nothing was sent or written) |
+| `2` | bad usage / invalid argument / refused overwrite, checked before the request (nothing was sent or written) |
 | `4` | resource not found (`404`) |
 | `6` | network / transport failure (DNS, connection, timeout, size cap) |
-| `1` | any other error (including a `3xx` — redirects are not followed — bad JSON, a number in the answer that can't be carried exactly, and an answer whose envelope `status` isn't `success`) |
+| `1` | any other error (including a `3xx` — redirects are not followed — bad JSON, a number in the answer that can't be carried exactly, an answer whose envelope `status` isn't `success`, and a failed `-o` write, also when a file appeared at the path during the request) |
 
 ## The test system
 

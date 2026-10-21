@@ -159,8 +159,8 @@ export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClien
  * Check `-o` before any request, so a refused target costs none (exit 2): `--force` without
  * `-o` is a usage error (`hochwasser.cli`); a directory, and an existing path (a symlink, even
  * a dangling one) without `--force`, are refused (`hochwasser.output`). `-o -` is stdout, also
- * with `--force`. The write checks again: a file that appears during the request is refused
- * too.
+ * with `--force`. The write checks again: a file (or directory) that appears during the
+ * request is not overwritten either, a failed write then (exit 1).
  */
 export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   if (global.force === true && global.output === undefined) {
@@ -175,9 +175,9 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
 /**
  * Write bytes to the --output file through the file seam (`nodeFiles`: atomic, an exclusive
  * claim without --force, the old file's mode kept, --force writes through a symlink). Every
- * failure is an OutputError logged under `hochwasser.output`: a refusal (an existing path, a
- * directory) exits 2, a failed write 1; whatever else a custom seam throws becomes a failed
- * write, never an untyped "Unexpected error".
+ * failure is an OutputError logged under `hochwasser.output` and exits 1 (a path that
+ * appeared during the request too; only the check before the request exits 2); whatever
+ * else a custom seam throws becomes a failed write, never an untyped "Unexpected error".
  */
 function writeOutputFile(deps: CliDeps, global: GlobalOptions, path: string, data: Buffer): void {
   try {
