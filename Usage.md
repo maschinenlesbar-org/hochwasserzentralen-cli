@@ -102,13 +102,17 @@ hochwasser stations --states BY --min-class 0 --geojson -o bayern-pegel.geojson
 ```
 
 The CLI refuses to overwrite an existing file (exit 2, before any request) unless you pass
-`--force` — also when a symlink, even a dangling one, sits at that path; a directory is
-refused too, and `--force` without `-o` is a usage error. A file (or directory) that appears
+`--force` — also when a symlink, even a dangling one, sits at that path; a directory, and a
+file whose directory is missing or not writable, are refused too (with or without `--force`),
+and `--force` without `-o` is a usage error. A file (or directory) that appears
 at the path while the request runs is not overwritten either: that is a failed write (exit 1,
 an ERROR of `hochwasser.output`), not a usage error. The file is written atomically
 (a temporary file beside it, renamed over it), so a failed write leaves the old file as it
-was; with `--force` the old file's mode is kept and a symlink is written through. It
-confirms what it wrote on stderr:
+was, and an interrupted run (Ctrl-C, `SIGTERM`, `SIGHUP`: exit 130, 143, 129) leaves no
+half-written or temporary file; with `--force` the old file's mode is kept and a symlink is
+written through (a dangling one creates the file it points at). A device, a FIFO or the shell's
+own descriptor (`/dev/null`, `/dev/stdout`, `>(gzip > x.gz)`) is written in place, without
+`--force`. It confirms what it wrote on stderr:
 
 ```text
 2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-pegel.geojson

@@ -330,7 +330,11 @@ usage error into 0); any other stdout write error is an ERROR record of
   request (`checkOutputTarget` in `shared.ts`, called by `action()`): `--force` without
   `-o` is a usage error (exit 2, `hochwasser.cli`); a directory, and an existing path (a
   symlink, even a dangling one) without `--force`, are refused (exit 2, an ERROR of
-  `hochwasser.output`). The write goes through the `OutputFiles` seam (`CliDeps.files`;
+  `hochwasser.output`), and so is a file whose directory is missing, not a directory or not
+  writable (`parentProblem`, through the links with `--force`), so a typo in the path costs no
+  download. A stream (a character device, a FIFO, a socket, `/dev/stdout`, `/dev/fd/N`) is
+  written in place (`writeInPlace`, every byte), with no claim, no temporary file and no
+  `--force` needed: nothing in it can be lost. The write goes through the `OutputFiles` seam (`CliDeps.files`;
   `nodeFiles` in `io.ts` for the real file system): without `--force` the name is claimed
   with an exclusive create (`wx`), so a file that appears during the request is not
   overwritten either; that is a failed write (`appearedMeanwhile`: exit 1, an ERROR of
@@ -338,8 +342,11 @@ usage error into 0); any other stdout write error is an ERROR record of
   request passed and nothing the user typed was wrong (as the kit; a directory that appears
   then is the same); the data goes to a temporary file beside the target, renamed over it, so a
   write cut short (a full disk, a quota) leaves the old file as it was; an existing file's
-  mode is kept, and `--force` writes through a symlink (over a dangling one it replaces the
-  link). On failure no temporary file and no claimed name is left: `Could not write to
+  mode is kept, and `--force` writes through a symlink (a dangling one, or a chain of them,
+  creates the file the link names; the link stays). The temporary name stays within NAME_MAX
+  (255 bytes; a long base name is shortened). SIGINT, SIGTERM and SIGHUP during a file write
+  remove the claim and the temporary file, then exit 130, 143 or 129. On failure no temporary
+  file and no claimed name is left: `Could not write to
   "<path>": <reason>` (exit 1). GeoJSON writes additionally report the feature count.
   Deliberately not kept: the owner and hard links of a replaced file. (This is stricter
   than some siblings — deliberate here, since the flagship use-case is file export.)

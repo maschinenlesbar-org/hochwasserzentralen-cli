@@ -356,6 +356,7 @@ test("a file that appears between the check and the write is not overwritten: a 
   let overwriteFlag: boolean | undefined;
   cli.deps.files = {
     state: () => "absent",
+    parentProblem: () => undefined,
     write: (p, _d, overwrite) => {
       overwriteFlag = overwrite;
       throw appearedMeanwhile(p, "file");
@@ -371,6 +372,7 @@ test("--force writes with overwrite allowed", async () => {
   let overwriteFlag: boolean | undefined;
   cli.deps.files = {
     state: () => "absent",
+    parentProblem: () => undefined,
     write: (_p, _d, overwrite) => {
       overwriteFlag = overwrite;
     },
@@ -749,6 +751,7 @@ test("every -o failure is an ERROR record of hochwasser.output: a write failure 
     const cli = makeCli(() => jsonResponse(fx.alertsJson));
     cli.deps.files = {
       state: () => "absent",
+      parentProblem: () => undefined,
       write: () => {
         throw thrown;
       },
@@ -766,6 +769,7 @@ test("every -o failure is an ERROR record of hochwasser.output: a write failure 
   const race = makeCli(() => jsonResponse(fx.alertsJson));
   race.deps.files = {
     state: () => "absent",
+    parentProblem: () => undefined,
     write: (p) => {
       throw appearedMeanwhile(p, "file");
     },
@@ -779,6 +783,7 @@ test("the -o failure drops Node's \", open '<path>'\" tail also when the path ho
     const cli = makeCli(() => jsonResponse(fx.alertsJson));
     cli.deps.files = {
       state: () => "absent",
+      parentProblem: () => undefined,
       write: (p) => {
         throw Object.assign(new Error(`ENOENT: no such file or directory, open '${p}'`), { code: "ENOENT" });
       },

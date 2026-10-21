@@ -69,7 +69,7 @@ function makeDeps(
 ): CliDeps {
   return {
     io: { out: io.out, err: io.err },
-    files: { state: () => "absent", write: (path, data) => io.writeFile(path, data) },
+    files: { state: () => "absent", parentProblem: () => undefined, write: (path, data) => io.writeFile(path, data) },
     createClient: (opts) => new Client({ ...opts, transport }),
   };
 }

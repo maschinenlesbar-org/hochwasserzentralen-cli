@@ -158,8 +158,10 @@ export function toEngineOptions(global: GlobalOptions): HochwasserzentralenClien
 
 /**
  * Check `-o` before any request, so a refused target costs none (exit 2): `--force` without
- * `-o` is a usage error (`hochwasser.cli`); a directory, and an existing path (a symlink, even
- * a dangling one) without `--force`, are refused (`hochwasser.output`). `-o -` is stdout, also
+ * `-o` is a usage error (`hochwasser.cli`); a directory, an existing path (a symlink, even
+ * a dangling one) without `--force`, and a file whose directory is missing, not a directory or
+ * not writable (`parentProblem`) are refused (`hochwasser.output`). A stream (`/dev/null`, a
+ * FIFO, `/dev/stdout`, `>(…)`) needs no `--force`: it is written in place. `-o -` is stdout, also
  * with `--force`. The write checks again: a file (or directory) that appears during the
  * request is not overwritten either, a failed write then (exit 1).
  */
@@ -168,9 +170,14 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
     throw new HochwasserzentralenValidationError("--force needs --output (it only allows overwriting the -o file).");
   }
   if (global.output === undefined || global.output === "-") return;
-  const state = (deps.files ?? nodeFiles).state(global.output);
+  const files = deps.files ?? nodeFiles;
+  const state = files.state(global.output);
   if (state === "directory") throw isDirectoryError(global.output);
+  // A device, a FIFO or `/dev/stdout` is written in place: nothing in it can be lost.
+  if (state === "stream") return;
   if (state === "exists" && global.force !== true) throw refuseOverwrite(global.output);
+  const problem = files.parentProblem(global.output, global.force === true);
+  if (problem !== undefined) throw new OutputError(problem, { refused: true });
 }
 
 /**

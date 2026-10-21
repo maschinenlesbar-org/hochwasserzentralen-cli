@@ -26,11 +26,12 @@ export function untimed(text: string): string {
 // ---- the -o file seam ------------------------------------------------------
 
 /** An `-o` seam that writes nothing: no path exists, a write is dropped (P23's `-o` runs). */
-export const discardFiles: OutputFiles = { state: () => "absent", write: () => {} };
+export const discardFiles: OutputFiles = { state: () => "absent", parentProblem: () => undefined, write: () => {} };
 
 /** An `-o` seam for tests that must not write: no path exists, a write is an error. */
 export const noFiles: OutputFiles = {
   state: () => "absent",
+  parentProblem: () => undefined,
   write: () => {
     throw new Error("the CLI tried to write a file");
   },
@@ -45,6 +46,7 @@ export function memoryFiles(existing: readonly string[] = []): OutputFiles & { w
   const files: OutputFiles & { written: Record<string, Buffer> } = {
     written,
     state: (path) => (existing.includes(path) || written[path] !== undefined ? "exists" : "absent"),
+    parentProblem: () => undefined,
     write: (path, data, overwrite) => {
       if (!overwrite && files.state(path) !== "absent") throw appearedMeanwhile(path, "file");
       written[path] = data;
