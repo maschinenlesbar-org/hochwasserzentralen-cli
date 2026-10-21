@@ -119,7 +119,9 @@ foreign members — keep them: the data is CC BY 4.0 and requires attribution an
 the data timestamp when passed on (see below). Its `bbox` is computed from the
 exported features in RFC 7946 order (`[west, south, east, north]`) and left out
 when no feature is written. Items without a usable geometry (none, not a GeoJSON
-geometry of a known type, or a position outside ±180/±90) are skipped. The API's own envelope `bbox` is a fixed box around
+geometry of a known type, one RFC 7946 doesn't allow — a ring that isn't closed or has fewer
+than four positions, a line of one position, a position of more than three numbers — or a
+position outside ±180/±90) are skipped and named on stderr. The API's own envelope `bbox` is a fixed box around
 Germany in `[west, north, east, south]` order and stays only in the plain JSON
 output.
 

@@ -89,7 +89,8 @@ On success the CLI confirms on stderr with an `INFO` record, e.g.:
 >   stations 4..-1 numbers) — when styling by class, style each layer
 >   separately; never merge them into one colour ramp.
 > - Stations without usable coordinates, and alert areas without a valid
->   geometry (not a GeoJSON geometry, or a position outside ±180/±90), are
+>   geometry (not a GeoJSON geometry, one RFC 7946 doesn't allow such as an
+>   unclosed ring or a one-position line, or a position outside ±180/±90), are
 >   skipped by the export; the reported feature count is the count actually
 >   written. When anything was skipped the CLI says so on stderr —
 >   `Wrote 1 feature (…) to map.geojson; 2 alerts skipped (no usable geometry)`

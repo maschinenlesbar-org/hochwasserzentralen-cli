@@ -62,17 +62,6 @@ function eachGeometryPosition(geometry: unknown, visit: (x: number, y: number) =
   eachPosition(g.coordinates, visit);
 }
 
-/** The RFC 7946 geometry types. */
-const GEOMETRY_TYPES: ReadonlySet<string> = new Set([
-  "Point",
-  "MultiPoint",
-  "LineString",
-  "MultiLineString",
-  "Polygon",
-  "MultiPolygon",
-  "GeometryCollection",
-]);
-
 /** A finite [lon, lat] inside ±180 / ±90. */
 function isLonLat(x: unknown, y: unknown): boolean {
   return (
@@ -86,38 +75,72 @@ function isLonLat(x: unknown, y: unknown): boolean {
 }
 
 /**
- * The number of positions in a `coordinates` value, or -1 if any part is not a
- * position of finite numbers with lon/lat in range (or not an array at all).
+ * An RFC 7946 §3.1.1 position: two or three finite numbers (longitude, latitude, optional
+ * elevation; "implementations SHOULD NOT extend positions beyond three elements"), with lon/lat
+ * in range.
  */
-function countPositions(coords: unknown): number {
-  if (!Array.isArray(coords)) return -1;
-  if (typeof coords[0] === "number") {
-    const numbers = coords.every((n) => typeof n === "number" && Number.isFinite(n));
-    return numbers && coords.length >= 2 && isLonLat(coords[0], coords[1]) ? 1 : -1;
-  }
-  let total = 0;
-  for (const c of coords) {
-    const n = countPositions(c);
-    if (n < 0) return -1;
-    total += n;
-  }
-  return total;
+function isPosition(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    (value.length === 2 || value.length === 3) &&
+    value.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+    isLonLat(value[0], value[1])
+  );
+}
+
+/** An array of at least `min` positions. */
+function isPositions(value: unknown, min: number): boolean {
+  return Array.isArray(value) && value.length >= min && value.every(isPosition);
+}
+
+/** An RFC 7946 §3.1.6 linear ring: four or more positions, the first and the last equal. */
+function isLinearRing(value: unknown): boolean {
+  if (!isPositions(value, 4)) return false;
+  const ring = value as number[][];
+  const first = ring[0] as number[];
+  const last = ring[ring.length - 1] as number[];
+  return first.length === last.length && first.every((n, i) => n === last[i]);
+}
+
+/** Polygon coordinates: one or more linear rings (the exterior, then any holes). */
+function isPolygonCoordinates(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 1 && value.every(isLinearRing);
+}
+
+/** A non-empty array whose every member passes `member`. */
+function isListOf(value: unknown, member: (v: unknown) => boolean): boolean {
+  return Array.isArray(value) && value.length >= 1 && value.every(member);
 }
 
 /**
- * True for a GeoJSON geometry object worth exporting: a known RFC 7946 `type`, and
- * `coordinates` holding at least one position, every one with lon/lat in range (a
- * GeometryCollection: every member valid). A string, an unknown type or a point at
- * [200, 95] would otherwise be passed through and distort the bbox.
+ * True for a GeoJSON geometry object worth exporting, as RFC 7946 §3.1 defines it: a Point is
+ * one position; a LineString two or more; a Polygon closed linear rings of four or more
+ * positions; the Multi* forms non-empty arrays of those; a GeometryCollection a non-empty list
+ * of valid geometries. Every position has lon/lat in range. A string, an unknown type, a point
+ * at [200, 95], a ring of two positions, an unclosed ring, a one-position line or an empty hole
+ * would otherwise be written as a feature a GIS drops or rejects, and counted as written.
  */
 function isUsableGeometry(geometry: unknown): boolean {
   if (typeof geometry !== "object" || geometry === null || Array.isArray(geometry)) return false;
   const g = geometry as { type?: unknown; coordinates?: unknown; geometries?: unknown };
-  if (typeof g.type !== "string" || !GEOMETRY_TYPES.has(g.type)) return false;
-  if (g.type === "GeometryCollection") {
-    return Array.isArray(g.geometries) && g.geometries.length > 0 && g.geometries.every(isUsableGeometry);
+  switch (g.type) {
+    case "Point":
+      return isPosition(g.coordinates);
+    case "MultiPoint":
+      return isPositions(g.coordinates, 1);
+    case "LineString":
+      return isPositions(g.coordinates, 2);
+    case "MultiLineString":
+      return isListOf(g.coordinates, (line) => isPositions(line, 2));
+    case "Polygon":
+      return isPolygonCoordinates(g.coordinates);
+    case "MultiPolygon":
+      return isListOf(g.coordinates, isPolygonCoordinates);
+    case "GeometryCollection":
+      return isListOf(g.geometries, isUsableGeometry);
+    default:
+      return false;
   }
-  return countPositions(g.coordinates) > 0;
 }
 
 /**

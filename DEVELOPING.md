@@ -454,7 +454,10 @@ transport throws or returns malformed becomes a `HochwasserzentralenNetworkError
 
 **GeoJSON converters.** [`packages/client/src/geojson.ts`](packages/client/src/geojson.ts) — pure
 functions `alertsToGeoJson` / `stationsToGeoJson` producing RFC-7946
-FeatureCollections (`[lon, lat]`), skipping items without usable geometry,
+FeatureCollections (`[lon, lat]`), skipping items without usable geometry (`isUsableGeometry`:
+the RFC 7946 §3.1 shape of each type — a Point one position of two or three numbers, a
+LineString two or more, a Polygon closed rings of four or more, the Multi* forms and a
+GeometryCollection non-empty — every position in range),
 computing `bbox` (`[west, south, east, north]`) from the exported features
 rather than copying the API's `[west, north, east, south]` Germany box, and
 carrying attribution + `updated` as foreign members. `alertsWithoutGeometry` /

@@ -120,8 +120,9 @@ It confirms what it wrote on stderr:
 2026-10-09T14:03:12.481Z INFO  [hochwasser.output] Wrote 243 features (130359 bytes) to bayern-pegel.geojson
 ```
 
-Items without a usable geometry (an alert area without a GeoJSON geometry, a gauge
-without coordinates, a position outside ±180/±90) can't go on a map and are left out
+Items without a usable geometry (an alert area without a GeoJSON geometry or with one RFC 7946
+doesn't allow, such as an unclosed ring or a one-position line, a gauge without coordinates, a
+position outside ±180/±90) can't go on a map and are left out
 — but never silently: the confirmation adds the count, and a note names them, to a
 file and to stdout alike:
 

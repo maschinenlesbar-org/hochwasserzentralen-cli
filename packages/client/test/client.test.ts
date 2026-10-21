@@ -6,7 +6,7 @@ import {
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
 } from "../src/errors.js";
-import { alertsToGeoJson, stationsToGeoJson } from "../src/geojson.js";
+import { alertsToGeoJson, alertsWithoutGeometry, stationsToGeoJson } from "../src/geojson.js";
 import type { AlertsResponse, Station, StationsResponse } from "../src/types.js";
 import { aggregateSituation, alertsOnlyStates, filterStations, foldName, onlyStates, stationClass } from "../src/stations.js";
 import * as lib from "../src/index.js";
@@ -503,4 +503,37 @@ test("alerts({ states }) keeps only the requested states' alerts, also if the se
   assert.deepEqual(alertsOnlyStates(odd, ["BY"]).data.map((a) => a.id), ["by_1"]);
   assert.equal(fx.alertsJson.data.length, 2, "the input is not changed");
   assert.throws(() => alertsOnlyStates(odd, ["XX"]), HochwasserzentralenValidationError);
+});
+
+test("alertsToGeoJson skips a geometry RFC 7946 doesn't allow, and names it (05-1)", () => {
+  const base = fx.alertsJson.data[0]!;
+  const ring = [[12, 48], [12.1, 48], [12.1, 48.1], [12, 48]];
+  const cases: Array<[string, unknown, boolean]> = [
+    ["ring of 2", { type: "Polygon", coordinates: [[[12, 48], [12.1, 48]]] }, false],
+    ["unclosed ring", { type: "Polygon", coordinates: [[[12, 48], [12.1, 48], [12.1, 48.1], [12.2, 48.2]]] }, false],
+    ["line of 1", { type: "LineString", coordinates: [[12, 48]] }, false],
+    ["point of 4 numbers", { type: "Point", coordinates: [12, 48, 5, 7] }, false],
+    ["empty hole", { type: "Polygon", coordinates: [ring, []] }, false],
+    ["nested point", { type: "Point", coordinates: [[12, 48]] }, false],
+    ["line of one position", { type: "LineString", coordinates: [12, 48] }, false],
+    ["multipoint of a position", { type: "MultiPoint", coordinates: [12, 48] }, false],
+    ["multipolygon with a bad ring", { type: "MultiPolygon", coordinates: [[ring], [[[12, 48], [13, 48], [12, 48]]]] }, false],
+    ["collection with a 1-number point", { type: "GeometryCollection", geometries: [{ type: "Point", coordinates: [12] }] }, false],
+    ["empty multipolygon", { type: "MultiPolygon", coordinates: [] }, false],
+    // Valid ones stay: a closed ring of 4, a hole, a 3D point, a 2-position line, the multi forms.
+    ["polygon", { type: "Polygon", coordinates: [ring] }, true],
+    ["polygon with a hole", { type: "Polygon", coordinates: [ring, ring] }, true],
+    ["3D point", { type: "Point", coordinates: [12, 48, 300] }, true],
+    ["line", { type: "LineString", coordinates: [[12, 48], [12.1, 48.1]] }, true],
+    ["multipoint", { type: "MultiPoint", coordinates: [[12, 48]] }, true],
+    ["multiline", { type: "MultiLineString", coordinates: [[[12, 48], [12.1, 48.1]]] }, true],
+    ["multipolygon", { type: "MultiPolygon", coordinates: [[ring]] }, true],
+    ["collection", { type: "GeometryCollection", geometries: [{ type: "Point", coordinates: [12, 48] }] }, true],
+  ];
+  const data = cases.map(([id, geometry]) => ({ ...base, id, geometry }));
+  const res = { ...fx.alertsJson, data } as unknown as AlertsResponse;
+  const kept = alertsToGeoJson(res).features.map((f) => f.properties["id"]);
+  assert.deepEqual(kept, cases.filter(([, , ok]) => ok).map(([id]) => id));
+  // What is left off is named, so a map never silently lacks a warning.
+  assert.deepEqual(alertsWithoutGeometry(res).map((a) => a.id), cases.filter(([, , ok]) => !ok).map(([id]) => id));
 });
