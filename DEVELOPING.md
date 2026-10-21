@@ -121,7 +121,10 @@ try {
 
 ### Client options
 
-All fields are optional; the values below are illustrative overrides, **not**
+All fields are optional, and a field given as `undefined` means its default, as an omitted
+one does (every optional field of the exported option and parameter types is `?: T |
+undefined`, so `{ baseUrl: process.env.X }` compiles under `exactOptionalPropertyTypes`;
+`packages/client/test/types.test.ts` checks it). The values below are illustrative overrides, **not**
 defaults (defaults are `maxRetries: 2`, `maxResponseBytes: 100 MiB`,
 `timeoutMs: 30_000`).
 

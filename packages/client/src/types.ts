@@ -196,30 +196,30 @@ export interface StationsResponse extends ResponseEnvelope {
 /** Parameters for `client.alerts()`. */
 export interface AlertsParams {
   /** Subset of state codes; case-insensitive input is normalised to upper. */
-  states?: readonly string[];
+  states?: readonly string[] | undefined;
   /** Include the CAP (Common Alerting Protocol) detail block per alert. */
-  cap?: boolean;
+  cap?: boolean | undefined;
   /** Response language (Accept-Language). Default: de. */
-  lang?: Lang;
+  lang?: Lang | undefined;
 }
 
 /** Parameters for `client.stations()`. */
 export interface StationsParams {
-  states?: readonly string[];
-  lang?: Lang;
+  states?: readonly string[] | undefined;
+  lang?: Lang | undefined;
   /**
    * Only stations whose water (river) name contains this text: compared
    * case-insensitively on the NFC form, whitespace runs = one space, `ß` = `ss`,
    * `ä`/`ö`/`ü` = `ae`/`oe`/`ue` (or without the diacritic), Unicode dashes = `-`. Applied
    * after the fetch (the API has no such parameter); a blank value is rejected.
    */
-  water?: string;
+  water?: string | undefined;
   /**
    * Only stations with `lhpClass >= minClass`, an integer from -1 to 4. Gauges
    * without a class (`lhpClass` null) never match; an off-scale class rejects with
    * a HochwasserzentralenParseError. Applied after the fetch.
    */
-  minClass?: number;
+  minClass?: number | undefined;
 }
 
 /**
@@ -227,6 +227,6 @@ export interface StationsParams {
  * have no gauge in the data; default all 16) and the response language.
  */
 export interface SituationParams {
-  states?: readonly string[];
-  lang?: Lang;
+  states?: readonly string[] | undefined;
+  lang?: Lang | undefined;
 }

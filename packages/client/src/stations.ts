@@ -58,9 +58,9 @@ const STATION_FILTER_KEYS = ["water", "minClass"] as const;
 /** The client-side station filters (see {@link filterStations}). */
 export interface StationFilter {
   /** Only stations whose water name contains this text (see {@link foldName}). */
-  water?: string;
+  water?: string | undefined;
   /** Only stations with `lhpClass >= minClass` (-1..4); gauges without a class never match. */
-  minClass?: number;
+  minClass?: number | undefined;
 }
 
 /**
