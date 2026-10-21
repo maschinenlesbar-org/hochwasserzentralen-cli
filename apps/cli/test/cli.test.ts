@@ -763,3 +763,13 @@ test("the -o failure drops Node's \", open '<path>'\" tail also when the path ho
     assert.doesNotMatch(msg, /open '/);
   }
 });
+
+test("an answer with invalid text prints well-formed JSON and one WARN record of hochwasser.api (D2)", async () => {
+  const body = Buffer.concat([Buffer.from('{"status":"success","data":[],"note":"a'), Buffer.from([0xff]), Buffer.from('b\\ud800"}')]);
+  const cli = makeCli(() => rawResponse(body, "application/json"));
+  assert.equal(await run(["--compact", "alerts"], cli.deps), 0);
+  assert.equal((JSON.parse(cli.out.join("\n")) as { note: string }).note, "a\ufffdb\ufffd");
+  assert.deepEqual(cli.err.map(untimed), [
+    "WARN  [hochwasser.api] GET https://api.hochwasserzentralen.de/public/v1/data/alerts: 2 characters of the answer were not valid text (invalid bytes or a lone surrogate) and replaced with U+FFFD.",
+  ]);
+});

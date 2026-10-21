@@ -358,7 +358,12 @@ independently of the CLI.
 errors. `DEFAULT_BASE_URL` is `https://api.hochwasserzentralen.de/public/v1`;
 `TEST_BASE_URL` appends `/test`. A body is decoded by the charset its Content-Type
 names (UTF-8 when it names none; a byte order mark is dropped); an unknown charset label
-is a `HochwasserzentralenParseError`. JSON.parse rounds and overflows numbers silently, so
+is a `HochwasserzentralenParseError`. Text is never changed silently: bytes that aren't valid in
+the charset, and a lone surrogate written as a JSON escape (`\ud800`, which `jq` refuses along with
+the whole output), are replaced with U+FFFD, and the engine option `onWarning(message)` is told
+how many (`GET <url>: 2 characters of the answer were not valid text … replaced with U+FFFD.`);
+the CLI logs it as a WARN record of `hochwasser.api`. One bad character never sinks an answer.
+JSON.parse rounds and overflows numbers silently, so
 `getJson` scans the body after parsing: a number out of a double's range (`1e400`), past 2^53
 in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
 non-zero and too small (`1e-400`), or a subnormal that doesn't print as written (`3e-324`, which a
@@ -587,7 +592,8 @@ code point and ends in `… (N more characters)`. Own messages already bound wha
 at the source (`cutForMessage`, 500; the `-o` path is left to the record cap, it names a
 file the user chose). The areas are `cli` (usage errors, commander's messages and the help it shows
 after one, unexpected errors), `api` (the API's answers: an HTTP error status, an
-envelope whose `status` isn't `success`, the redirect hint, and a malformed answer, a
+envelope whose `status` isn't `success`, the redirect hint, a WARN when text of an answer was
+replaced with U+FFFD (`onWarning`), and a malformed answer, a
 `HochwasserzentralenParseError`: bad JSON, a proxy's HTML page, the wrong shape, an inexact number, the
 GeoJSON representation, an off-scale `lhpClass`, an unknown charset, an answer nested too
 deeply to print), `http` (the connection, the size-cap hint, the cleartext
