@@ -292,32 +292,49 @@ export function isBidiControl(code: number): boolean {
   );
 }
 
+/** Unicode General Category Cf (format): bidi controls, zero-width characters, U+00AD, U+FEFF, … */
+const FORMAT_CHAR = /\p{Cf}/u;
+
 /**
- * Make a string that originates in an attacker-controlled response body — the
- * error `detail` snippet that ends up in a HochwasserzentralenApiError.message
- * printed to stderr by run.ts — safe to print:
+ * A whole terminal escape sequence: a CSI (`ESC [` or the 8-bit U+009B, parameters,
+ * intermediates, final byte), a terminated control string (OSC/DCS/SOS/PM/APC, `ESC ]` …
+ * up to BEL or ST, or their 8-bit forms) or a short `ESC` sequence. Dropping only the
+ * control bytes left the printable rest behind (`ESC ] 0 ; title BEL` became `]0;title`).
+ * An unterminated control string is left to the per-character filter, so it cannot
+ * swallow the rest of the message. Written with escapes, so the source holds no control
+ * bytes.
+ */
+const ESCAPE_SEQUENCE =
+  /(?:\u001b\[|\u009b)[\u0030-\u003f]*[\u0020-\u002f]*[\u0040-\u007e]|(?:\u001b[\]PX^_]|[\u0090\u0098\u009d-\u009f])[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)|\u001b[\u0020-\u002f]*[\u0030-\u007e]/g;
+
+/**
+ * Make a string that originates in an attacker-controlled response — here the API
+ * error `detail` extracted from the response body — safe to print into an error
+ * message on stderr:
  *
- * - C0 and C1 controls and DEL are dropped. Without this, a hostile / MITM'd /
- *   spoofed-`--base-url` endpoint could drive ANSI/OSC escape sequences (display
- *   spoofing, terminal title changes) into the user's terminal via a non-2xx reply.
- * - Bidi formatting characters (isBidiControl) are dropped, so server text cannot
- *   reorder the visible message.
+ * - Whole escape sequences (CSI, OSC and other control strings) are dropped first,
+ *   then any remaining C0 and C1 controls and DEL. `JSON.parse` decodes a JSON-escaped ESC
+ *   (a backslash-u-001b sequence) into a real ESC byte; printed raw, a hostile or
+ *   MITM'd endpoint could drive ANSI/OSC sequences into the terminal (display
+ *   spoofing, title changes).
+ * - Unicode format characters (General Category Cf) are dropped: the bidi controls
+ *   (isBidiControl), so server text cannot reorder the visible message, and the
+ *   invisible ones — zero-width space/joiners, word joiner, soft hyphen, BOM — so
+ *   two messages that look identical are identical.
  * - Every run of whitespace — newlines, tabs, U+2028/U+2029 included — becomes one
  *   space and the ends are trimmed, so the text stays on one line and a server
  *   cannot forge an `Error:` line of its own.
  *
- * This only covers error text: the CLI's JSON/GeoJSON output is escaped separately
- * (escapeControlChars in cli/shared.ts), since JSON.stringify alone leaves DEL, the
- * C1 range and the bidi characters raw.
- *
- * Written as a char-code filter so no raw control byte ever appears in this source.
+ * The CLI's JSON output is escaped separately (`escapeControlChars` in
+ * cli/shared.ts): `JSON.stringify` alone leaves DEL, C1 and bidi characters raw.
+ * Written as a char-code filter so no raw control byte appears in this source.
  */
 export function sanitizeServerText(text: string): string {
   let out = "";
-  for (const ch of text) {
+  for (const ch of text.replace(ESCAPE_SEQUENCE, "")) {
     const n = ch.codePointAt(0) ?? 0;
     const whitespaceControl = n >= 0x09 && n <= 0x0d;
-    if (!whitespaceControl && (n <= 0x1f || (n >= 0x7f && n <= 0x9f) || isBidiControl(n))) continue;
+    if (!whitespaceControl && (n <= 0x1f || (n >= 0x7f && n <= 0x9f) || FORMAT_CHAR.test(ch))) continue;
     out += ch;
   }
   return out.replace(/\s+/g, " ").trim();

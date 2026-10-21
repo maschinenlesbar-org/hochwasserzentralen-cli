@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
-import { RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, scanNumbers, type EngineOptions } from "../src/engine.js";
+import { RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers, type EngineOptions } from "../src/engine.js";
 import {
   HochwasserzentralenApiError,
   HochwasserzentralenNetworkError,
@@ -189,7 +189,8 @@ test("error detail is stripped of terminal control characters", async () => {
         });
       assert.ok(!hasControl(err.detail ?? ""));
       assert.ok(!hasControl(err.message));
-      assert.equal(err.detail, "boom[31mred2J");
+      // Whole escape sequences go, not only their control bytes (the "[31m" and "2J" left before).
+      assert.equal(err.detail, "boomred");
       return true;
     },
   );
@@ -637,4 +638,30 @@ test("an answer longer than V8's longest string is a HochwasserzentralenParseErr
   // An error status with such a body is still the API error, without the unreadable body.
   const failing = new RequestEngine({ maxResponseBytes: 0, transport: makeMockTransport(() => rawResponse(huge, "text/plain", 500)).transport });
   await assert.rejects(failing.getJson("/data/alerts"), (err: unknown) => err instanceof HochwasserzentralenApiError && err.status === 500 && err.body === "");
+});
+
+test("sanitizeServerText drops whole escape sequences, not just their control bytes", () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  const CSI8 = String.fromCharCode(0x9b);
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  for (const [input, expected] of [
+    [`line1 ${ESC}]0;title${BEL}rest`, "line1 rest"],
+    [`${ESC}]8;;https://evil.example${ESC}\\click${ESC}]8;;${ESC}\\`, "click"],
+    [`${ESC}[31mred${ESC}[0m plain`, "red plain"],
+    [`${ESC}[1;31;4mbold`, "bold"],
+    [`${CSI8}2Jcleared`, "cleared"],
+    [`${OSC8}0;t${ST8}ok`, "ok"],
+    [`a${ESC}7b${ESC}(Bc`, "abc"],
+    // Unterminated: only ESC and its introducer go, the text stays.
+    [`keep ${ESC}]0;no terminator here`, "keep 0;no terminator here"],
+  ] as const) {
+    assert.equal(sanitizeServerText(input), expected, JSON.stringify(input));
+  }
+});
+
+test("sanitizeServerText drops invisible format characters (zero-width, soft hyphen, BOM)", () => {
+  const text = "real\u200b error\u2028Error: forged\u2066x\u2069 \ufeffend\u00ad\u200d\u2060!";
+  assert.equal(sanitizeServerText(text), "real error Error: forgedx end!");
 });
