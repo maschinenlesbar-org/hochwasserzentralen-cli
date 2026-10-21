@@ -207,6 +207,12 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
   readonly url: string;
   readonly method: string;
   readonly body: string;
+  /**
+   * For a redirect (301, 302, 303, 307, 308; the client follows none): where the server sent the
+   * request, its `Location` resolved against the request URL, userinfo redacted, sanitised and
+   * cut; `undefined` without one, and for any other status. The message names it too.
+   */
+  readonly location: string | undefined;
 
   constructor(args: {
     status: number;
@@ -215,8 +221,16 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
     body: string;
     detail?: string;
     apiStatus?: string;
+    location?: string;
   }) {
-    const detailPart = args.detail ? `: ${args.detail}` : "";
+    const parts: string[] = [];
+    if (args.detail) parts.push(args.detail);
+    // 304 Not Modified and 305/306 are not redirects.
+    const redirect = isRedirectStatus(args.status);
+    if (redirect) {
+      parts.push(args.location ? `redirect to ${args.location} not followed` : "redirect not followed (no Location header)");
+    }
+    const detailPart = parts.length > 0 ? `: ${parts.join("; ")}` : "";
     // The URL is shown and kept without userinfo: a credential in the base URL must not leak.
     const url = redactUrl(args.url);
     const head =
@@ -230,6 +244,7 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
     this.method = args.method;
     this.body = args.body;
     this.detail = args.detail;
+    this.location = redirect ? args.location : undefined;
   }
 
   /** True for HTTP statuses the engine treats as transient and retry-able. */
@@ -241,6 +256,11 @@ export class HochwasserzentralenApiError extends HochwasserzentralenError {
   get isNotFound(): boolean {
     return this.status === 404;
   }
+}
+
+/** True for the statuses that redirect to a `Location`: 301, 302, 303, 307, 308. */
+export function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 /** A transport-level failure (DNS, connection reset, timeout, size cap, ...). */

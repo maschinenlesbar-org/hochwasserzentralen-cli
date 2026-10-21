@@ -269,7 +269,11 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
 - The CLI is built around injectable `CliDeps` (client factory + I/O), so the whole program can be
   driven in-process by tests with a mocked client and captured output — no subprocesses.
 - **Redirects are NOT followed** — a 3xx surfaces as a `HochwasserzentralenApiError`
-  (CLI exit 1 with a hint). The canonical host answers directly; since no redirect
+  whose message and `location` name the target (`HTTP 302 for GET <url>: redirect to <target>
+  not followed`; resolved, userinfo redacted, sanitised), CLI exit 1 with a hint: from the
+  LHP's own host "the service may be offline or have moved" (the 2026-10-21 outage redirected
+  every request to an "offline" page), from any other `--base-url` "check --base-url"
+  (`redirectHint` in `run.ts`). The canonical host answers directly; since no redirect
   is ever followed, credential headers can never leak across hosts (this client
   is keyless anyway).
   A custom transport must not follow them either: a `fetch`-based one passes

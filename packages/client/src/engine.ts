@@ -2,11 +2,11 @@
 // via a Transport, applies retry/backoff for transient statuses (429, 503)
 // honouring Retry-After, and decodes JSON responses.
 //
-// Redirects are NOT followed — a 3xx surfaces as a HochwasserzentralenApiError.
-// The canonical host (api.hochwasserzentralen.de) answers directly, so a redirect
-// almost always means --base-url points somewhere unexpected. Because no redirect
-// is ever followed, credential headers can never leak across hosts (this client
-// is keyless anyway).
+// Redirects are NOT followed — a 3xx surfaces as a HochwasserzentralenApiError that names
+// the target (`location`). The LHP's host (api.hochwasserzentralen.de) answers directly, so a
+// redirect means either an outage (on 2026-10-21 it sent every request to an "offline" page)
+// or a --base-url that points somewhere unexpected. Because no redirect is ever followed,
+// credential headers can never leak across hosts (this client is keyless anyway).
 
 import { constants } from "node:buffer";
 import { TextDecoder } from "node:util";
@@ -29,6 +29,7 @@ import {
   cutForMessage,
   cutText,
   echoedCredentialForms,
+  isRedirectStatus,
   redactSecrets,
   redactUrl,
   redactCredentials,
@@ -856,7 +857,8 @@ export class RequestEngine {
 
       const contentType = String(responseHeaders["content-type"] ?? "");
       if (status < 200 || status >= 300) {
-        throw this.toApiError(url, status, body);
+        const location = responseHeaders["location"];
+        throw this.toApiError(url, status, body, typeof location === "string" ? location : undefined);
       }
 
       const contentEncoding = String(responseHeaders["content-encoding"] ?? "").trim();
@@ -930,7 +932,7 @@ export class RequestEngine {
     return parsed;
   }
 
-  private toApiError(url: string, status: number, body: Buffer): HochwasserzentralenApiError {
+  private toApiError(url: string, status: number, body: Buffer, locationHeader?: string): HochwasserzentralenApiError {
     // The body is kept on the error (`body`) and may echo the request URL: scrub it. One too
     // large to be a string (maxResponseBytes lifted) is left out: the status is the error.
     let raw = "";
@@ -963,8 +965,34 @@ export class RequestEngine {
     // terminal escape sequences, and cut it to MAX_MESSAGE_VALUE_LENGTH.
     if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
     if (detail === "") detail = undefined;
-    return new HochwasserzentralenApiError({ status, url, method: "GET", body: text, detail });
+    // Redirects are not followed; name the target, so an outage that sends the API's host to an
+    // "offline" page reads as that, and a wrong --base-url as that.
+    const location = isRedirectStatus(status) && locationHeader ? redirectTarget(url, this.scrub(locationHeader)) : undefined;
+    return new HochwasserzentralenApiError({
+      status,
+      url,
+      method: "GET",
+      body: text,
+      detail,
+      ...(location !== undefined ? { location } : {}),
+    });
   }
+}
+
+/**
+ * The absolute, printable form of a `Location` header: resolved against the request URL,
+ * userinfo redacted, control, format and bidi characters stripped (it is server text bound for
+ * stderr), cut at 500 characters. An unparseable value is shown sanitised as it came.
+ */
+function redirectTarget(requestUrl: string, location: string): string | undefined {
+  let target: string;
+  try {
+    target = redactUrl(new URL(location, requestUrl).href);
+  } catch {
+    target = redactUrl(location);
+  }
+  const clean = cutForMessage(sanitizeServerText(target));
+  return clean === "" ? undefined : clean;
 }
 
 /** `GET <url>` for a network error's message: the userinfo redacted, the URL cut at 500 characters. */

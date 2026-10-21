@@ -5,6 +5,7 @@
 import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { OutputError, logOf, type CliDeps } from "./io.js";
+import { DEFAULT_BASE_URL } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
 import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   HochwasserzentralenApiError,
@@ -248,6 +249,25 @@ function areaOf(err: HochwasserzentralenError): string {
   return "cli";
 }
 
+/**
+ * The INFO after a 3xx: from the LHP's own host (the default base URL, or its test system) the
+ * service may be offline or have moved, which no option fixes; from any other base URL that
+ * URL may be the wrong one. The ERROR before it names the redirect target.
+ */
+export function redirectHint(requestUrl: string): string {
+  let own = false;
+  try {
+    own = new URL(requestUrl).host === new URL(DEFAULT_BASE_URL).host;
+  } catch {
+    // an unparseable URL is no LHP host
+  }
+  return own
+    ? "the LHP API redirected instead of answering: the service may be offline or have moved. Redirects are " +
+        "not followed; try again later, and see https://www.hochwasserzentralen.de for notices."
+    : "the server at --base-url redirected; redirects are not followed — check --base-url points at the API " +
+        `(the LHP's is ${DEFAULT_BASE_URL}).`;
+}
+
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);
@@ -297,17 +317,14 @@ export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<
     if (err instanceof HochwasserzentralenApiError) {
       log.error("api", err.message);
       if (err.status === 404) return EXIT.NOT_FOUND;
-      // A 3xx means the server redirected. This client deliberately does not
-      // follow redirects (the canonical host answers directly), so this usually
-      // means --base-url points at a redirecting host — but it is a server /
-      // runtime condition, not CLI misuse, so it exits OTHER (1) with a pointed
-      // hint rather than USAGE (2), which scripts reserve for bad flags/arguments.
+      // A 3xx means the server redirected. This client deliberately does not follow
+      // redirects (the LHP's host answers directly). It is a server / runtime condition, not
+      // CLI misuse, so it exits OTHER (1) rather than USAGE (2), which scripts reserve for bad
+      // flags/arguments. The hint depends on who redirected: the LHP's own host (on
+      // 2026-10-21 it sent every request to an "offline" page) is an outage or a move, not the
+      // user's configuration; any other --base-url may simply be the wrong one.
       if (err.status >= 300 && err.status < 400) {
-        log.info(
-          "api",
-          "the server redirected (3xx); redirects are not followed — check --base-url " +
-            "points at the canonical host (https://api.hochwasserzentralen.de/public/v1).",
-        );
+        log.info("api", redirectHint(err.url));
         return EXIT.OTHER;
       }
       return EXIT.OTHER;

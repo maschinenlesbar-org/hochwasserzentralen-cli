@@ -202,9 +202,13 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
   `"status": "success"` is an error (exit `1`, `The API reported status "…"`, with the
   API's message), and so is a nationwide `stations`/`situation` answer without a single
   gauge — neither is ever printed or written as data.
-- **Exit `1` with a redirect hint** — the server answered `3xx`; this client does
-  not follow redirects. Check `--base-url` points at
-  `https://api.hochwasserzentralen.de/public/v1`.
+- **Exit `1` with `HTTP 302 … redirect to … not followed`** — the server answered
+  `3xx`; this client does not follow redirects, and the record names where it was
+  sent. From the LHP's own host (`api.hochwasserzentralen.de`) that means the
+  service is offline or has moved — on 2026-10-21 every request was redirected
+  to an "offline" page on `www.hochwasserzentralen.de`; try again later. With
+  your own `--base-url`, check that it points at the API
+  (`https://api.hochwasserzentralen.de/public/v1`).
 - **Exit `6` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise `--timeout 60000`.
 - **Exit `1` / "GET … : the API answered with its GeoJSON representation"** — the

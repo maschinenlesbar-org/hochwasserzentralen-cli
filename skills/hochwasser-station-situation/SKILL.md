@@ -103,6 +103,11 @@ Each entry in `.data[]` is a **Station**:
 >   /data/stations with its GeoJSON representation` or `Expected "data" to be
 >   an array … got undefined`) is a transient mix-up in the API's cache, not missing
 >   data. Wait a minute, retry once, and say so if it persists.
+> - **Exit 1 with `HTTP 302 … redirect to … not followed`** ("the LHP API
+>   redirected instead of answering") means the API did not answer: the
+>   service is offline or has moved (on 2026-10-21 every request went to an
+>   "offline" page). Report that the situation could not be checked and name
+>   the redirect target; it is never "no flooding". Don't retry in a loop.
 
 ## Step 3 — Report
 

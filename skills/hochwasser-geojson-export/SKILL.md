@@ -109,6 +109,10 @@ On success the CLI confirms on stderr with an `INFO` record, e.g.:
 >   or `Expected "data" to be an array … got undefined`) is a
 >   transient mix-up in the API's cache. Nothing was written; wait a minute
 >   and retry once.
+> - **Exit 1 with `HTTP 302 … redirect to … not followed`** ("the LHP API
+>   redirected instead of answering") means the API did not answer: the
+>   service is offline or has moved. Nothing was written; report that no map
+>   could be made, name the redirect target, and don't retry in a loop.
 > - The full national station layer is about 1600 points (1573 on 2026-09-15) —
 >   fine as a map layer, but warn before pasting the raw GeoJSON inline as
 >   text; offer https://geojson.io.

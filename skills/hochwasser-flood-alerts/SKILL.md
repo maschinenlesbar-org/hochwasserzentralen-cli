@@ -54,6 +54,14 @@ response from /data/alerts, got undefined`) is not an answer either way: the
 API's cache now and then serves the wrong representation. Wait about a
 minute and retry once; never report it as "no warnings".
 
+An **exit 1 with `HTTP 302 … redirect to … not followed`** (followed by "the LHP
+API redirected instead of answering") means the API did not answer at all: on
+2026-10-21 the LHP took the service offline and sent every request to an
+"offline" page. Report that the check could not be made — the flood portal is
+unreachable — name the redirect target, and point to
+https://www.hochwasserzentralen.de and the states' own flood services; never
+report it as "no warnings". Don't retry in a loop.
+
 ## Step 2 — Read the alerts
 
 Each entry in `.data[]` is an **AlertArea**:

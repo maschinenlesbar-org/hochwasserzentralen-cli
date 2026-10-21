@@ -665,3 +665,27 @@ test("sanitizeServerText drops invisible format characters (zero-width, soft hyp
   const text = "real\u200b error\u2028Error: forged\u2066x\u2069 \ufeffend\u00ad\u200d\u2060!";
   assert.equal(sanitizeServerText(text), "real error Error: forgedx end!");
 });
+
+test("a 3xx names the redirect target, resolved, userinfo redacted, sanitised; it stays unfollowed (01-1)", async () => {
+  const cases: Array<[number, string | undefined, string]> = [
+    [302, "https://www.hochwasserzentralen.de/public/v1/data/alerts", ": redirect to https://www.hochwasserzentralen.de/public/v1/data/alerts not followed"],
+    [301, "/elsewhere", ": redirect to https://api.hochwasserzentralen.de/elsewhere not followed"],
+    [307, "https://u:p@evil.test/\u202ex", ": redirect to https://***@evil.test/%E2%80%AEx not followed"],
+    [308, undefined, ": redirect not followed (no Location header)"],
+  ];
+  for (const [status, location, suffix] of cases) {
+    const mt = makeMockTransport(() => ({ status, headers: location === undefined ? {} : { location }, body: Buffer.alloc(0) }));
+    const e = new RequestEngine({ transport: mt.transport });
+    await assert.rejects(e.getJson("/data/alerts"), (err: unknown) => {
+      assert.ok(err instanceof HochwasserzentralenApiError);
+      assert.equal(err.message, `HTTP ${status} for GET https://api.hochwasserzentralen.de/public/v1/data/alerts${suffix}`);
+      assert.equal(err.location, location === undefined ? undefined : suffix.slice(": redirect to ".length, -" not followed".length));
+      return true;
+    });
+    assert.equal(mt.calls.length, 1, "not followed");
+  }
+  // A 304 is no redirect.
+  const notModified = new RequestEngine({ transport: async () => ({ status: 304, headers: {}, body: Buffer.alloc(0) }) });
+  await assert.rejects(notModified.getJson("/x"), (err: unknown) =>
+    err instanceof HochwasserzentralenApiError && err.message === "HTTP 304 for GET https://api.hochwasserzentralen.de/public/v1/x" && err.location === undefined);
+});

@@ -268,11 +268,28 @@ test("a network failure exits 6", async () => {
   assert.match(untimed(cli.err.join("\n")), /^ERROR \[hochwasser\.http\] .*ENOTFOUND/);
 });
 
-test("a server 3xx exits 1 (runtime) with a base-url hint, not usage (2)", async () => {
+test("a 3xx from the LHP's own host names the target and says the service may be offline, not --base-url (01-1)", async () => {
+  // As on 2026-10-21: api.hochwasserzentralen.de answered 302 to www.…, which led to an "offline" page.
+  const target = "https://www.hochwasserzentralen.de/public/v1/data/stations";
+  for (const argv of [["stations"], ["--base-url", "https://api.hochwasserzentralen.de/public/v1/test", "stations"]]) {
+    const cli = makeCli(() => ({ status: 302, headers: { location: target }, body: Buffer.alloc(0) }));
+    assert.equal(await run(argv, cli.deps), 1);
+    assert.deepEqual(cli.out, []);
+    const err = untimed(cli.err.join("\n"));
+    assert.match(err, new RegExp(`^ERROR \\[hochwasser\\.api\\] HTTP 302 for GET https://api\\.hochwasserzentralen\\.de/\\S+/data/stations: redirect to ${target.replace(/[.]/g, "\\.")} not followed$`, "m"));
+    assert.match(err, /^INFO  \[hochwasser\.api\] the LHP API redirected instead of answering: the service may be offline or have moved\./m);
+    assert.doesNotMatch(err, /check --base-url/);
+    assert.equal(cli.mt.calls.length, 1); // the redirect was not followed
+  }
+});
+
+test("a 3xx from another --base-url exits 1 (runtime) with a base-url hint, not usage (2)", async () => {
   const cli = makeCli(() => rawResponse("", "text/html", 302));
-  const code = await run(["alerts"], cli.deps);
+  const code = await run(["--base-url", "https://mirror.example/lhp", "alerts"], cli.deps);
   assert.equal(code, 1);
-  assert.match(untimed(cli.err.join("\n")), /^INFO  \[hochwasser\.api\] the server redirected \(3xx\)/m);
+  const err = untimed(cli.err.join("\n"));
+  assert.match(err, /^ERROR \[hochwasser\.api\] HTTP 302 for GET https:\/\/mirror\.example\/lhp\/data\/alerts: redirect not followed \(no Location header\)$/m);
+  assert.match(err, /^INFO  \[hochwasser\.api\] the server at --base-url redirected; redirects are not followed — check --base-url points at the API \(the LHP's is https:\/\/api\.hochwasserzentralen\.de\/public\/v1\)\.$/m);
   assert.equal(cli.mt.calls.length, 1); // the redirect was not followed
 });
 

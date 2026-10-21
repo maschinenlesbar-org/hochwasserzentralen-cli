@@ -52,6 +52,7 @@ export {
   MAX_MESSAGE_VALUE_LENGTH,
   credentialsIn,
   cutForMessage,
+  isRedirectStatus,
   quoteValue,
   redactCredentials,
   redactUrl,
