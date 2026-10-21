@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RequestEngine, parseRetryAfter } from "../src/engine.js";
+import { RequestEngine, parseRetryAfter, type EngineOptions } from "../src/engine.js";
 import {
   HochwasserzentralenApiError,
+  HochwasserzentralenNetworkError,
   HochwasserzentralenParseError,
   HochwasserzentralenValidationError,
   cutForMessage,
@@ -448,5 +449,41 @@ test("a number JSON.parse can't carry exactly is a parse error, never a changed 
       transport: makeMockTransport(() => rawResponse(`{"id":"12345678901234567890","n":${literal}}`, "application/json")).transport,
     });
     assert.deepEqual(await e.getJson("/data/stations"), { id: "12345678901234567890", n: value }, literal);
+  }
+});
+
+test("a network failure names the request: GET <url> failed: <reason>, the original as cause (K3)", async () => {
+  const url = "https://***@api.example/v1/data/stations?states=BY";
+  const fail = (thrown: unknown) => () => {
+    throw thrown;
+  };
+  const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:1"), { code: "ECONNREFUSED" });
+  const dns = Object.assign(new Error("getaddrinfo ENOTFOUND api.example"), { code: "ENOTFOUND" });
+  const reset = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+  const cases: Array<[string, EngineOptions, string, unknown]> = [
+    ["refused", { transport: fail(refused) }, "connect ECONNREFUSED 127.0.0.1:1", refused],
+    ["dns", { transport: fail(dns) }, "getaddrinfo ENOTFOUND api.example", dns],
+    ["reset", { transport: fail(reset), maxRetries: 1, sleep: async () => {} }, "socket hang up (after 1 retry)", reset],
+    ["timeout", { transport: () => new Promise(() => {}), timeoutMs: 10 }, "Request timed out after 10ms", undefined],
+    [
+      "size cap",
+      { transport: async () => rawResponse("x".repeat(100), "application/json"), maxResponseBytes: 10 },
+      "Response exceeded the size limit of 10 bytes",
+      undefined,
+    ],
+  ];
+  for (const [name, options, reason, cause] of cases) {
+    const e = new RequestEngine({ baseUrl: "https://user:secret@api.example/v1", ...options });
+    await assert.rejects(
+      e.getJson("/data/stations", { states: "BY" }),
+      (err) => {
+        assert.ok(err instanceof HochwasserzentralenNetworkError, name);
+        assert.ok(err.message.startsWith(`GET ${url} failed: `), `${name}: ${err.message}`);
+        assert.ok(err.message.includes(reason), `${name}: ${err.message}`);
+        if (cause !== undefined) assert.equal(err.cause, cause, name);
+        assert.doesNotMatch(err.message, /secret/, name);
+        return true;
+      },
+    );
   }
 });

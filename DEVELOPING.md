@@ -398,7 +398,9 @@ mocked client and captured output — no subprocess.
 `HochwasserzentralenApiError` (non-2xx incl. unfollowed 3xx, and a 2xx whose envelope
 `status` isn't `"success"` — then `status` is 200 and `apiStatus` holds the envelope's
 status; carries `status`, `detail`, `url` (userinfo redacted), `method`, `body`), `HochwasserzentralenNetworkError` (transport
-failure/timeout/size cap, and anything a custom transport throws), `HochwasserzentralenValidationError` (a rejected
+failure/timeout/size cap, and anything a custom transport throws; its message names the
+request, `GET <url> failed: <reason>` with the userinfo redacted and ` (after N retries)` when
+it was retried, and the original is its `cause`), `HochwasserzentralenValidationError` (a rejected
 input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, a number a double can't carry exactly, or a
 top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `"status": "success"`, a `data` item that is not a JSON object, a station without a string

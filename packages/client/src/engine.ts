@@ -554,16 +554,19 @@ export class RequestEngine {
    * rejects with `HochwasserzentralenNetworkError` only; an injected one may throw anything
    * (a string, a `TypeError` from fetch). Every failure becomes a
    * `HochwasserzentralenNetworkError` — a `HochwasserzentralenError` a caller and the CLI can
-   * rely on — with the base URL's credentials scrubbed from its message and cause chain; any
-   * other `HochwasserzentralenError` passes through, and a clean network error stays as it is.
+   * rely on — that names the request (`GET <url> failed: <reason>`, userinfo redacted; Node's
+   * text alone, "socket hang up", says nothing about which host failed), with the original
+   * as `cause` and the base URL's credentials scrubbed from both; any other
+   * `HochwasserzentralenError` passes through.
    */
-  private transportError(cause: unknown): HochwasserzentralenError {
+  private transportError(cause: unknown, url: string, retries: number): HochwasserzentralenError {
     if (cause instanceof HochwasserzentralenError && !(cause instanceof HochwasserzentralenNetworkError)) return cause;
     const reason = cause instanceof Error ? cause.message : String(cause);
-    const message = cutForMessage(sanitizeServerText(this.scrub(reason)));
-    const scrubbed = this.scrubCause(cause);
-    if (cause instanceof HochwasserzentralenNetworkError && message === cause.message && scrubbed === cause) return cause;
-    return new HochwasserzentralenNetworkError(message, { cause: scrubbed });
+    const retried = retries > 0 ? ` (after ${retries} ${retries === 1 ? "retry" : "retries"})` : "";
+    return new HochwasserzentralenNetworkError(
+      `${requestLabel(url)} failed: ${cutForMessage(sanitizeServerText(this.scrub(reason)))}${retried}`,
+      { cause: this.scrubCause(cause) },
+    );
   }
 
   /**
@@ -633,14 +636,16 @@ export class RequestEngine {
           await this.backOff(attempt, this.retryDelayMs * attempt, url);
           continue;
         }
-        throw this.transportError(cause);
+        throw this.transportError(cause, url, attempt);
       }
 
       // An injected transport may resolve with anything; a malformed HttpResponse would
       // otherwise surface below as a raw TypeError, outside the error contract.
       const invalid = responseProblem(response);
       if (invalid !== undefined) {
-        throw new HochwasserzentralenNetworkError(`The transport returned an invalid response (${invalid}).`);
+        throw new HochwasserzentralenNetworkError(
+          `${requestLabel(url)} failed: the transport returned an invalid response (${invalid}).`,
+        );
       }
       const status = response.status;
       const responseHeaders = plainHeaders(response.headers);
@@ -649,7 +654,7 @@ export class RequestEngine {
       // The size cap holds whatever the transport did: the default one aborts early, a custom
       // one may have read everything.
       if (this.maxResponseBytes > 0 && body.byteLength > this.maxResponseBytes) {
-        throw new HochwasserzentralenNetworkError(sizeLimitMessage(this.maxResponseBytes));
+        throw new HochwasserzentralenNetworkError(`${requestLabel(url)} failed: ${sizeLimitMessage(this.maxResponseBytes)}`);
       }
       const retryable = status === 429 || status === 503;
       if (retryable && attempt < this.maxRetries) {
@@ -736,6 +741,11 @@ export class RequestEngine {
     if (detail === "") detail = undefined;
     return new HochwasserzentralenApiError({ status, url, method: "GET", body: text, detail });
   }
+}
+
+/** `GET <url>` for a network error's message: the userinfo redacted, the URL cut at 500 characters. */
+function requestLabel(url: string): string {
+  return `GET ${cutForMessage(redactUrl(url))}`;
 }
 
 /** A JSON number token, matched at a given position (sticky). */
