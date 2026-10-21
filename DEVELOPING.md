@@ -362,8 +362,8 @@ is a `HochwasserzentralenParseError`. JSON.parse rounds and overflows numbers si
 `getJson` scans the body after parsing: a number out of a double's range (`1e400`), past 2^53
 in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
 non-zero and too small (`1e-400`), or a subnormal that doesn't print as written (`3e-324`, which a
-double holds as `5e-324`), is a `HochwasserzentralenParseError` (`Unexpected response
-from /data/stations: the number … cannot be represented exactly.`), never a changed value.
+double holds as `5e-324`), is a `HochwasserzentralenParseError` (`GET <url>: the number … cannot be represented
+exactly.`), never a changed value.
 Below 2^53 and above the smallest normal double (2.2250738585072014e-308) a decimal fraction keeps
 a double's precision (the coordinates). Past 2^53 the number
 as printed (`String(value)`, the shortest decimal that reads back as the same double) is compared
@@ -426,7 +426,8 @@ status; carries `status`, `detail`, `url` (userinfo redacted), `method`, `body`)
 failure/timeout/size cap, and anything a custom transport throws; its message names the
 request, `GET <url> failed: <reason>` with the userinfo redacted and ` (after N retries)` when
 it was retried, and the original is its `cause`), `HochwasserzentralenValidationError` (a rejected
-input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, a number a double can't carry exactly, or a
+input, thrown before any request; CLI exit 2), `HochwasserzentralenParseError` (bad JSON, an empty body, a compressed body (`Content-Encoding`;
+the client sends no Accept-Encoding and doesn't decompress), a number a double can't carry exactly, or a
 top-level shape the CLI can't use: not a JSON object, `data` not an array, no
 `"status": "success"`, a `data` item that is not a JSON object, a station without a string
 `id`, a nationwide `/data/stations` answer without any station; the CLI raises it too
@@ -444,8 +445,11 @@ limits, never inside a surrogate pair (`cutText`), so the message stays well-for
 error's own properties keep the full value. A non-2xx answer's `detail` is the API's own message — its JSend
 `error.message` (`{"status":"fail","error":{"code":"BAD_REQUEST","message":"Unknown
 states"}}`), else a top-level `message`/`description`/`detail`, else a plain-text snippet.
-A body that doesn't parse names why: the Content-Type when it isn't JSON (a proxy's HTML
-page), else the parser's reason. `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts`
+Every error about an answer names the request first, `GET <url>: …` (userinfo redacted; the
+whole URL, so with a mirror as `--base-url` it says which host sent it): a body that doesn't parse
+(`the answer is not valid JSON`, with the Content-Type when it isn't JSON, a proxy's HTML page, else
+the parser's reason), an empty one, an unknown charset, an inexact number and a wrong shape
+(`unexpected response shape: …`). `apps/cli/test/conformance-p8-p9-p13-responses-and-errors.test.ts`
 checks the declared charset (P8), the envelope (P9) and the wrong-typed calls (P13).
 
 **Input validation.** The library owns every rule about what a request may contain;

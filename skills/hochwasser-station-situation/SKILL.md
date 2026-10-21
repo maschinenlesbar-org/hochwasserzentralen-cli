@@ -98,9 +98,10 @@ Each entry in `.data[]` is a **Station**:
 >   double-counts them (on 2026-09-15, `--water rhein` gave 24 entries for 21
 >   sites), and so do per-state `situation` counts. Count sites with
 >   `jq '.data | unique_by(.coordinates) | length'`.
-> - **Exit 1 with "The API answered /data/stations with its GeoJSON
->   representation"** (older CLI versions: `Expected "data" to be an array …
->   got undefined`) is a transient mix-up in the API's cache, not missing
+> - **Exit 1 with "the API answered with its GeoJSON representation"** (after
+>   the request, `GET <url>: …`; older CLI versions: `The API answered
+>   /data/stations with its GeoJSON representation` or `Expected "data" to be
+>   an array … got undefined`) is a transient mix-up in the API's cache, not missing
 >   data. Wait a minute, retry once, and say so if it persists.
 
 ## Step 3 — Report

@@ -74,7 +74,7 @@ test("stations() throws HochwasserzentralenParseError when the response's data i
   const c = new HochwasserzentralenClient({ transport: mt.transport });
   await assert.rejects(
     () => c.stations(),
-    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*data\/stations/.test(err.message),
+    (err) => err instanceof HochwasserzentralenParseError && /^GET https:\/\/api\.hochwasserzentralen\.de\/public\/v1\/data\/stations: unexpected response shape: expected "data" to be an array/.test(err.message),
   );
 });
 
@@ -83,7 +83,7 @@ test("alerts() throws HochwasserzentralenParseError when the response's data is 
   const c = new HochwasserzentralenClient({ transport: mt.transport });
   await assert.rejects(
     () => c.alerts(),
-    (err) => err instanceof HochwasserzentralenParseError && /data.*array.*data\/alerts/.test(err.message),
+    (err) => err instanceof HochwasserzentralenParseError && /^GET https:\/\/api\.hochwasserzentralen\.de\/public\/v1\/data\/alerts: unexpected response shape: expected "data" to be an array/.test(err.message),
   );
 });
 
@@ -200,7 +200,7 @@ test("a null or scalar data item, or a station without an id, is a Hochwasserzen
   for (const [make, method, re] of cases) {
     await assert.rejects(
       () => make()[method](),
-      (err) => err instanceof HochwasserzentralenParseError && /Unexpected response shape/.test(err.message) && re.test(err.message),
+      (err) => err instanceof HochwasserzentralenParseError && /^GET https:\/\/\S+: unexpected response shape: /.test(err.message) && re.test(err.message),
     );
   }
 });

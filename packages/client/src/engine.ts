@@ -98,6 +98,8 @@ export function cleartextProblem(baseUrl: string, secrets: readonly string[] = [
 export interface RawResponse {
   data: Buffer;
   contentType: string;
+  /** The Content-Encoding header ("" when absent). */
+  contentEncoding: string;
   status: number;
 }
 
@@ -317,16 +319,16 @@ export function envelopeMessage(body: Record<string, unknown>): string | undefin
  * none). TextDecoder drops a leading byte order mark, which Buffer#toString keeps and
  * JSON.parse then rejects, so a BOM added by a proxy cannot turn a valid answer into a
  * parse error; a Latin-1 body is no longer misread as UTF-8. An unknown charset label
- * is a HochwasserzentralenParseError.
+ * is a HochwasserzentralenParseError naming `request`.
  */
-function decodeBody(body: Buffer, contentType: string, path: string): string {
+function decodeBody(body: Buffer, contentType: string, request: string): string {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset);
   } catch {
     throw new HochwasserzentralenParseError(
-      `Unsupported response charset "${cutText(sanitizeServerText(charset), 100)}" from ${path}.`,
+      `${request}: unsupported response charset "${cutText(sanitizeServerText(charset), 100)}".`,
     );
   }
   return decoder.decode(body);
@@ -605,6 +607,15 @@ export class RequestEngine {
   }
 
   /**
+   * The request URL as error messages show it: absolute (so a message names the host that
+   * gave a bad answer, which matters with a mirror as the base URL), userinfo redacted and
+   * cut at MAX_MESSAGE_VALUE_LENGTH characters.
+   */
+  describeUrl(path: string, query?: QueryParams): string {
+    return cutForMessage(redactUrl(this.buildUrl(path, query)));
+  }
+
+  /**
    * Perform a GET with Accept/Accept-Language negotiation and transient-error
    * retries. Redirects are NOT followed — a 3xx surfaces as an error.
    */
@@ -678,14 +689,36 @@ export class RequestEngine {
         throw this.toApiError(url, status, body);
       }
 
-      return { data: body, contentType, status };
+      const contentEncoding = String(responseHeaders["content-encoding"] ?? "").trim();
+      return { data: body, contentType, contentEncoding, status };
     }
   }
 
-  /** Perform a GET expecting JSON and parse it into `T`. */
+  /**
+   * Perform a GET expecting JSON and parse it into `T`. An empty (or whitespace-only) body is a
+   * HochwasserzentralenParseError: every endpoint answers with a JSON document. Every error about
+   * the answer names the request (`GET <url>: …`, userinfo redacted), so with a mirror as the
+   * base URL it says which host sent it.
+   */
   async getJson<T>(path: string, query?: QueryParams, options: RequestOptions = {}): Promise<T> {
     const res = await this.request(path, query, options);
-    const text = decodeBody(res.data, res.contentType, path);
+    const request = `GET ${this.describeUrl(path, query)}`;
+    // The client sends no Accept-Encoding and does not decompress; a compressed body can only
+    // come from a misbehaving proxy. Name it rather than fail as "not JSON". A list of codings
+    // is allowed (RFC 9110 §8.4); only `identity` ones mean "not encoded".
+    const codings = res.contentEncoding.split(",").map((c) => c.trim()).filter((c) => c !== "");
+    if (codings.some((c) => !/^identity$/i.test(c))) {
+      throw new HochwasserzentralenParseError(
+        `${request}: unsupported Content-Encoding "${cutText(sanitizeServerText(res.contentEncoding), 100)}" ` +
+          "(the client does not decompress responses).",
+      );
+    }
+    const text = decodeBody(res.data, res.contentType, request);
+    if (text.trim() === "") {
+      // A broken answer, not "no alerts": printed as nothing with exit 0, it would let a script
+      // carry on as if the API had found nothing.
+      throw new HochwasserzentralenParseError(`${request}: empty response body.`);
+    }
     let parsed: T;
     try {
       parsed = JSON.parse(text) as T;
@@ -696,11 +729,11 @@ export class RequestEngine {
       const type = cutText(sanitizeServerText(res.contentType.split(";")[0] ?? ""), 100);
       const reason =
         type !== "" && !/json/i.test(type)
-          ? `: expected JSON, got Content-Type "${type}"`
+          ? ` (expected JSON, got Content-Type "${type}")`
           : cause instanceof Error
-            ? `: ${cutForMessage(sanitizeServerText(this.scrub(cause.message)))}`
+            ? ` (${cutForMessage(sanitizeServerText(this.scrub(cause.message)))})`
             : "";
-      throw new HochwasserzentralenParseError(`Failed to parse JSON response from ${path}${reason}`, {
+      throw new HochwasserzentralenParseError(`${request}: the answer is not valid JSON${reason}.`, {
         cause: this.scrubCause(cause),
       });
     }
@@ -708,9 +741,7 @@ export class RequestEngine {
     // on a changed value (a coordinate, a count, a class).
     const inexact = firstInexactNumber(text);
     if (inexact !== undefined) {
-      throw new HochwasserzentralenParseError(
-        `Unexpected response from ${path}: the number ${cutForMessage(inexact)} cannot be represented exactly.`,
-      );
+      throw new HochwasserzentralenParseError(`${request}: the number ${cutForMessage(inexact)} cannot be represented exactly.`);
     }
     return parsed;
   }

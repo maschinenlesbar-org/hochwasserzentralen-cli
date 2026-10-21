@@ -206,7 +206,7 @@ hochwasser --base-url https://api.hochwasserzentralen.de/public/v1/test alerts -
   `https://api.hochwasserzentralen.de/public/v1`.
 - **Exit `6` / network error** — connectivity, DNS, or a timeout. Try again, or
   raise `--timeout 60000`.
-- **Exit `1` / "The API answered … with its GeoJSON representation"** — the
+- **Exit `1` / "GET … : the API answered with its GeoJSON representation"** — the
   API's HTTP cache varies only on `Accept-Encoding`, so for a minute or so it can
   hand out the GeoJSON body someone else asked for. Retry after about a minute.
   The same cache can answer `--lang en` in German; the response's `lang` field

@@ -47,8 +47,9 @@ An **exit 1 saying `The API reported status "…"`** means the API itself flagge
 its answer as failed (the API's message follows the colon). It is not "no
 warnings": report that the check could not be made and quote the message.
 
-An **exit 1 saying "The API answered /data/alerts with its GeoJSON
-representation"** (older CLI versions: `Expected "data" to be an array in the
+An **exit 1 saying "the API answered with its GeoJSON representation"** (after
+the request, `GET <url>: …`; older CLI versions: `The API answered /data/alerts
+with its GeoJSON representation` or `Expected "data" to be an array in the
 response from /data/alerts, got undefined`) is not an answer either way: the
 API's cache now and then serves the wrong representation. Wait about a
 minute and retry once; never report it as "no warnings".

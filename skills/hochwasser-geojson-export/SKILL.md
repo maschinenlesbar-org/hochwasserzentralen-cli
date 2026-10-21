@@ -104,8 +104,9 @@ On success the CLI confirms on stderr with an `INFO` record, e.g.:
 > - Rheinland-Pfalz labels carry an HTML entity: `stateClassName` "Kein
 >   Hochwasser bzw. &#60; 2-jährliches Hochwasser" (`&#60;` is `<`). Mind it
 >   when you use that property as a map label.
-> - **Exit 1 saying "The API answered … with its GeoJSON representation"**
->   (older CLI versions: `Expected "data" to be an array … got undefined`) is a
+> - **Exit 1 saying "the API answered with its GeoJSON representation"**
+>   (older CLI versions: "The API answered … with its GeoJSON representation"
+>   or `Expected "data" to be an array … got undefined`) is a
 >   transient mix-up in the API's cache. Nothing was written; wait a minute
 >   and retry once.
 > - The full national station layer is about 1600 points (1573 on 2026-09-15) —

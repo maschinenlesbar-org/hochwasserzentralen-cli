@@ -11,6 +11,7 @@ import {
   toWellFormed,
 } from "../src/errors.js";
 import { makeMockTransport, jsonResponse, rawResponse } from "./helpers.js";
+import type { HttpResponse } from "../src/http.js";
 import * as fx from "./fixtures.js";
 import { HochwasserzentralenClient } from "../src/client.js";
 
@@ -160,7 +161,10 @@ test("a non-JSON 200 body surfaces as HochwasserzentralenParseError", async () =
   const e = new RequestEngine({ transport: mt.transport });
   await assert.rejects(
     () => e.getJson("/data/alerts"),
-    (err) => err instanceof HochwasserzentralenParseError && /Failed to parse JSON/.test(err.message),
+    (err) =>
+      err instanceof HochwasserzentralenParseError &&
+      err.message ===
+        'GET https://api.hochwasserzentralen.de/public/v1/data/alerts: the answer is not valid JSON (expected JSON, got Content-Type "text/html").',
   );
 });
 
@@ -297,7 +301,7 @@ test("server text in a message is cut at 500 characters; a parse error says why"
   const html = makeMockTransport(() => rawResponse("<html>proxy</html>", "text/html"));
   await assert.rejects(new RequestEngine({ transport: html.transport }).getJson("/x"), /expected JSON, got Content-Type "text\/html"/);
   const cut = makeMockTransport(() => rawResponse('{"data":[', "application/json"));
-  await assert.rejects(new RequestEngine({ transport: cut.transport }).getJson("/x"), /Failed to parse JSON response from \/x: \S/);
+  await assert.rejects(new RequestEngine({ transport: cut.transport }).getJson("/x"), /: GET https:\/\/api\.hochwasserzentralen\.de\/public\/v1\/x: the answer is not valid JSON \(\S/);
 });
 
 test("cutText never cuts inside a surrogate pair; toWellFormed replaces half a character", () => {
@@ -438,7 +442,8 @@ test("a number JSON.parse can't carry exactly is a parse error, never a changed 
       e.getJson("/data/stations", { states: "BY" }),
       (err) =>
         err instanceof HochwasserzentralenParseError &&
-        err.message === `Unexpected response from /data/stations: the number ${literal} cannot be represented exactly.`,
+        err.message ===
+          `GET https://api.hochwasserzentralen.de/public/v1/data/stations?states=BY: the number ${literal} cannot be represented exactly.`,
       literal,
     );
   }
@@ -506,4 +511,32 @@ test("a header named __proto__ is an ordinary header, never the prototype of the
   const fetchLike = new Headers([["__proto__", "x"], ["content-type", "application/json"]]);
   const f = new RequestEngine({ transport: async () => ({ status: 200, headers: fetchLike as unknown as Record<string, string>, body: Buffer.from('{"a":1}') }) });
   assert.deepEqual(await f.getJson("/x"), { a: 1 });
+});
+
+test("an answer error names the request: method and URL, userinfo redacted (D9)", async () => {
+  const answers: Array<[string, () => HttpResponse]> = [
+    ["not valid JSON", () => rawResponse("<html>", "text/html")],
+    ["empty response body", () => rawResponse(" ", "application/json")],
+    ["cannot be represented exactly", () => rawResponse('{"n":1e400}', "application/json")],
+    ["unsupported response charset", () => rawResponse("{}", "application/json; charset=x-bogus")],
+    ["unsupported Content-Encoding", () => ({ status: 200, headers: { "content-type": "application/json", "content-encoding": "br" }, body: Buffer.from("{}") })],
+  ];
+  const base = new URL("https://api.hochwasserzentralen.de/public/v1");
+  base.username = "alice";
+  base.password = "s3cret";
+  for (const [what, respond] of answers) {
+    const e = new RequestEngine({ baseUrl: base.href, transport: makeMockTransport(respond).transport });
+    await assert.rejects(e.getJson("/data/alerts", { states: "BY" }), (err: unknown) => {
+      assert.ok(err instanceof HochwasserzentralenParseError, what);
+      assert.ok(err.message.startsWith(`GET ${base.protocol}//***@${base.host}`), err.message);
+      assert.ok(err.message.includes("/data/alerts?states=BY: ") && err.message.includes(what), err.message);
+      assert.ok(!err.message.includes("s3cret"), err.message);
+      return true;
+    });
+  }
+  // An identity coding is no coding.
+  const identity = new RequestEngine({
+    transport: makeMockTransport(() => ({ status: 200, headers: { "content-type": "application/json", "content-encoding": "identity" }, body: Buffer.from("{}") })).transport,
+  });
+  assert.deepEqual(await identity.getJson("/x"), {});
 });

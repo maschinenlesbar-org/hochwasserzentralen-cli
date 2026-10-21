@@ -62,7 +62,7 @@ export const ENDPOINTS = {
  * an empty map — a missed warning during an upstream fault.
  *
  * - a body that is not a JSON object, or has no `data` array: a
- *   HochwasserzentralenParseError naming the endpoint and the field (`data` is typed as
+ *   HochwasserzentralenParseError naming the request (`GET <url>: …`) and the field (`data` is typed as
  *   an array, but only at compile time; a malformed body would otherwise surface as a
  *   raw "X is not iterable" TypeError deep inside the aggregation);
  * - a `status` other than `"success"`: a HochwasserzentralenApiError with the
@@ -77,13 +77,13 @@ export const ENDPOINTS = {
  */
 function envelopeProblem(
   res: unknown,
-  endpoint: string,
+  request: string,
   requireId: boolean,
   rejected: (apiStatus: string, message: string | undefined) => Error,
 ): Error | undefined {
   if (!isObject(res)) {
     return new HochwasserzentralenParseError(
-      `Unexpected response shape from ${endpoint}: expected a JSON object, got ${describeType(res)}.`,
+      `${request}: unexpected response shape: expected a JSON object, got ${describeType(res)}.`,
     );
   }
   const status = res["status"];
@@ -92,21 +92,21 @@ function envelopeProblem(
   if (!Array.isArray(data)) {
     if (res["type"] === "FeatureCollection" && Array.isArray(res["features"])) {
       return new HochwasserzentralenParseError(
-        `The API answered ${endpoint} with its GeoJSON representation ("features") instead of plain JSON ` +
+        `${request}: the API answered with its GeoJSON representation ("features") instead of plain JSON ` +
           `("data"). This is a transient mix-up in the API's cache that usually clears within a minute or ` +
           `two; retry then.`,
       );
     }
     return new HochwasserzentralenParseError(
-      `Expected "data" to be an array in the response from ${endpoint}, got ${describeType(data)}`,
+      `${request}: unexpected response shape: expected "data" to be an array, got ${describeType(data)}.`,
     );
   }
   if (status !== "success") {
     return new HochwasserzentralenParseError(
-      `Unexpected response shape from ${endpoint}: expected "status": "success", got ${describeType(status)}.`,
+      `${request}: unexpected response shape: expected "status": "success", got ${describeType(status)}.`,
     );
   }
-  assertItems(data, endpoint, requireId);
+  assertItems(data, request, requireId);
   return undefined;
 }
 
@@ -126,17 +126,17 @@ function isObject(value: unknown): value is Record<string, unknown> {
  * otherwise reach the filters, the GeoJSON converter and the `situation`
  * aggregation untyped and crash there with a raw TypeError.
  */
-function assertItems(data: readonly unknown[], endpoint: string, requireId: boolean): void {
+function assertItems(data: readonly unknown[], request: string, requireId: boolean): void {
   data.forEach((item, index) => {
     if (!isObject(item)) {
       throw new HochwasserzentralenParseError(
-        `Unexpected response shape from ${endpoint}: expected every data item to be a JSON object, ` +
+        `${request}: unexpected response shape: expected every data item to be a JSON object, ` +
           `item ${index} is ${item === null ? "null" : Array.isArray(item) ? "an array" : typeof item}.`,
       );
     }
     if (requireId && typeof item["id"] !== "string") {
       throw new HochwasserzentralenParseError(
-        `Unexpected response shape from ${endpoint}: expected every station to have a string id, ` +
+        `${request}: unexpected response shape: expected every station to have a string id, ` +
           `item ${index} has none.`,
       );
     }
@@ -178,7 +178,7 @@ export class HochwasserzentralenClient {
 
   /** Throw the envelope's problem (see {@link envelopeProblem}), if it has one. */
   private checkEnvelope(res: unknown, endpoint: string, query: QueryParams, requireId: boolean): void {
-    const problem = envelopeProblem(res, endpoint, requireId, (apiStatus, message) => {
+    const problem = envelopeProblem(res, `GET ${this.engine.describeUrl(endpoint, query)}`, requireId, (apiStatus, message) => {
       const detail = message === undefined ? undefined : cutForMessage(sanitizeServerText(this.engine.scrub(message)));
       return new HochwasserzentralenApiError({
         status: 200,
@@ -232,8 +232,8 @@ export class HochwasserzentralenClient {
     // station is an upstream fault, not the "no gauges" verdict `situation` would print.
     if (params.states === undefined && res.data.length === 0) {
       throw new HochwasserzentralenParseError(
-        `The API answered ${ENDPOINTS.stations} for all of Germany without a single station; ` +
-          `the LHP lists about 1600 gauges, so this is an upstream fault. Try again later.`,
+        `GET ${this.engine.describeUrl(ENDPOINTS.stations, query)}: the answer for all of Germany holds no station ` +
+          `at all; the LHP lists about 1600 gauges, so this is an upstream fault. Try again later.`,
       );
     }
     // The API filters by `states` itself, but nothing checked that it did: a server that
