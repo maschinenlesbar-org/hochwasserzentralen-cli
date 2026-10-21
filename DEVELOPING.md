@@ -363,6 +363,11 @@ the charset, and a lone surrogate written as a JSON escape (`\ud800`, which `jq`
 the whole output), are replaced with U+FFFD, and the engine option `onWarning(message)` is told
 how many (`GET <url>: 2 characters of the answer were not valid text … replaced with U+FFFD.`);
 the CLI logs it as a WARN record of `hochwasser.api`. One bad character never sinks an answer.
+A body too large to become one string (512 MB and more, possible only with `maxResponseBytes: 0`
+or `--max-response-bytes 0`) is a `HochwasserzentralenParseError`, `GET <url>: the answer is too
+large to read as text (N bytes; the longest string is 536870888 characters).`, not a plain `Error`
+("Unexpected error" in the CLI); an error status with such a body keeps its
+`HochwasserzentralenApiError`, without the body.
 JSON.parse rounds and overflows numbers silently, so
 `getJson` scans the body after parsing: a number out of a double's range (`1e400`), past 2^53
 in any written form (`12345678901234567890`, `9007199254740993e0`, `9007199254740992.5`) or
