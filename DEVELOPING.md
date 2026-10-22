@@ -302,7 +302,8 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   one. `run()` starts with
   `withRedactedOutput(deps, argv)`, which collects the credentials of every argument (and
   of the value part of `--opt=value`, `redactionFor`; of every URL that starts anywhere inside
-  an argument, `urlsWithin`, so a padded `--states " https://u:pw@h"`, a dash-led `-o -https://…`
+  an argument, `urlsWithin`, linear: each `://` found with indexOf, at most 64 URLs per
+  argument; so a padded `--states " https://u:pw@h"`, a dash-led `-o -https://…`
   or a URL inside a `--water` phrase is covered, and in its percent-encoded form too) and redacts every line printed on
   stdout and every log record on stderr. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
