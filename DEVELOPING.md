@@ -358,7 +358,10 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   writable (`parentProblem`, through the links with `--force`), so a typo in the path costs no
   download. A stream (a character device, a FIFO, a socket, `/dev/stdout`, `/dev/fd/N`) is
   written in place (`writeInPlace`, every byte), with no claim, no temporary file and no
-  `--force` needed: nothing in it can be lost. The write goes through the `OutputFiles` seam (`CliDeps.files`;
+  `--force` needed: nothing in it can be lost. The in-place open creates nothing (no
+  `O_CREAT`) and the opened descriptor is checked with `fstat`: what is no FIFO, device or socket
+  by then (a link switched after the check; a descriptor path excepted, which the shell opened)
+  takes the way of a file, so an existing one is refused without `--force`. The write goes through the `OutputFiles` seam (`CliDeps.files`;
   `nodeFiles` in `io.ts` for the real file system): without `--force` the name is claimed
   with an exclusive create (`wx`), so a file that appears during the request is not
   overwritten either; that is a failed write (`appearedMeanwhile`: exit 1, an ERROR of

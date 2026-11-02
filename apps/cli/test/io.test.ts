@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -98,6 +98,31 @@ test("nodeFiles: a dangling symlink counts as existing and is never written thro
     nodeFiles.write(plain, Buffer.from("three"), true);
     assert.equal(readFileSync(plain, "utf8"), "three");
     assert.equal(nodeFiles.state(dir), "directory");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a stream target is written only when the descriptor opened is a stream, and never created", { skip: process.platform === "win32" }, () => {
+  // The path was a stream when it was classified (a link to /dev/null) and is a link to a regular
+  // file, or to a file that doesn't exist, when it is opened: without --force nothing is appended
+  // and nothing is created. The open by name with "a" followed the switched link (O_CREAT too).
+  const dir = mkdtempSync(join(tmpdir(), "hw-stream-"));
+  try {
+    const victim = join(dir, "victim.txt");
+    writeFileSync(victim, "keep me\n");
+    const link = join(dir, "out.json");
+    symlinkSync(victim, link);
+    const switched = { ...nodeFiles, state: () => "stream" as const };
+    assert.throws(() => switched.write(link, Buffer.from("appended\n"), false), /Refusing to overwrite/);
+    assert.equal(readFileSync(victim, "utf8"), "keep me\n");
+    const dangling = join(dir, "dangling.json");
+    const missing = join(dir, "missing.txt");
+    symlinkSync(missing, dangling);
+    assert.throws(() => switched.write(dangling, Buffer.from("created\n"), false));
+    assert.equal(existsSync(missing), false, "the in-place open creates no file");
+    // A real stream is still written in place.
+    assert.doesNotThrow(() => nodeFiles.write("/dev/null", Buffer.from("x"), false));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

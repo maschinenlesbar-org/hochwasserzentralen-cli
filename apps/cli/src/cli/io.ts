@@ -158,12 +158,13 @@ export const nodeFiles: OutputFiles = {
     return undefined;
   },
   write(path, data, overwrite) {
-    const state = nodeFiles.state(path);
+    const state = this.state(path);
     if (state === "directory") throw appearedMeanwhile(path, "directory");
     try {
       // A device, a FIFO or a pipe can't be renamed over, and nothing in it can be lost:
-      // written in place, with no claim and no temporary file.
-      if (state === "stream") return writeInPlace(path, data);
+      // written in place, with no claim and no temporary file. A path that is no stream by the
+      // time it is opened (a link switched after the check) takes the way of a file below.
+      if (state === "stream" && writeInPlace(path, data)) return;
       // With --force the file a link points at is written, even when it doesn't exist yet.
       if (overwrite) return replaceFile(linkTarget(path), data);
       // Without --force the name is claimed first with an exclusive create, which fails for
@@ -287,23 +288,35 @@ function linkTarget(path: string): string {
   throw Object.assign(new Error(`too many levels of symbolic links`), { code: "ELOOP" });
 }
 
-/** Write `data` to a stream target (a device, a FIFO, a descriptor path) in place, every byte. */
-function writeInPlace(path: string, data: Buffer): void {
+/**
+ * Write `data` to a stream target (a device, a FIFO, a descriptor path) in place, every byte;
+ * `false`, writing nothing, when what the path names is no stream once it is open. The path is
+ * opened without O_CREAT and the descriptor checked with fstat: classifying the path by name and
+ * then reopening it with "a" (create, follow links) let a link switched in between take the
+ * answer into a regular file, or create one, without --force. Still a blocking open, so a FIFO
+ * whose reader comes later works.
+ */
+function writeInPlace(path: string, data: Buffer): boolean {
   // Append: on a descriptor path that leads to a file (`-o /dev/stdout >> log`), the shell's
   // own mode stands; on a device or a FIFO it makes no difference.
   let fd: number;
   try {
-    fd = openSync(path, "a");
+    fd = openSync(path, constants.O_WRONLY | constants.O_APPEND);
   } catch (err) {
     // Linux can't open a socket through its descriptor path (ENXIO), and a process started
     // with socket stdio (Node's child_process, a service manager) has one: `-o /dev/stdout` is
     // then written to the descriptor the process already holds, which stays open.
     const own = descriptorOf(path);
     if ((err as NodeJS.ErrnoException).code !== "ENXIO" || own === undefined) throw err;
-    return writeAll(own, data);
+    writeAll(own, data);
+    return true;
   }
   try {
+    // A descriptor path keeps whatever the shell opened, a regular file too.
+    const stats = fstatSync(fd);
+    if (!DESCRIPTOR_PATH.test(path) && !stats.isFIFO() && !stats.isCharacterDevice() && !stats.isSocket()) return false;
     writeAll(fd, data);
+    return true;
   } finally {
     closeSync(fd);
   }
