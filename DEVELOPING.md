@@ -495,7 +495,10 @@ converters; `responseArgProblem`). Server text in a message (an error `detail`, 
 item's label) goes through `sanitizeServerText`: whole terminal escape sequences (CSI, OSC and
 the other control strings) are dropped, then any other C0/C1 control, DEL and every Unicode
 format character (bidi controls, zero-width characters, the soft hyphen), and whitespace runs
-become one space. An echoed value or server text in a message is cut at
+become one space. It reads at most the first 16 384 characters of its input and works in linear
+time (a control string ends at the next ESC or introducer, so an unterminated run of U+009D can't
+make the pattern quadratic): a hostile error body costs neither seconds nor the heap after the
+request's deadline has ended. An echoed value or server text in a message is cut at
 500 characters (`cutForMessage`, `MAX_MESSAGE_VALUE_LENGTH`), shorter quotes (a
 Content-Type, an envelope status, a station id, a skipped item's label) at their own
 limits, never inside a surrogate pair (`cutText`), so the message stays well-formed; the

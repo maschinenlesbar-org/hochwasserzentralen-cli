@@ -666,6 +666,67 @@ test("sanitizeServerText drops invisible format characters (zero-width, soft hyp
   assert.equal(sanitizeServerText(text), "real error Error: forgedx end!");
 });
 
+/** Milliseconds `work` takes. */
+async function elapsedAsync(work: () => Promise<unknown>): Promise<number> {
+  const start = performance.now();
+  await work();
+  return performance.now() - start;
+}
+
+test("server text of unterminated control-string introducers is cleaned in linear time, in an error status and a failed envelope", async () => {
+  // 100 000 × U+009D took about 16 s with the old escape-sequence regex (its control-string body
+  // admitted the other 8-bit introducers), after the request's deadline had ended.
+  for (const opener of ["\\u009d", "\\u0090", "\\u0098", "\\u009e", "\\u009f", "\\u001b]"]) {
+    const message = `"${opener.repeat(100_000)} tail"`;
+    for (const [status, body] of [
+      [500, `{"message":${message}}`],
+      [200, `{"status":"error","message":${message}}`],
+    ] as const) {
+      const client = new HochwasserzentralenClient({ maxRetries: 0, transport: makeMockTransport(() => jsonResponse(body, status)).transport });
+      let err: unknown;
+      const ms = await elapsedAsync(async () => {
+        try {
+          await client.alerts();
+        } catch (e) {
+          err = e;
+        }
+      });
+      assert.ok(ms < 1000, `${opener} (${status}): ${Math.round(ms)} ms`);
+      assert.ok(err instanceof HochwasserzentralenApiError && err.status === status, String(err));
+      assert.ok(!/[\u0000-\u001f\u007f-\u009f]/.test(err.message), `${opener} (${status}): a control character in the message`);
+    }
+  }
+});
+
+test("sanitizeServerText reads a bounded prefix and drops what the per-character filter dropped", () => {
+  const ESC = String.fromCharCode(0x1b);
+  const BEL = String.fromCharCode(0x07);
+  // The filter it replaces, one character at a time: C0 but TAB to CR, DEL, C1 and Cf go.
+  const perCharacter = (text: string): string =>
+    [...text]
+      .filter((ch) => {
+        const n = ch.codePointAt(0) ?? 0;
+        return (n >= 0x09 && n <= 0x0d) || !(n <= 0x1f || (n >= 0x7f && n <= 0x9f) || /\p{Cf}/u.test(ch));
+      })
+      .join("")
+      .replace(/\s+/g, " ")
+      .trim();
+  const every = Array.from({ length: 0x3000 }, (_, i) => String.fromCharCode(i)).join("") + "\u{1f600}\u{e0001}\ud800x";
+  for (let at = 0; at < every.length; at += 512) {
+    const piece = every.slice(at, at + 512).replace(/[\u001b\u0090\u0098\u009b-\u009f]/g, "");
+    assert.equal(sanitizeServerText(piece), perCharacter(piece), `from U+${at.toString(16)}`);
+  }
+  // At most 16 384 units of the text are read, never half a surrogate pair.
+  assert.equal(sanitizeServerText("x".repeat(100_000)).length, 16_384);
+  assert.equal(sanitizeServerText(`${"x".repeat(16_383)}\u{1f600}`), "x".repeat(16_383));
+  // A control string ends at another introducer: the first is dropped by the filter, the second
+  // string as a whole.
+  const OSC8 = String.fromCharCode(0x9d);
+  const ST8 = String.fromCharCode(0x9c);
+  assert.equal(sanitizeServerText(`a${OSC8}0;x${OSC8}0;t${ST8}b`), "a0;xb");
+  assert.equal(sanitizeServerText(`a${ESC}]0;x${ESC}]0;t${BEL}b`), "a0;xb");
+});
+
 test("a 3xx names the redirect target, resolved, userinfo redacted, sanitised; it stays unfollowed (01-1)", async () => {
   const cases: Array<[number, string | undefined, string]> = [
     [302, "https://www.hochwasserzentralen.de/public/v1/data/alerts", ": redirect to https://www.hochwasserzentralen.de/public/v1/data/alerts not followed"],
