@@ -305,7 +305,10 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   an argument, `urlsWithin`, linear: each `://` found with indexOf, at most 64 URLs per
   argument; so a padded `--states " https://u:pw@h"`, a dash-led `-o -https://…`
   or a URL inside a `--water` phrase is covered, and in its percent-encoded form too) and redacts every line printed on
-  stdout and every log record on stderr. The forms a server echoes a userinfo back in
+  stdout and every log record on stderr. Behind the exact strings, the userinfo of any URL in the
+  text is replaced by pattern (`redactUrlUserinfo` in the client's `errors.ts`), in one linear
+  pass: each `://` found with indexOf, its scheme by walking back. The scheme regex it replaced
+  was quadratic on an answer of `a.a.a.…` and held the run for seconds after the request. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may well
   occur in the data. The log replaces them in each record's *message*, before the record is cut and escaped, and writes it to the raw stderr: the
