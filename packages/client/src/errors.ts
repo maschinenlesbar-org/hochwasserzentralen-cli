@@ -87,10 +87,12 @@ function schemeStart(text: string, at: number, from: number): number {
  * becomes `https://***@host`): the pattern backstop for text no exact secret matches. Text-based,
  * so it also covers a URL that does not parse; the userinfo ends at the last `@` before the first
  * whitespace, `/`, `?`, `#` or `'` after `://`. Linear in `text`, however many URLs it holds: each
- * `://` is found with `indexOf`, its scheme by walking back no further than the previous URL, and
- * the search goes on after the authority it read. The scheme regex it replaces was tried at every
- * word start and ran to the end of each run of scheme characters: quadratic on an answer of
- * `a.a.a.…`, which the CLI redacts whenever an argument carries URL credentials.
+ * `://` is found with `indexOf`, its scheme by walking back no further than the previous `://`,
+ * and the search goes on right after each `://` (as the CLI's `urlsWithin`), not after the
+ * authority it read: a URL glued onto the one before it (`https://host://u:p@h`,
+ * `https://u:p@x://v:q@w`) starts inside that authority, which ends at its `/`. An authority holds
+ * no `/`, so no `://` lies wholly inside one, and every character is read a bounded number of
+ * times: by the authority loop and `indexOf` forwards, by `schemeStart` backwards.
  */
 export function redactUrlUserinfo(text: string): string {
   const parts = new TextBuilder();
@@ -109,7 +111,7 @@ export function redactUrlUserinfo(text: string): string {
       parts.push(text.slice(copied, begin), "***");
       copied = lastAt;
     }
-    from = Math.max(end, begin);
+    from = begin;
   }
   if (copied === 0) return text;
   parts.push(text.slice(copied));
