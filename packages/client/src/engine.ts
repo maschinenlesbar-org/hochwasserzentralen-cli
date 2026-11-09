@@ -372,16 +372,22 @@ export function envelopeMessage(body: Record<string, unknown>): string | undefin
  * parse error; a Latin-1 body is no longer misread as UTF-8. An unknown charset label
  * is a HochwasserzentralenParseError naming `request`. Bytes that are not valid in the
  * charset become U+FFFD, and `replaced` counts them: exactly for UTF-8 and the single-byte
- * charsets; for UTF-16 a U+FFFD the server sent counts too.
+ * charsets; for UTF-16 a U+FFFD the server sent counts too. The charset a message quotes is
+ * `scrub`bed first.
  */
-function decodeBody(body: Buffer, contentType: string, request: string): { text: string; replaced: number } {
+function decodeBody(
+  body: Buffer,
+  contentType: string,
+  request: string,
+  scrub: (text: string) => string,
+): { text: string; replaced: number } {
   const charset = /;\s*charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType)?.[1] ?? "utf-8";
   let decoder: TextDecoder;
   try {
     decoder = new TextDecoder(charset, { fatal: true });
   } catch {
     throw new HochwasserzentralenParseError(
-      `${request}: unsupported response charset "${cutText(sanitizeServerText(charset), 100)}".`,
+      `${request}: unsupported response charset "${cutText(sanitizeServerText(scrub(charset)), 100)}".`,
     );
   }
   try {
@@ -626,8 +632,9 @@ export class RequestEngine {
   readonly #credentials: string[];
   /**
    * The forms a server echoes that userinfo back in (the Basic value, the decoded
-   * `user:password`, the password alone), longest first, so a password never leaves half
-   * of the `user:password` around it.
+   * `user:password`, the password alone; `echoedCredentialForms`), each also percent-encoded as
+   * in a URL and escaped as in a JSON string, longest first, so a password never leaves half of
+   * the `user:password` around it.
    */
   readonly #echoed: string[];
   private readonly transport: Transport;
@@ -649,16 +656,20 @@ export class RequestEngine {
     // The raw value is checked before the trailing-slash strip; only an omitted
     // baseUrl selects the default.
     this.#baseUrl = validateBaseUrl(options.baseUrl === undefined ? DEFAULT_BASE_URL : options.baseUrl);
-    this.#credentials = credentialsIn(this.#baseUrl).flatMap((raw) => {
+    // The userinfo as typed and as sent (WHATWG percent-encodes some of its characters).
+    const userinfos = [...new Set([...credentialsIn(this.#baseUrl), ...credentialsIn(new URL(this.#baseUrl).href)])];
+    this.#credentials = userinfos.flatMap((raw) => {
       try {
         return [raw, decodeURIComponent(raw)];
       } catch {
         return [raw];
       }
     });
-    this.#echoed = credentialsIn(this.#baseUrl)
-      .flatMap(echoedCredentialForms)
-      .sort((a, b) => b.length - a.length);
+    // Each form also as a URL (a redirect's Location) and as JSON (the failed envelope the client
+    // writes again with JSON.stringify) spell it; longest first.
+    this.#echoed = [...new Set(userinfos.flatMap(echoedCredentialForms).flatMap(urlSpellings).flatMap(jsonSpellings))].sort(
+      (a, b) => b.length - a.length,
+    );
     this.transport = functionOption("transport", options.transport, nodeHttpTransport);
     // Only an omitted userAgent selects the default: a blank one is an error, not
     // a silent fallback, and a malformed one fails here rather than at request time.
@@ -714,6 +725,32 @@ export class RequestEngine {
    */
   scrub(text: string): string {
     return this.#credentials.length === 0 ? text : redactSecrets(redactCredentials(text, this.#credentials), this.#echoed);
+  }
+
+  /**
+   * An error body, already scrubbed as sent, as `HochwasserzentralenApiError.body` keeps it: when
+   * it is JSON with an escape in it, checked decoded too. An escape (`\"`, `\u00e4`) hides an
+   * echoed credential from the scrub of the text as sent, while a caller who parses the body sees
+   * it. Such a body is kept as the decoded JSON written again (`JSON.stringify`, one spelling per
+   * character) with the credential scrubbed in that spelling. A body that doesn't parse is text
+   * nobody decodes, and stays as sent; one too deeply nested to write again is left out.
+   */
+  private scrubBody(scrubbed: string): string {
+    if (this.#echoed.length === 0 || !scrubbed.includes("\\")) return scrubbed;
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(scrubbed);
+    } catch {
+      return scrubbed;
+    }
+    let rewritten: string;
+    try {
+      rewritten = JSON.stringify(decoded);
+    } catch {
+      return "";
+    }
+    const spelled = this.#echoed.map((form) => JSON.stringify(form).slice(1, -1));
+    return spelled.some((form) => rewritten.includes(form)) ? redactSecrets(rewritten, spelled) : scrubbed;
   }
 
   /**
@@ -898,11 +935,11 @@ export class RequestEngine {
     const codings = res.contentEncoding.split(",").map((c) => c.trim()).filter((c) => c !== "");
     if (codings.some((c) => !/^identity$/i.test(c))) {
       throw new HochwasserzentralenParseError(
-        `${request}: unsupported Content-Encoding "${cutText(sanitizeServerText(res.contentEncoding), 100)}" ` +
+        `${request}: unsupported Content-Encoding "${cutText(sanitizeServerText(this.scrub(res.contentEncoding)), 100)}" ` +
           "(the client does not decompress responses).",
       );
     }
-    const decoded = decodeBody(res.data, res.contentType, request);
+    const decoded = decodeBody(res.data, res.contentType, request, (text) => this.scrub(text));
     if (decoded.text.trim() === "") {
       // A broken answer, not "no alerts": printed as nothing with exit 0, it would let a script
       // carry on as if the API had found nothing.
@@ -918,7 +955,7 @@ export class RequestEngine {
       // Say why (run.ts prints only the message, never `cause`): a proxy's HTML page, a
       // cut-off body and a stray byte read alike otherwise. An HTML or other non-JSON type
       // is named, else the parser's reason.
-      const type = cutText(sanitizeServerText(res.contentType.split(";")[0] ?? ""), 100);
+      const type = cutText(sanitizeServerText(this.scrub(res.contentType.split(";")[0] ?? "")), 100);
       const reason =
         type !== "" && !/json/i.test(type)
           ? ` (expected JSON, got Content-Type "${type}")`
@@ -972,10 +1009,10 @@ export class RequestEngine {
       const snippet = text.trim().replace(/\s+/g, " ");
       if (snippet.length > 0 && !snippet.startsWith("<")) detail = snippet;
     }
-    // `detail` came from the response body and lands in an Error.message printed
-    // raw to stderr; strip control chars so a hostile endpoint cannot inject
-    // terminal escape sequences, and cut it to MAX_MESSAGE_VALUE_LENGTH.
-    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(detail));
+    // `detail` came from the response body, decoded: scrubbed again (a JSON escape hid the
+    // credential from the scrub above), then stripped of control chars so a hostile endpoint
+    // cannot inject terminal escape sequences, and cut to MAX_MESSAGE_VALUE_LENGTH.
+    if (detail !== undefined) detail = cutForMessage(sanitizeServerText(this.scrub(detail)));
     if (detail === "") detail = undefined;
     // Redirects are not followed; name the target, so an outage that sends the API's host to an
     // "offline" page reads as that, and a wrong --base-url as that.
@@ -984,7 +1021,7 @@ export class RequestEngine {
       status,
       url,
       method: "GET",
-      body: text,
+      body: this.scrubBody(text),
       detail,
       ...(location !== undefined ? { location } : {}),
     });
@@ -1005,6 +1042,28 @@ function redirectTarget(requestUrl: string, location: string): string | undefine
   }
   const clean = cutForMessage(sanitizeServerText(target));
   return clean === "" ? undefined : clean;
+}
+
+/**
+ * `form` and its spelling in a URL (`encodeURIComponent`): a server that puts a credential into
+ * a URL, a redirect's Location, percent-encodes it. A form that has no such spelling (a lone
+ * surrogate) is kept as it is.
+ */
+function urlSpellings(form: string): string[] {
+  try {
+    return [form, encodeURIComponent(form)];
+  } catch {
+    return [form];
+  }
+}
+
+/**
+ * `form` and its spelling inside a JSON string (`\"`, `\\`): the client writes a failed envelope
+ * again with JSON.stringify (`HochwasserzentralenApiError.body`), and a credential with a quote in
+ * it is spelled with a backslash there.
+ */
+function jsonSpellings(form: string): string[] {
+  return [form, JSON.stringify(form).slice(1, -1)];
 }
 
 /** `GET <url>` for a network error's message: the userinfo redacted, the URL cut at 500 characters. */

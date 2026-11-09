@@ -322,8 +322,17 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   never show it), `HochwasserzentralenApiError.url` and its message go through
   `redactUrl`, and the userinfo (raw and percent-decoded) and the forms a server echoes it
   back in (the `Basic` value, the decoded `user:password`, the password alone from 4
-  characters: `echoedCredentialForms`) are scrubbed from error bodies, details, transport
-  error text and the `cause` chain. Whatever a custom transport
+  characters: `echoedCredentialForms`; the userinfo taken as typed and as WHATWG sends it, each
+  form also percent-encoded and as a JSON string spells it) are scrubbed from error bodies,
+  details, transport error text and the `cause` chain. Server text is scrubbed again once
+  decoded, before it is cleaned or cut: a JSON-escaped echo (`\"`, `\u00e4`) passed the scrub
+  of the body as sent. `HochwasserzentralenApiError.body` stays as sent unless it is JSON whose
+  decoded text still holds an echoed form: then it is the decoded JSON written again
+  (`JSON.stringify`) with the form replaced by `***` (`""` for one too deeply nested to write
+  again). The values a parse error quotes from an answer (a Content-Type, charset or
+  Content-Encoding; a station's off-scale `lhpClass` and its id, through the optional `scrub` of
+  `stationClass`, `filterStations` and `aggregateSituation`, which the client passes) are
+  scrubbed before they are cut. Whatever a custom transport
   throws becomes a `HochwasserzentralenNetworkError` with the original (scrubbed) as
   `cause`. `apps/cli/test/conformance-p2-library-redaction.test.ts` checks the client, nine
   failing transports and five rejected base URLs.

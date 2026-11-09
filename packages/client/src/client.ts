@@ -192,6 +192,7 @@ export class HochwasserzentralenClient {
         apiStatus: cutText(sanitizeServerText(this.engine.scrub(apiStatus)), 40),
         url: this.engine.buildUrl(endpoint, query),
         method: "GET",
+        // Written again from the decoded answer: the engine's scrub knows the JSON spellings too.
         body: this.engine.scrub(JSON.stringify(res)),
         ...(detail !== undefined ? { detail } : {}),
       });
@@ -250,10 +251,14 @@ export class HochwasserzentralenClient {
     // gauge raise an RP alarm. Keep only the requested states' gauges.
     const scoped = params.states === undefined ? res : onlyStates(res, normalizeStates(params.states));
     if (params.water === undefined && params.minClass === undefined) return scoped;
-    return filterStations(scoped, {
-      ...(params.water !== undefined ? { water: params.water } : {}),
-      ...(params.minClass !== undefined ? { minClass: params.minClass } : {}),
-    });
+    return filterStations(
+      scoped,
+      {
+        ...(params.water !== undefined ? { water: params.water } : {}),
+        ...(params.minClass !== undefined ? { minClass: params.minClass } : {}),
+      },
+      (text) => this.engine.scrub(text),
+    );
   }
 
   /**
@@ -272,6 +277,6 @@ export class HochwasserzentralenClient {
       ...(states !== undefined ? { states } : {}),
       ...(params.lang !== undefined ? { lang: params.lang } : {}),
     });
-    return aggregateSituation(res, states);
+    return aggregateSituation(res, states, (text) => this.engine.scrub(text));
   }
 }

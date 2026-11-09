@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { TextDecoder } from "node:util";
+import { TextDecoder, inspect } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers, type EngineOptions } from "../src/engine.js";
 import {
@@ -868,4 +868,135 @@ test("an answer of millions of lone surrogate escapes is repaired within a small
     `process.stdout.write(value.x.length + " " + /: (\\d+) characters/.exec(warned)[1]);`;
   const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
   assert.equal(out, `${n} ${n}`);
+});
+
+// A password with characters a JSON writer escapes (a quote) or may write as \u00XX (an umlaut),
+// and one a URL's query percent-encodes but encodeURIComponent doesn't (an apostrophe).
+const ECHO_PW = "pä\"s's-W0rd";
+const ECHO_BASE = `https://alice:${encodeURIComponent(ECHO_PW)}@mirror.example`;
+/** The forms of the credential an error must not carry: decoded, and as JSON spells them (`\"`). */
+const ECHO_SECRETS = [ECHO_PW, `alice:${ECHO_PW}`, Buffer.from(`alice:${ECHO_PW}`, "utf8").toString("base64")].flatMap((secret) => [
+  secret,
+  JSON.stringify(secret).slice(1, -1),
+]);
+
+/** Everything a library user may log of an error: inspect, message, detail, location, and the decoded body. */
+function everythingOf(err: unknown): string {
+  const e = err as { message?: unknown; detail?: unknown; location?: unknown; body?: unknown };
+  let text = inspect(err, { depth: 10, showHidden: true }) + [e.message, e.detail, e.location, e.body].map(String).join("\n");
+  const walk = (v: unknown): void => {
+    if (typeof v === "string") text += `\n${v}`;
+    else if (v !== null && typeof v === "object") for (const [k, w] of Object.entries(v)) (text += `\n${k}`), walk(w);
+  };
+  try {
+    walk(typeof e.body === "string" ? JSON.parse(e.body) : undefined);
+  } catch {
+    // not JSON: the body as sent is all a caller reads
+  }
+  return text;
+}
+
+/** `text` as a JSON writer that escapes every non-ASCII character writes it (Python's json.dumps). */
+const asciiJson = (text: string): string =>
+  JSON.stringify(text).replace(/[\u0080-￿]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+/** `text` with every character written as a \uXXXX escape: no spelling of it as sent matches. */
+const escapedJson = (text: string): string => `"${[...text].map((ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`).join("")}"`;
+
+test("a credential echoed with JSON escapes is scrubbed from an error status, a failed envelope and a quoted station (class D)", async () => {
+  const echoes = [asciiJson(`wrong password ${ECHO_PW}`), JSON.stringify(`bad login alice:${ECHO_PW}`), escapedJson(ECHO_PW), JSON.stringify(`no access to https://alice:${ECHO_PW}@mirror.example/x`)];
+  const failure = async (answer: () => HttpResponse, call: (c: HochwasserzentralenClient) => Promise<unknown> = (c) => c.alerts()): Promise<unknown> => {
+    const client = new HochwasserzentralenClient({ baseUrl: ECHO_BASE, maxRetries: 0, transport: makeMockTransport(answer).transport });
+    return call(client).then(() => assert.fail("the call should have failed"), (err: unknown) => err);
+  };
+  for (const json of echoes) {
+    // The API's JSend error on an error status, and a 2xx envelope that reports a failure.
+    for (const [status, body] of [
+      [401, `{"status":"fail","error":{"code":"UNAUTHORIZED","message":${json}}}`],
+      [500, `{"message":${json}}`],
+      [200, `{"status":"error","message":${json},"data":[]}`],
+    ] as const) {
+      const err = await failure(() => jsonResponse(body, status));
+      assert.ok(err instanceof HochwasserzentralenApiError && err.status === status, String(err));
+      const seen = everythingOf(err);
+      for (const secret of ECHO_SECRETS) assert.ok(!seen.includes(secret), `${status} ${json}: ${seen.slice(0, 2000)}`);
+    }
+  }
+  // A station whose id or class echoes the credential: quoted in the parse error, scrubbed before
+  // it is cut (a cut first would leave the start of the password).
+  for (const station of [
+    { id: `${"x".repeat(95)}${ECHO_PW}`, lhpClass: 99 },
+    { id: "BY_1", lhpClass: `${"y".repeat(30)}${ECHO_PW}` },
+  ]) {
+    const body = JSON.stringify({ ...fx.stationsJson, data: [station] });
+    for (const call of [(c: HochwasserzentralenClient) => c.situation(), (c: HochwasserzentralenClient) => c.stations({ minClass: 1 })]) {
+      const err = await failure(() => jsonResponse(body), call);
+      assert.ok(err instanceof HochwasserzentralenParseError && /Unexpected lhpClass/.test(err.message), String(err));
+      for (const secret of [...ECHO_SECRETS, 'pä"s', 'pä\\"s']) assert.ok(!err.message.includes(secret), err.message);
+    }
+  }
+});
+
+test("an error body keeps its spelling unless a credential hides behind an escape", async () => {
+  const base = "https://alice:s3cret-pw@mirror.example";
+  const bodyOf = async (body: string): Promise<string> => {
+    const e = new RequestEngine({ baseUrl: base, transport: async () => rawResponse(body, "application/json", 500) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof HochwasserzentralenApiError, String(err));
+    return err.body;
+  };
+  // No credential, or one spelled as sent: the body as sent (scrubbed), escapes kept.
+  assert.equal(await bodyOf('{"m":"caf\\u00e9 \\"x\\""}'), '{"m":"caf\\u00e9 \\"x\\""}');
+  assert.equal(await bodyOf('{"m":"pw s3cret-pw \\u00e9"}'), '{"m":"pw *** \\u00e9"}');
+  // Escaped: written again decoded, scrubbed in that spelling.
+  assert.equal(await bodyOf('{"m":"pw s3cret\\u002dpw \\u00e9"}'), '{"m":"pw *** é"}');
+  // Not JSON: nobody decodes it, it stays as sent.
+  assert.equal(await bodyOf("pw s3cret\\u002dpw"), "pw s3cret\\u002dpw");
+  // Deeply nested: written again where this runtime can, else left out (probed, not assumed:
+  // whether JSON.stringify recurses depends on the Node version).
+  const deep = `${"[".repeat(200_000)}"s3cret\\u002dpw"${"]".repeat(200_000)}`;
+  let parses = true;
+  let writes = true;
+  try {
+    const value: unknown = JSON.parse(deep);
+    try {
+      JSON.stringify(value);
+    } catch {
+      writes = false;
+    }
+  } catch {
+    parses = false;
+  }
+  if (parses) {
+    const body = await bodyOf(deep);
+    assert.ok(!body.includes("s3cret"), body.slice(199_990, 200_030));
+    assert.equal(body === "", !writes);
+  }
+});
+
+test("an echo of the request URL as sent is scrubbed, a short password too", async () => {
+  // Typed raw; WHATWG sends `p%22%C3%A4` in the URL, which a server echoes.
+  const e = new RequestEngine({
+    baseUrl: 'https://alice:p"ä@mirror.example',
+    transport: async (req) => rawResponse(JSON.stringify({ message: `no access: ${req.url}` }), "application/json", 403),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof HochwasserzentralenApiError, String(err));
+  for (const text of [err.message, err.detail ?? "", err.body]) {
+    assert.ok(!text.includes("p%22%C3%A4@") && !text.includes('p"ä@'), text);
+  }
+});
+
+test("a Content-Type, charset or Content-Encoding a parse error quotes is scrubbed first", async () => {
+  const pw = "s3cret-Pw-long";
+  for (const contentType of [`text/html; x=${pw}`, `application/json; charset=x-${pw}`]) {
+    const e = new RequestEngine({ baseUrl: `https://alice:${pw}@mirror.example`, transport: async () => rawResponse("<html>", contentType) });
+    const err = await e.getJson("/x").catch((caught: unknown) => caught);
+    assert.ok(err instanceof HochwasserzentralenParseError && !err.message.includes("s3cret"), String(err));
+  }
+  const e = new RequestEngine({
+    baseUrl: `https://alice:${pw}@mirror.example`,
+    transport: async () => ({ status: 200, headers: { "content-type": "application/json", "content-encoding": `gzip-${pw}` }, body: Buffer.from("{}") }),
+  });
+  const err = await e.getJson("/x").catch((caught: unknown) => caught);
+  assert.ok(err instanceof HochwasserzentralenParseError && /Content-Encoding/.test(err.message) && !err.message.includes("s3cret"), String(err));
 });

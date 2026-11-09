@@ -90,10 +90,10 @@ export function assertStationFilter(filter: StationFilter): void {
  * diacritics dropped); a station without a string `water` never
  * matches. `minClass` keeps stations whose {@link stationClass} is at least the
  * value: a null class never matches, an off-scale class throws a
- * HochwasserzentralenParseError. A bad filter value throws a
- * HochwasserzentralenValidationError.
+ * HochwasserzentralenParseError (its quoted values through `scrub`, see {@link stationClass}).
+ * A bad filter value throws a HochwasserzentralenValidationError.
  */
-export function filterStations(res: StationsResponse, filter: StationFilter): StationsResponse {
+export function filterStations(res: StationsResponse, filter: StationFilter, scrub: (text: string) => string = asIs): StationsResponse {
   assertValid("res", res as unknown, responseArgProblem);
   // A misspelled key (`Water`, `minclass`) used to be ignored, returning every station.
   assertValid("filter", filter as unknown, knownKeysProblem(STATION_FILTER_KEYS));
@@ -105,7 +105,7 @@ export function filterStations(res: StationsResponse, filter: StationFilter): St
   }
   if (minClass !== undefined) {
     data = data.filter((s) => {
-      const cls = stationClass(s);
+      const cls = stationClass(s, scrub);
       return cls !== null && cls >= minClass;
     });
   }
@@ -176,24 +176,30 @@ export function alertsOnlyStates(res: AlertsResponse, states: readonly string[])
   };
 }
 
+/** Text as it is: the `scrub` of a caller without credentials to hide. */
+const asIs = (text: string): string => text;
+
 /**
  * A station's lhpClass on the documented station scale, shared by the `minClass`
  * filter and the situation overview so the two never disagree: an integer from -1
  * to 4, or `null` for a gauge without a flood classification (`lhpClass` null or
  * absent). Anything else (99, 2.5, the string "3") means the upstream scale or type
  * changed; counting it as "no data" or filtering it by number could hide a flood,
- * so it throws a {@link HochwasserzentralenParseError} instead (CLI exit 1).
+ * so it throws a {@link HochwasserzentralenParseError} instead (CLI exit 1). The values that
+ * error quotes (the class and the station's id, server text) pass through `scrub` first, before
+ * they are cleaned and cut: the client passes its engine's scrub, so a credential of the base
+ * URL echoed there never reaches the message, not even in part.
  */
-export function stationClass(station: Station): number | null {
+export function stationClass(station: Station, scrub: (text: string) => string = asIs): number | null {
   if (typeof station !== "object" || station === null || Array.isArray(station)) {
     throw new HochwasserzentralenValidationError("Invalid station: Expected a station object.");
   }
   const value = station.lhpClass as unknown;
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isInteger(value) && value >= -1 && value <= 4) return value;
-  const shown = cutText(sanitizeServerText(JSON.stringify(value) ?? String(value)), 40);
+  const shown = cutText(sanitizeServerText(scrub(JSON.stringify(value) ?? String(value))), 40);
   throw new HochwasserzentralenParseError(
-    `Unexpected lhpClass ${shown} at station "${cutText(sanitizeServerText(String(station.id)), 100)}" from /data/stations: ` +
+    `Unexpected lhpClass ${shown} at station "${cutText(sanitizeServerText(scrub(String(station.id))), 100)}" from /data/stations: ` +
       `expected an integer from -1 to 4, or null. The API's class scale may have changed.`,
   );
 }
@@ -252,10 +258,14 @@ function classNamer(res: StationsResponse): (lhpClass: number) => string {
  * worst class (a server that ignored `?states=` can't change the answer). Without
  * `states`, all 16 are listed and every gauge counts; one whose state isn't among the 16
  * gets an entry of its own rather than being lost. A null `lhpClass` counts in the "-1"
- * bucket; an off-scale one throws (see {@link stationClass}). `client.situation()`
- * fetches and aggregates in one call.
+ * bucket; an off-scale one throws (see {@link stationClass}; its quoted values through `scrub`).
+ * `client.situation()` fetches and aggregates in one call.
  */
-export function aggregateSituation(res: StationsResponse, states?: readonly string[]): Situation {
+export function aggregateSituation(
+  res: StationsResponse,
+  states?: readonly string[],
+  scrub: (text: string) => string = asIs,
+): Situation {
   assertValid("res", res as unknown, responseArgProblem);
   const requested = states === undefined ? undefined : normalizeStates(states);
   const included = requested === undefined ? res : onlyStates(res, requested);
@@ -280,7 +290,7 @@ export function aggregateSituation(res: StationsResponse, states?: readonly stri
     entry.stations += 1;
     // `lhpClass: null` ("Ohne Hochwasser-Einstufung"), which occurs live, counts
     // in "-1" — see GLOSSARY.md. An off-scale value throws (stationClass).
-    const cls = stationClass(s) ?? -1;
+    const cls = stationClass(s, scrub) ?? -1;
     entry.classes[String(cls)] = (entry.classes[String(cls)] ?? 0) + 1;
     if (entry.worstClass === null || cls > entry.worstClass) {
       entry.worstClass = cls;
