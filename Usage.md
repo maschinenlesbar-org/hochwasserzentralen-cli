@@ -110,7 +110,10 @@ an ERROR of `hochwasser.output`), not a usage error. The file is written atomica
 (a temporary file beside it, renamed over it), so a failed write leaves the old file as it
 was, and an interrupted run (Ctrl-C, `SIGTERM`, `SIGHUP`: exit 130, 143, 129) leaves no
 half-written or temporary file; with `--force` the old file's mode is kept and a symlink is
-written through (a dangling one creates the file it points at). A device, a FIFO or the shell's
+written through (a dangling one creates the file it points at), unless another user made it in a
+directory others can write to, such as `/tmp` (refused, exit 2: the rule of Linux's
+`fs.protected_symlinks`, at every link of a chain); a link that can't be inspected (`EACCES`) is
+refused as that, not as an existing file. A device, a FIFO or the shell's
 own descriptor (`/dev/null`, `/dev/stdout`, `>(gzip > x.gz)`) is written in place, without
 `--force`. `-o -` means stdout; any other value that starts with a dash (`-o --compact`, a
 forgotten file name) is refused as a missing value (exit 2) — write a file named `-x` as `./-x`.

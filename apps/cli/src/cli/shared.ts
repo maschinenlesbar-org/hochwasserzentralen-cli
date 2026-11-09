@@ -201,7 +201,13 @@ export function checkOutputTarget(deps: CliDeps, global: GlobalOptions): void {
   }
   if (global.output === undefined || global.output === "-") return;
   const files = deps.files ?? nodeFiles;
-  const state = files.state(global.output);
+  let state: ReturnType<typeof files.state>;
+  try {
+    state = files.state(global.output);
+  } catch (err) {
+    // A path that can't be told (EACCES on the way) is refused as that, before any request.
+    throw new OutputError(err instanceof Error ? err.message : String(err), { refused: true, cause: err });
+  }
   if (state === "directory") throw isDirectoryError(global.output);
   // A device, a FIFO or `/dev/stdout` is written in place: nothing in it can be lost.
   if (state === "stream") return;

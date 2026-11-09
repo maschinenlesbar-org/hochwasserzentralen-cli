@@ -384,7 +384,13 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   then is the same); the data goes to a temporary file beside the target, renamed over it, so a
   write cut short (a full disk, a quota) leaves the old file as it was; an existing file's
   mode is kept, and `--force` writes through a symlink (a dangling one, or a chain of them,
-  creates the file the link names; the link stays). The temporary name stays within NAME_MAX
+  creates the file the link names; the link stays), but never through one another user made in
+  a directory others can write to (sticky or writable by others, as `/tmp`; `linkTarget`, at
+  every hop: the rule of Linux's `fs.protected_symlinks`, which can't apply since the CLI reads
+  the links itself; refused before the request, exit 2, or as a failed write, exit 1, when it
+  appears during it). The owners come through `nodeFilesFor(owners)` (`LinkOwners`), so tests
+  play another user. A link that can't be inspected (`EACCES`) is refused as that, never taken
+  for an existing file that `--force` may replace. The temporary name stays within NAME_MAX
   (255 bytes; a long base name is shortened). SIGINT, SIGTERM and SIGHUP during a file write
   remove the claim and the temporary file, then exit 130, 143 or 129. On failure no temporary
   file and no claimed name is left: `Could not write to

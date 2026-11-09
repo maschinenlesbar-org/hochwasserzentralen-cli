@@ -1,10 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { OutputError, handleOutputErrors, nodeFiles, stderrAfterStdout } from "../src/cli/io.js";
+import { OutputError, handleOutputErrors, nodeFiles, nodeFilesFor, stderrAfterStdout, type LinkOwners } from "../src/cli/io.js";
+import { run } from "../src/cli/run.js";
+import { HochwasserzentralenClient } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/client";
+import type { HttpRequest } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
+import { jsonResponse, makeMockTransport, untimed } from "./helpers.js";
 import { createLogger } from "../src/cli/log.js";
 
 function writeError(code: string): NodeJS.ErrnoException {
@@ -154,4 +158,112 @@ test("stderr waits for stdout: a record is held while stdout has a backlog, and 
   err("fifth");
   stdout.emit("error", new Error("EPIPE"));
   assert.deepEqual(written, ["first", "second", "third", "fourth", "fifth"]);
+});
+
+// ---- -o --force and other users' links (security audit 2026-10-27, class G) -------------
+
+/** The caller, and another user who planted links. */
+const ME = 1000;
+const OTHER = 1001;
+/** /tmp: owned by root, sticky and world-writable. */
+const SHARED = { uid: 0, mode: 0o41777 };
+
+/** Owners as a test says: links' owners (the caller otherwise), directories' owner and mode. */
+function owners(links: Record<string, number>, dirs: Record<string, { uid: number; mode: number }>): LinkOwners {
+  return {
+    uid: ME,
+    ownerOf: (path, follow) => (follow ? (dirs[path] ?? { uid: ME, mode: 0o40755 }) : { uid: links[path] ?? ME, mode: 0o120777 }),
+  };
+}
+
+async function runWith(files: ReturnType<typeof nodeFilesFor>, file: string, force: boolean): Promise<{ code: number; err: string; requests: HttpRequest[] }> {
+  const mock = makeMockTransport(() => jsonResponse({ status: "success", data: [] }));
+  const err: string[] = [];
+  const code = await run(["--max-retries", "0", "-o", file, ...(force ? ["--force"] : []), "alerts"], {
+    io: { out: () => {}, err: (s) => err.push(s) },
+    createClient: (options) => new HochwasserzentralenClient({ ...options, transport: mock.transport }),
+    files,
+  });
+  return { code, err: untimed(err.join("\n")), requests: mock.calls };
+}
+
+/** A temporary directory with a victim file and a link `out.json` to it. */
+function planted(): { dir: string; victim: string; link: string; done: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), "hw-g-"));
+  const victim = join(dir, "victim.txt");
+  writeFileSync(victim, "keep me\n");
+  const link = join(dir, "out.json");
+  symlinkSync(victim, link);
+  return { dir, victim, link, done: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+test("-o --force does not follow another user's link in a shared directory, at any hop, before any request or at write time", { skip: process.platform === "win32" }, async () => {
+  const t = planted();
+  try {
+    // Sticky or just writable by others: both count.
+    for (const dir of [SHARED, { uid: ME, mode: 0o40777 }]) {
+      const files = nodeFilesFor(owners({ [t.link]: OTHER }, { [t.dir]: dir }));
+      const o = await runWith(files, t.link, true);
+      assert.equal(o.code, 2, o.err);
+      assert.equal(o.requests.length, 0);
+      assert.match(o.err, /ERROR \[hochwasser\.output\] .*another user/);
+      assert.ok(o.err.includes(t.link), o.err);
+      assert.throws(() => files.write(t.link, Buffer.from("x"), true), /another user/);
+      assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
+      assert.ok(lstatSync(t.link).isSymbolicLink());
+    }
+    // own link -> another user's link -> the victim; and another user's dangling link.
+    const inner = join(t.dir, "inner");
+    symlinkSync(t.victim, inner);
+    const outer = join(t.dir, "outer.json");
+    symlinkSync(inner, outer);
+    assert.equal((await runWith(nodeFilesFor(owners({ [inner]: OTHER }, { [t.dir]: SHARED })), outer, true)).code, 2);
+    const dangling = join(t.dir, "dangling.json");
+    const target = join(t.dir, "created-elsewhere.json");
+    symlinkSync(target, dangling);
+    assert.equal((await runWith(nodeFilesFor(owners({ [dangling]: OTHER }, { [t.dir]: SHARED })), dangling, true)).code, 2);
+    assert.throws(() => statSync(target));
+    assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
+  } finally {
+    t.done();
+  }
+});
+
+test("-o --force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes", { skip: process.platform === "win32" }, async () => {
+  const cases: Array<[string, (t: ReturnType<typeof planted>) => LinkOwners]> = [
+    ["the caller's own link in a shared directory", (t) => owners({}, { [t.dir]: SHARED })],
+    ["a link of the shared directory's owner", (t) => owners({ [t.link]: 0 }, { [t.dir]: SHARED })],
+    ["another user's link in a directory only its owner writes", (t) => owners({ [t.link]: OTHER }, { [t.dir]: { uid: OTHER, mode: 0o40755 } })],
+    ["another user's link where no caller id exists", (t) => ({ ...owners({ [t.link]: OTHER }, { [t.dir]: SHARED }), uid: undefined })],
+  ];
+  for (const [label, who] of cases) {
+    const t = planted();
+    try {
+      const o = await runWith(nodeFilesFor(who(t)), t.link, true);
+      assert.equal(o.code, 0, `${label}: ${o.err}`);
+      assert.equal((JSON.parse(readFileSync(t.victim, "utf8")) as { status: string }).status, "success", label);
+      assert.ok(lstatSync(t.link).isSymbolicLink(), label);
+    } finally {
+      t.done();
+    }
+  }
+});
+
+test("an -o path that can't be inspected is reported as such, not as an existing file", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "hw-g-"));
+  try {
+    const closed = join(dir, "closed");
+    mkdirSync(closed);
+    const link = join(dir, "out.json");
+    symlinkSync(join(closed, "x.json"), link);
+    chmodSync(closed, 0o000);
+    const o = await runWith(nodeFilesFor(), link, false);
+    assert.equal(o.code, 2, o.err);
+    assert.equal(o.requests.length, 0);
+    assert.doesNotMatch(o.err, /Refusing to overwrite existing file/);
+    assert.match(o.err, /EACCES|permission/i);
+  } finally {
+    chmodSync(join(dir, "closed"), 0o700);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
