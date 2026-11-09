@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 import { TextDecoder } from "node:util";
 import assert from "node:assert/strict";
 import { RequestEngine, bigIntegerKeysOption, firstInexactNumber, parseRetryAfter, sanitizeServerText, scanNumbers, type EngineOptions } from "../src/engine.js";
@@ -836,4 +837,35 @@ test("a number with a long run of zeros is checked in linear time (class A)", as
   assert.ok(total < 1000, `${Math.round(total)} ms`);
   assert.ok(err instanceof HochwasserzentralenParseError && /cannot be represented exactly/.test(err.message), String(err));
   assert.ok(err.message.length < 1000, "the message quotes the literal cut");
+});
+
+// These tests start a process with a small heap: 30 s instead of the suite's 5 s.
+const STARTS_A_PROCESS = { timeout: 30_000 };
+
+test("scanNumbers quotes millions of declared members within a small heap", STARTS_A_PROCESS, () => {
+  // One `+=` per quoted member made a rope node each: 3 million of them exhausted a 128 MB heap.
+  const engine = new URL("../src/engine.js", import.meta.url).href;
+  const n = 3_000_000;
+  const script =
+    `const { scanNumbers } = await import(${JSON.stringify(engine)});` +
+    `const json = "[" + '{"k":1},'.repeat(${n - 1}) + '{"k":1}]';` +
+    `process.stdout.write(String(scanNumbers(json, new Set(["k"])).json.length));`;
+  const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
+  assert.equal(out, String(n * 10 + 1));
+});
+
+test("an answer of millions of lone surrogate escapes is repaired within a small heap", STARTS_A_PROCESS, () => {
+  // One `+=` per repair (`wellFormedEscapes`) made a rope node each: 6 million of them (36 MB of
+  // escapes) exhausted a 128 MB heap.
+  const engine = new URL("../src/engine.js", import.meta.url).href;
+  const n = 6_000_000;
+  const script =
+    `const { RequestEngine } = await import(${JSON.stringify(engine)});` +
+    `const body = Buffer.from('{"x":"' + "\\\\ud800".repeat(${n}) + '"}');` +
+    `let warned = "";` +
+    `const e = new RequestEngine({ onWarning: (m) => (warned = m), transport: async () => ({ status: 200, headers: { "content-type": "application/json" }, body }) });` +
+    `const value = await e.getJson("/x");` +
+    `process.stdout.write(value.x.length + " " + /: (\\d+) characters/.exec(warned)[1]);`;
+  const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
+  assert.equal(out, `${n} ${n}`);
 });

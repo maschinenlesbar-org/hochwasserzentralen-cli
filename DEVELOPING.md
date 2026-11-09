@@ -405,6 +405,9 @@ the charset, and a lone surrogate written as a JSON escape (`\ud800`, which `jq`
 the whole output), are replaced with U+FFFD, and the engine option `onWarning(message)` is told
 how many (`GET <url>: 2 characters of the answer were not valid text … replaced with U+FFFD.`);
 the CLI logs it as a WARN record of `hochwasser.api`. One bad character never sinks an answer.
+The repair and the quoting of declared big integers (`scanNumbers`) collect their pieces in a
+`TextBuilder` (errors.ts: joined in batches into flat strings), so millions of repairs fit in a
+small heap; one `+=` per piece made a rope node each and exhausted 128 MB.
 A body too large to become one string (512 MB and more, possible only with `maxResponseBytes: 0`
 or `--max-response-bytes 0`) is a `HochwasserzentralenParseError`, `GET <url>: the answer is too
 large to read as text (N bytes; the longest string is 536870888 characters).`, not a plain `Error`
