@@ -470,7 +470,10 @@ a throw in it is swallowed. The CLI's `action()` sets it to log one `WARN` recor
 seconds, ms under 1 s). Tests: `packages/client/test/engine.test.ts`, `apps/cli/test/retry-log.test.ts`.
 
 **maxResponseBytes.** A hard cap on response body size to defend against memory
-exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`.
+exhaustion (default 100 MiB; `0` = unlimited). CLI: `--max-response-bytes`. The default
+transport joins small chunks as they arrive (every 1024 chunks or 64 KiB), so the memory an
+answer takes follows its bytes, not the number of chunks a server splits it into: a Buffer per
+one-byte chunk held about 210 bytes of heap each.
 
 **Transport contract.** The engine enforces its limits for *every* transport, not only the
 built-in one: each call races a deadline (`timeoutMs`, passed to the transport as
@@ -606,8 +609,9 @@ everything that drives the CLI is in `apps/cli/test/`.
   under `ulimit -f` a write cut short leaves the old file and nothing else, stdout to a file cut
   short exits 1; a missing directory before any request; devices, FIFOs and `/dev/stdout` in
   place; a signal leaves no claim or temporary file), P27 big and odd answers (a large flat
-  answer and 20 MB of DEL under a small heap, 90 MB of DEL refused cleanly, a lone surrogate or
-  invalid bytes replaced with a WARN). `kitParity` in `apps/cli/test/helpers.ts` gives `parity`
+  answer and 20 MB of DEL under a small heap, 90 MB of DEL refused cleanly, an answer in two
+  million one-byte chunks under a small heap, a lone surrogate or invalid bytes replaced with a
+  WARN). `kitParity` in `apps/cli/test/helpers.ts` gives `parity`
   the shape their bodies read.
 
 ## Continuous integration
