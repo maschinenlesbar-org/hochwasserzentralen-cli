@@ -817,3 +817,23 @@ test("redactUrlUserinfo hides the userinfo of a URL glued onto the one before it
     assert.ok(ms < 1000, `${Math.round(ms)} ms on ${text.slice(0, 40)}…`);
   }
 });
+
+test("a number with a long run of zeros is checked in linear time (class A)", async () => {
+  // `decimalOf` stripped trailing zeros with /0+$/, which tries a match at every zero of a run
+  // that doesn't end the text: 1.<100 000 zeros>1e300 took about 15 s, after the answer was in.
+  const literal = `1.${"0".repeat(100_000)}1e300`;
+  let scan: ReturnType<typeof scanNumbers> | undefined;
+  const ms = elapsed(() => (scan = scanNumbers(`{"x":${literal}}`)));
+  assert.ok(ms < 1000, `${Math.round(ms)} ms`);
+  assert.equal(scan?.inexact, literal);
+  // Same result as before: leading and trailing zeros are not significant.
+  assert.equal(firstInexactNumber("[12345678901234567890.000, 0.000, 000.0e5, 1e23, 5e-324]"), "12345678901234567890.000");
+  assert.equal(firstInexactNumber("[100000000000000000000, 1.0e23, 0e-400]"), undefined);
+  assert.equal(firstInexactNumber("[3e-324]"), "3e-324");
+  const engine = new RequestEngine({ maxRetries: 0, transport: makeMockTransport(() => jsonResponse(`{"x":${literal}}`)).transport });
+  let err: unknown;
+  const total = await elapsedAsync(async () => (err = await engine.getJson("/x").catch((e: unknown) => e)));
+  assert.ok(total < 1000, `${Math.round(total)} ms`);
+  assert.ok(err instanceof HochwasserzentralenParseError && /cannot be represented exactly/.test(err.message), String(err));
+  assert.ok(err.message.length < 1000, "the message quotes the literal cut");
+});
