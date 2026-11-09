@@ -29,16 +29,12 @@ const run = (argv: string[], { env: _env, ...deps }: CliDeps & { env: Record<str
 const HAS_OUTPUT_OPTION = true;
 /** argv that writes the answer of one GET to `file`. */
 const outputArgv = (file: string, force: boolean): string[] => ["--max-retries", "0", "-o", file, ...(force ? ["--force"] : []), "alerts"];
-/**
- * A 2xx answer for that GET. The CLI writes the whole envelope, a JSON object, never the
- * `[{ "id": "a1" }]` the body's "still follows" test reads back: that test is skipped
- * (FOLLOWS_SKIP), and apps/cli/test/io.test.ts checks the same cases on this answer.
- */
+/** A 2xx answer for that GET. */
 const answer = () => jsonResponse({ status: "success", data: [] });
+/** What the CLI writes to the file for that answer, parsed as JSON (read back after a followed link). */
+const written: unknown = { status: "success", data: [] };
 /** The exit code of a usage error in this repo (commander's default is 1; most repos use 2). */
 const USAGE_EXIT = 2;
-/** Why the "still follows" test is skipped here (see `answer`). */
-const FOLLOWS_SKIP = 'the CLI writes the whole envelope, never [{ "id": "a1" }]; apps/cli/test/io.test.ts checks these cases';
 // --------------------------------------------------------------------------------------
 
 const skip = !HAS_OUTPUT_OPTION;
@@ -127,7 +123,7 @@ test("P30: the rule holds at every hop, a dangling last one included", { skip },
   }
 });
 
-test("P30: --force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes", { skip: FOLLOWS_SKIP }, async () => {
+test("P30: --force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes", { skip }, async () => {
   const cases: Array<[string, (t: ReturnType<typeof planted>) => LinkOwners]> = [
     ["the caller's own link in a shared directory", (t) => owners({}, { [t.dir]: SHARED })],
     ["a link of the shared directory's owner", (t) => owners({ [t.link]: 0 }, { [t.dir]: SHARED })],
@@ -139,7 +135,7 @@ test("P30: --force still follows the caller's own links, the directory owner's, 
     try {
       const o = await runWith(nodeFilesFor(who(t)), outputArgv(t.link, true));
       assert.equal(o.code, 0, `${label}: ${o.err}`);
-      assert.deepEqual(JSON.parse(readFileSync(t.victim, "utf8")), [{ id: "a1" }], label);
+      assert.deepEqual(JSON.parse(readFileSync(t.victim, "utf8")), written, label);
       assert.ok(lstatSync(t.link).isSymbolicLink(), label);
     } finally {
       t.done();
