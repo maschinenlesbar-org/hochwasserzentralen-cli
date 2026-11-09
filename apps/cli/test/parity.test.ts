@@ -334,3 +334,32 @@ test("parity: a refused value shows its invisible characters escaped, on both si
   // An unknown key of a parameter object is quoted visibly too.
   await assert.rejects(new HochwasserzentralenClient().stations({ "Wat\u200ber": "elbe" } as never), /Unknown key "Wat\\u200ber"/);
 });
+
+// ---- base-URL credentials (security audit 2026-10-27, portfolio round) -------------
+
+const TOKEN = "T0kenS3cret";
+const basicOf = (pair: string): string => Buffer.from(pair, "utf8").toString("base64");
+/** An alerts answer that carries `value` in a member the CLI prints. */
+const alertsWith = (value: string) => () => jsonResponse(`{"status":"success","data":[],"x":${JSON.stringify(value)}}`);
+
+test("a userinfo without a password is a token: scrubbed from library errors and redacted from what the CLI prints (class E)", async () => {
+  for (const base of [`https://${TOKEN}@mirror.example`, `https://${TOKEN}:@mirror.example`]) {
+    for (const echo of [`bad token ${TOKEN}`, `Authorization: Basic ${basicOf(`${TOKEN}:`)}`, `user ${TOKEN}: unknown`]) {
+      const o = await parity(["--base-url", base, "--max-retries", "0", "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t, maxRetries: 0 }).alerts(), () =>
+        jsonResponse({ status: "fail", error: { code: "UNAUTHORIZED", message: echo } }, 401),
+      );
+      assert.ok(!o.lib.ok);
+      const e = o.lib.error as Error & { detail?: unknown; body?: unknown };
+      const seen = [e.message, e.detail, e.body].map(String).join("\n");
+      assert.ok(/^HTTP 401 /.test(e.message), e.message);
+      assert.ok(!seen.includes(TOKEN) && !seen.includes(basicOf(`${TOKEN}:`)), `${base} ${echo}: ${seen}`);
+      assert.notEqual(o.cli.code, 0);
+      assert.ok(!o.cli.err.includes(TOKEN), o.cli.err);
+    }
+  }
+  // A 2xx answer that echoes the Basic value and `TOKEN:`: stdout.
+  const base = `https://${TOKEN}@mirror.example`;
+  const echoed = await parity(["--base-url", base, "--compact", "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t }).alerts(), alertsWith(`Basic ${basicOf(`${TOKEN}:`)} for ${TOKEN}:x`));
+  assert.equal(echoed.cli.code, 0, echoed.cli.err);
+  assert.ok(!echoed.cli.out.includes(basicOf(`${TOKEN}:`)) && !echoed.cli.out.includes(`${TOKEN}:`), echoed.cli.out);
+});

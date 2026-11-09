@@ -311,7 +311,9 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   was quadratic on an answer of `a.a.a.…` and held the run for seconds after the request. The forms a server echoes a userinfo back in
   are replaced too: the `Basic` value and the decoded `user:password` on stdout and
   stderr, the password alone (4 characters or more) on stderr only, since it may well
-  occur in the data. The log replaces them in each record's *message*, before the record is cut and escaped, and writes it to the raw stderr: the
+  occur in the data. A userinfo without a password (`https://TOKEN@host`, `TOKEN:@host`) is a
+  token: the user name is the secret, sent as Basic `TOKEN:`, and its forms are replaced the same
+  way. The log replaces them in each record's *message*, before the record is cut and escaped, and writes it to the raw stderr: the
   frame (time, level, topic) is never touched, and a password with DEL, C1 or bidi
   characters is matched in its raw form — commander's usage errors echo rejected values (`argument '…' is invalid`, `unknown
   command '…'`, `too many arguments … got 1: …`). `apps/cli/test/conformance-p1-cli-redaction.test.ts`
@@ -321,8 +323,8 @@ terminals go through the stream as before. P26 checks it under `ulimit -f`.
   real `#private` field (so `console.log(client)`, `util.inspect` and `JSON.stringify`
   never show it), `HochwasserzentralenApiError.url` and its message go through
   `redactUrl`, and the userinfo (raw and percent-decoded) and the forms a server echoes it
-  back in (the `Basic` value, the decoded `user:password`, the password alone from 4
-  characters: `echoedCredentialForms`; the userinfo taken as typed and as WHATWG sends it, each
+  back in (the `Basic` value, the decoded `user:password`, the password, or a token
+  user name, alone from 4 characters: `echoedCredentialForms`; the userinfo taken as typed and as WHATWG sends it, each
   form also percent-encoded and as a JSON string spells it) are scrubbed from error bodies,
   details, transport error text and the `cause` chain. Server text is scrubbed again once
   decoded, before it is cleaned or cut: a JSON-escaped echo (`\"`, `\u00e4`) passed the scrub
