@@ -617,10 +617,15 @@ GitHub Actions workflows under `.github/workflows/`:
 - **ci.yml** — type-check, build and test on Node 22/24/26 for every push and PR; then pack the
   real tarball, check the pack left nothing behind, install it globally with the registry out
   of reach and run the bin.
-- **release.yml** — on a `v*` tag (made by `npm run bump`): verify the tag matches
-  `apps/cli/package.json`, test, generate CycloneDX SBOMs (scoped to the `apps/cli`
-  workspace), then `npm pack --workspace apps/cli`, and create a GitHub Release with the
-  artifacts.
+- **release.yml** — on a `v*` tag (made by `npm run bump`), in three jobs: `pack`, read-only —
+  verify the tag matches `apps/cli/package.json`, changelog, test, `npm pack --workspace
+  apps/cli`, the tarball's and the notes' sha256 as job outputs; `sbom`, read-only — the two
+  CycloneDX SBOMs scoped to the `apps/cli` workspace, from the tool locked in `tools/sbom/`
+  (`npm ci --ignore-scripts --prefix tools/sbom`, never `npx`); `release`, the only job with
+  `contents: write` — checks the downloaded files against those digests and runs only
+  `gh release create` with the artifacts. To update the SBOM tool, change its version in
+  `tools/sbom/package.json` and run `npm install --package-lock-only --ignore-scripts` there;
+  don't chain that install into an npm script, as for `tools/docs`.
 - **publish.yml** — manual dispatch from the release tag (`gh workflow run publish.yml --ref vX.Y.Z`; the version is the tag's): `npm publish --workspace apps/cli` via OIDC **Trusted Publishing**
   (no stored `NPM_TOKEN`) with provenance.
 - **docs.yml** — build the project website (`site/`, English and German) with the TypeDoc API docs
