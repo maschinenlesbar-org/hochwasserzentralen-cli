@@ -111,11 +111,15 @@ export const headerNameProblem: Problem<unknown> = (value) =>
 /**
  * Every rule for a base URL, in order: a non-blank string without surrounding
  * whitespace or control characters, a parseable URL, the `http:` or `https:` scheme,
- * no query or fragment, and userinfo that decodes. Request paths are appended to the
+ * no query or fragment, no backslash, userinfo that decodes, and `//` and the host right
+ * after the scheme. Request paths are appended to the
  * base URL as a string, so a `?` or `#` would swallow every path and the `states`
  * filter (`http://h/v1?x=1` requests `/v1?x=1/data/stations`, `http://h/v1#f`
- * requests `/v1`), and a trailing space would land in the path: `new URL()` trims
- * surrounding whitespace and drops tab/CR/LF silently, so the raw string is checked.
+ * requests `/v1`); `new URL()` trims surrounding whitespace and drops tab/CR/LF
+ * silently, so the raw string is checked. WHATWG ends an http(s) authority at a `\` and
+ * repairs `http:host`, `http:/host` and `http:///host` into `http://host`: every reader of
+ * the value (the engine requests the parsed URL; a transport or a redaction that reads the
+ * text) has to see the same host, so both are refused.
  * Node decodes a `user:password@` into the Authorization header and fails at request
  * time on a `%` that isn't an escape, so that is rejected here too (write a literal
  * `%` as `%25`). The reasons never echo the URL, so a credential in it cannot leak.
@@ -136,6 +140,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return "Only http: and https: base URLs are supported.";
   if (/[?#]/.test(value)) return "A base URL cannot have a query (?) or fragment (#).";
+  // WHATWG reads a "\" in an http(s) URL as "/", so it ends the host: in
+  // `https://u:pw@a.example\@b.example` every reader of the base URL has to agree where.
+  if (value.includes("\\")) return 'A base URL cannot contain a backslash (\\); write "/" instead.';
   for (const part of [url.username, url.password]) {
     try {
       decodeURIComponent(part);
@@ -143,6 +150,9 @@ export const baseUrlProblem: Problem<unknown> = (value) => {
       return 'The user name or password has a "%" that is not followed by two hex digits; write a literal "%" as %25.';
     }
   }
+  // WHATWG skips any slashes after "http:" and repairs `http:host`, `http:/host` and
+  // `http:///host` into `http://host` silently: the host requested would not be the one typed.
+  if (!/^https?:\/\/[^/]/i.test(value)) return 'Expected an absolute http(s) URL ("https://" and the host).';
   return undefined;
 };
 

@@ -10,6 +10,7 @@ import {
   HochwasserzentralenValidationError,
   cutForMessage,
   TextBuilder,
+  credentialsIn,
   cutText,
   echoedCredentialForms,
   redactUrlUserinfo,
@@ -1011,4 +1012,66 @@ test("echoedCredentialForms treats a userinfo without a password as a token (Bas
   assert.deepEqual(echoedCredentialForms(":pw12"), [basic(":pw12"), ":pw12", "pw12"]);
   assert.deepEqual(echoedCredentialForms(""), []);
   assert.deepEqual(echoedCredentialForms(":"), []);
+});
+
+test("credentialsIn ends the authority of a special scheme at a backslash, as WHATWG does", () => {
+  for (const scheme of ["http", "https", "HTTPS", "ws", "wss", "ftp"]) {
+    assert.deepEqual(credentialsIn(`${scheme}://u:p@a.example\\@b.example/x`), ["u:p"], scheme);
+    assert.equal(new URL(`${scheme}://u:p@a.example\\@b.example/x`).password, "p", scheme);
+  }
+  // Another scheme's authority runs on to "/", "?" or "#".
+  assert.deepEqual(credentialsIn("foo://u:p@a.example\\@b.example/x"), ["u:p@a.example\\"]);
+  assert.deepEqual(credentialsIn("https://u:p@a.example/x\\@y"), ["u:p"]);
+});
+
+test("credentialsIn skips the slashes and backslashes WHATWG skips after a special scheme (F3)", () => {
+  // `http:///u:pw@h`, `https:\\u:pw@h` and `http:u:pw@h` all carry `u:pw` for WHATWG; read
+  // after "://", the userinfo was missed, so a refused --base-url echoed the password in clear.
+  for (const value of [
+    "http:alice:pw@h.example",
+    "http:/alice:pw@h.example",
+    "http:///alice:pw@h.example/x",
+    "https:////alice:pw@h.example",
+    "HTTPS:\\\\alice:pw@h.example",
+    "wss:\\/alice:pw@h.example",
+    "ftp:alice:pw@h.example",
+  ]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+    assert.equal(new URL(value).password, "pw", value);
+  }
+  // Another scheme needs "//" before an authority: `foo:u:p@h` and `foo:///u:p@h` carry none.
+  assert.deepEqual(credentialsIn("foo:u:p@h.example"), []);
+  assert.deepEqual(credentialsIn("foo:///u:p@h.example"), []);
+  assert.equal(new URL("foo:///u:p@h.example").password, "");
+});
+
+test("a base URL whose scheme is not followed by // and the host, or with a backslash, is rejected at construction, never echoing the password (F, F4)", () => {
+  for (const [baseUrl, reason] of [
+    ["http:alice:s3cret@h.example", /"https:\/\/" and the host/],
+    ["http:/alice:s3cret@h.example", /"https:\/\/" and the host/],
+    ["http:///alice:s3cret@h.example", /"https:\/\/" and the host/],
+    ["HTTPS:alice:s3cret@h.example", /"https:\/\/" and the host/],
+    ["https://alice:s3cret@api.example\\@evil.example", /backslash/],
+    ["https:\\\\alice:s3cret@h.example", /backslash/],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    assert.throws(
+      () => new RequestEngine({ baseUrl, transport: mt.transport }),
+      (err) => err instanceof HochwasserzentralenValidationError && reason.test(err.message) && !err.message.includes("s3cret"),
+      baseUrl,
+    );
+    assert.equal(mt.calls.length, 0);
+  }
+});
+
+test("requests go to the base URL as WHATWG parses it, the reading every check makes", async () => {
+  for (const [baseUrl, sent] of [
+    ["https://API.Example:443/v1", "https://api.example/v1/x"],
+    ["https://alice:pw@api.example/v1/@evil.example", "https://alice:pw@api.example/v1/@evil.example/x"],
+    ["http://h.example/a b", "http://h.example/a%20b/x"],
+  ] as const) {
+    const mt = makeMockTransport(() => jsonResponse({}));
+    await new RequestEngine({ baseUrl, transport: mt.transport }).getJson("/x");
+    assert.equal(mt.last().url, sent);
+  }
 });

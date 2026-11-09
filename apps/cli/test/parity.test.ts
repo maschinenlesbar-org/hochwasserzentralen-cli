@@ -12,6 +12,7 @@ import {
 } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import { stationsToGeoJson } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/geojson";
 import type { HttpRequest } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/http";
+import { credentialsIn } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/errors";
 import type { Station, StationsParams, StationsResponse } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/types";
 import { toEngineOptions } from "../src/cli/shared.js";
 import { defaultDeps } from "../src/cli/program.js";
@@ -362,4 +363,52 @@ test("a userinfo without a password is a token: scrubbed from library errors and
   const echoed = await parity(["--base-url", base, "--compact", "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t }).alerts(), alertsWith(`Basic ${basicOf(`${TOKEN}:`)} for ${TOKEN}:x`));
   assert.equal(echoed.cli.code, 0, echoed.cli.err);
   assert.ok(!echoed.cli.out.includes(basicOf(`${TOKEN}:`)) && !echoed.cli.out.includes(`${TOKEN}:`), echoed.cli.out);
+});
+
+test("a backslash, or a scheme not followed by exactly // and the host, is refused by the library and by --base-url, never echoing the password (class F)", async () => {
+  const pw = "s3cret-Pw";
+  for (const base of [
+    `https://alice:${pw}@api.example\\@evil.example`,
+    "https://api.example\\evil",
+    `http://alice:${pw}@127.0.0.1\\@evil.example`,
+    `http:alice:${pw}@127.0.0.1:9`,
+    `http:/alice:${pw}@127.0.0.1:9`,
+    `http:///alice:${pw}@127.0.0.1:9`,
+    `HTTPS:alice:${pw}@mirror.example`,
+    `https:\\\\alice:${pw}@mirror.example`,
+    `http:///alice:${pw}@mirror.example/?q=1`,
+  ]) {
+    const o = await parity(["--base-url", base, "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t }).alerts());
+    assert.ok(!o.lib.ok && o.lib.error instanceof HochwasserzentralenValidationError, `${base}: accepted`);
+    assert.ok(!(o.lib.error as Error).message.includes(pw), (o.lib.error as Error).message);
+    assert.equal(o.cli.code, 2, `${base}: ${o.cli.err}`);
+    assert.equal(o.cli.requests.length + o.lib.requests.length, 0);
+    assert.ok(!o.cli.err.includes(pw) && !o.cli.out.includes(pw), o.cli.err);
+  }
+  for (const base of [`http:alice:${pw}@mirror.example`, "https:/mirror.example", "http:///mirror.example"]) {
+    const o = await parity(["--base-url", base, "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t }).alerts());
+    assert.match(o.cli.err, /"https:\/\/" and the host/, base);
+  }
+  assert.match((await parity(["--base-url", "https://api.example\\evil", "alerts"], () => undefined)).cli.err, /backslash/);
+  // The userinfo ends where WHATWG ends the authority, and starts after the slashes it skips.
+  assert.deepEqual(credentialsIn("https://alice:pw@api.example\\@evil.example/x"), ["alice:pw"]);
+  for (const value of ["http:alice:pw@h.example", "http:///alice:pw@h.example/x", "HTTPS:\\\\alice:pw@h.example"]) {
+    assert.deepEqual(credentialsIn(value), ["alice:pw"], value);
+  }
+});
+
+test("requests go to the host of the parsed base URL, spelled as it parses, an @ in its path included (class F)", async () => {
+  for (const base of ["https://alice:pw@api.example/v1/@evil.example", "https://API.Example:443/v1"]) {
+    const parsed = new URL(base);
+    const o = await parity(["--base-url", base, "alerts"], (t) => new HochwasserzentralenClient({ baseUrl: base, transport: t }).alerts(), () =>
+      jsonResponse({ status: "success", data: [] }),
+    );
+    assert.equal(o.cli.requests.length, 1, o.cli.err);
+    assert.equal(o.lib.requests.length, 1);
+    for (const req of [...o.cli.requests, ...o.lib.requests]) {
+      assert.equal(new URL(req.url).origin, parsed.origin, `${base}: ${req.url}`);
+      const authority = req.url.slice(req.url.indexOf("//") + 2).split("/")[0] ?? "";
+      assert.ok(authority === parsed.host || authority.endsWith(`@${parsed.host}`), `${base}: ${req.url}`);
+    }
+  }
 });

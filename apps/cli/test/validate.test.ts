@@ -145,6 +145,17 @@ test("baseUrlProblem: blank, unparseable, non-http(s), query or fragment", () =>
   assert.equal(baseUrlProblem("https://u:secret@h/ "), "A base URL cannot have surrounding whitespace.");
   assert.equal(baseUrlProblem(" https://h"), "A base URL cannot have surrounding whitespace.");
   assert.equal(baseUrlProblem("https://h/a\tb"), "A base URL cannot contain control characters.");
+  // WHATWG ends an http(s) authority at "\\": every reader of the base URL has to agree where.
+  const backslash = 'A base URL cannot contain a backslash (\\); write "/" instead.';
+  assert.equal(baseUrlProblem("https://alice:pw@api.example\\@evil.example"), backslash);
+  assert.equal(baseUrlProblem("https://api.example/v1\\x"), backslash);
+  assert.equal(baseUrlProblem("https:\\\\h.example"), backslash);
+  // WHATWG repairs a scheme not followed by "//" and the host silently: refused (F4).
+  const absolute = 'Expected an absolute http(s) URL ("https://" and the host).';
+  for (const value of ["http:h.example", "http:/h.example", "http:///h.example", "HTTPS:h.example"]) {
+    assert.equal(baseUrlProblem(value), absolute, value);
+  }
+  assert.equal(baseUrlProblem("HTTPS://H.example"), undefined);
 });
 
 test("statesProblem: known codes only, at least one, an empty or invisible item refused, visibly (D8, D10)", () => {
