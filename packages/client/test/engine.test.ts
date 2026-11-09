@@ -856,22 +856,6 @@ test("scanNumbers quotes millions of declared members within a small heap", STAR
   assert.equal(out, String(n * 10 + 1));
 });
 
-test("an answer of millions of lone surrogate escapes is repaired within a small heap", STARTS_A_PROCESS, () => {
-  // One `+=` per repair (`wellFormedEscapes`) made a rope node each: 6 million of them (36 MB of
-  // escapes) exhausted a 128 MB heap.
-  const engine = new URL("../src/engine.js", import.meta.url).href;
-  const n = 6_000_000;
-  const script =
-    `const { RequestEngine } = await import(${JSON.stringify(engine)});` +
-    `const body = Buffer.from('{"x":"' + "\\\\ud800".repeat(${n}) + '"}');` +
-    `let warned = "";` +
-    `const e = new RequestEngine({ onWarning: (m) => (warned = m), transport: async () => ({ status: 200, headers: { "content-type": "application/json" }, body }) });` +
-    `const value = await e.getJson("/x");` +
-    `process.stdout.write(value.x.length + " " + /: (\\d+) characters/.exec(warned)[1]);`;
-  const out = execFileSync(process.execPath, ["--max-old-space-size=128", "--input-type=module", "-e", script], { encoding: "utf8" });
-  assert.equal(out, `${n} ${n}`);
-});
-
 // A password with characters a JSON writer escapes (a quote) or may write as \u00XX (an umlaut),
 // and one a URL's query percent-encodes but encodeURIComponent doesn't (an apostrophe).
 const ECHO_PW = "pä\"s's-W0rd";

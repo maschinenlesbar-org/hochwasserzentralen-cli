@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -161,6 +161,8 @@ test("stderr waits for stdout: a record is held while stdout has a backlog, and 
 });
 
 // ---- -o --force and other users' links (security audit 2026-10-27, class G) -------------
+// The refusals are conformance test P30; its "still follows" test reads back the template's
+// answer, so this repo checks those cases here, on its own answer.
 
 /** The caller, and another user who planted links. */
 const ME = 1000;
@@ -197,38 +199,6 @@ function planted(): { dir: string; victim: string; link: string; done: () => voi
   return { dir, victim, link, done: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
-test("-o --force does not follow another user's link in a shared directory, at any hop, before any request or at write time", { skip: process.platform === "win32" }, async () => {
-  const t = planted();
-  try {
-    // Sticky or just writable by others: both count.
-    for (const dir of [SHARED, { uid: ME, mode: 0o40777 }]) {
-      const files = nodeFilesFor(owners({ [t.link]: OTHER }, { [t.dir]: dir }));
-      const o = await runWith(files, t.link, true);
-      assert.equal(o.code, 2, o.err);
-      assert.equal(o.requests.length, 0);
-      assert.match(o.err, /ERROR \[hochwasser\.output\] .*another user/);
-      assert.ok(o.err.includes(t.link), o.err);
-      assert.throws(() => files.write(t.link, Buffer.from("x"), true), /another user/);
-      assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
-      assert.ok(lstatSync(t.link).isSymbolicLink());
-    }
-    // own link -> another user's link -> the victim; and another user's dangling link.
-    const inner = join(t.dir, "inner");
-    symlinkSync(t.victim, inner);
-    const outer = join(t.dir, "outer.json");
-    symlinkSync(inner, outer);
-    assert.equal((await runWith(nodeFilesFor(owners({ [inner]: OTHER }, { [t.dir]: SHARED })), outer, true)).code, 2);
-    const dangling = join(t.dir, "dangling.json");
-    const target = join(t.dir, "created-elsewhere.json");
-    symlinkSync(target, dangling);
-    assert.equal((await runWith(nodeFilesFor(owners({ [dangling]: OTHER }, { [t.dir]: SHARED })), dangling, true)).code, 2);
-    assert.throws(() => statSync(target));
-    assert.equal(readFileSync(t.victim, "utf8"), "keep me\n");
-  } finally {
-    t.done();
-  }
-});
-
 test("-o --force still follows the caller's own links, the directory owner's, and any link in a directory only its owner writes", { skip: process.platform === "win32" }, async () => {
   const cases: Array<[string, (t: ReturnType<typeof planted>) => LinkOwners]> = [
     ["the caller's own link in a shared directory", (t) => owners({}, { [t.dir]: SHARED })],
@@ -246,24 +216,5 @@ test("-o --force still follows the caller's own links, the directory owner's, an
     } finally {
       t.done();
     }
-  }
-});
-
-test("an -o path that can't be inspected is reported as such, not as an existing file", { skip: process.platform === "win32" || process.getuid?.() === 0 }, async () => {
-  const dir = mkdtempSync(join(tmpdir(), "hw-g-"));
-  try {
-    const closed = join(dir, "closed");
-    mkdirSync(closed);
-    const link = join(dir, "out.json");
-    symlinkSync(join(closed, "x.json"), link);
-    chmodSync(closed, 0o000);
-    const o = await runWith(nodeFilesFor(), link, false);
-    assert.equal(o.code, 2, o.err);
-    assert.equal(o.requests.length, 0);
-    assert.doesNotMatch(o.err, /Refusing to overwrite existing file/);
-    assert.match(o.err, /EACCES|permission/i);
-  } finally {
-    chmodSync(join(dir, "closed"), 0o700);
-    rmSync(dir, { recursive: true, force: true });
   }
 });

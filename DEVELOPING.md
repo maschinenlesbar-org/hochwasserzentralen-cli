@@ -611,8 +611,19 @@ everything that drives the CLI is in `apps/cli/test/`.
   place; a signal leaves no claim or temporary file), P27 big and odd answers (a large flat
   answer and 20 MB of DEL under a small heap, 90 MB of DEL refused cleanly, an answer in two
   million one-byte chunks under a small heap, a lone surrogate or invalid bytes replaced with a
-  WARN). `kitParity` in `apps/cli/test/helpers.ts` gives `parity`
-  the shape their bodies read.
+  WARN). From the security audit 2026-10-27 (reference `create-cli-template`): P28 hostile
+  error answers (a number with a long run of zeros, unterminated control-string introducers and
+  a 16 MB error message, millions of lone surrogate escapes, all in time and within a small heap;
+  a credential echoed behind JSON escapes, in a value a 2xx answer quotes (the envelope's
+  `status`) and in a redirect's Location, scrubbed), P29 base-URL credentials (a token userinfo
+  scrubbed, a backslash and a scheme without `//` and the host refused, requests to the parsed
+  host, linear stdout redaction that finds glued URLs), P30 output links (`--force` follows no
+  other user's link in a shared directory, EACCES isn't "exists", a stream is checked on its
+  descriptor; its "still follows" test is skipped, as it reads back the template's answer, and
+  `io.test.ts` checks those cases on this CLI's answer) and P31 the release pipeline
+  (`release.yml` and `tools/sbom/` read as text). P26, P27 and P28's bin runs and
+  `engine.test.ts`'s `scanNumbers` memory test start a process (30 s). `kitParity` in
+  `apps/cli/test/helpers.ts` gives `parity` the shape their bodies read.
 
 ## Continuous integration
 
