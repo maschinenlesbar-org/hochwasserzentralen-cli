@@ -351,8 +351,8 @@ export type GaugeList =
       sites: number;
       /** Worst first, then by water and name. */
       gauges: Gauge[];
-      /** The waters the gauges are on, with their counts: a water search matches parts of names. */
-      waters: Record<string, number>;
+      /** With a water search: the waters it matched, with their counts (it matches parts of names). */
+      waters?: Record<string, number>;
       attribution: Attribution;
       notes: string[];
     }
@@ -420,7 +420,8 @@ const GAUGE_NOTES = [
 /**
  * The gauges of some states, on a water, at a class or above: each with its class (null:
  * unclassified, -1: no data, apart), the state's own label decoded, and the other state's id of a
- * border gauge (`sameSiteAs`), with the count of distinct sites and of the waters matched. None
+ * border gauge (`sameSiteAs`), with the count of distinct sites and, for a water search, the
+ * waters it matched. None
  * is `empty`, saying why (with `minClass` 1 or more, that no gauge is flooding is the good news).
  */
 export async function listGauges(client: HochwasserzentralenClient, input: GaugesInput = {}): Promise<GaugeList> {
@@ -451,7 +452,7 @@ export async function listGauges(client: HochwasserzentralenClient, input: Gauge
   for (const g of gauges) if (g.water !== undefined) waters[g.water] = (waters[g.water] ?? 0) + 1;
   const sites = countSites(gauges);
   if (sites < gauges.length) notes.push(`${gauges.length - sites} border gauge entr${gauges.length - sites === 1 ? "y is" : "ies are"} the same site reported by two states (sameSiteAs): count sites, not entries.`);
-  return { status: "ok", searched, total: gauges.length, sites, gauges, waters, attribution, notes };
+  return { status: "ok", searched, total: gauges.length, sites, gauges, ...(water === undefined ? {} : { waters }), attribution, notes };
 }
 
 /** The input of {@link findGauge}. */
@@ -482,7 +483,9 @@ export async function findGauge(client: HochwasserzentralenClient, input: FindGa
   const limit = assertValid("limit", input.limit ?? 10, within(1, 25));
   const list = await listGauges(client, { states: input.states, water: input.water, lang: input.lang });
   const searched: GaugeSearch = { ...list.searched, gauge: wanted };
-  const { attribution, notes } = list;
+  const { attribution } = list;
+  // The list's count of border gauges is about all the gauges searched, not this one.
+  const notes = list.notes.filter((note) => !note.includes("sameSiteAs"));
   if (list.status === "empty") return { status: "empty", searched, reason: list.reason, attribution, notes };
   const byId = list.gauges.filter((g) => g.id.toUpperCase() === wanted.toUpperCase());
   const folded = foldName(wanted);
@@ -620,7 +623,11 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
             .filter((e) => e.worstClass === worstClass)
             .map((e) => e.name)
             .join(", ")}.`;
-  const notes = [...languageNote(input.lang, res), ...GAUGE_NOTES];
+  const notes = [
+    ...languageNote(input.lang, res),
+    ...GAUGE_NOTES,
+    "The states' official flood warnings (the alerts) are separate: a warning can be in force while the gauges are calm, and the other way round. Report both.",
+  ];
   const noData = ranked.reduce((n, e) => n + e.noData, 0);
   const unclassified = ranked.reduce((n, e) => n + e.unclassified, 0);
   if (noData > 0) notes.push(`${noData} gauge${noData === 1 ? " has" : "s have"} no current data (-1): a data gap, not calm.`);

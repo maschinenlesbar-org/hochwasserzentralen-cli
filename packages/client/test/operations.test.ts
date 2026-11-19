@@ -85,6 +85,7 @@ test("getFloodSituation splits no data (-1) from unclassified (null), counts bor
   assert.equal(situation.states[situation.states.length - 1]?.gauges, 0, "a state without an LHP gauge comes last");
   assert.match(situation.notes.join(" "), /no current data \(-1\): a data gap, not calm.*no flood classification at all/);
   assert.match(situation.notes.join(" "), /PEGELONLINE/);
+  assert.match(situation.notes.join(" "), /official flood warnings \(the alerts\) are separate/);
   assert.equal(situation.attribution.updatedLocal, "15.09.2026, 17:47 MESZ");
 });
 
@@ -108,6 +109,8 @@ test("listGauges: a water search matches parts of names and says which waters it
   assert.deepEqual(rp?.sameSiteAs, ["HE_25100100"]);
   assert.equal(rp?.stateClassName, "Kein Hochwasser bzw. < 2-jährliches Hochwasser");
   assert.match(rhein.notes.join(" "), /same site reported by two states/);
+  const all = await listGauges(clientOf().client);
+  assert.equal(all.status === "ok" && "waters" in all, false, "no water search, no waters");
 });
 
 test("listGauges: minClass 1 finding nothing is good news, not missing data; a water finding nothing says what to change", async () => {
@@ -131,6 +134,7 @@ test("findGauge: a border gauge's two entries are one site, the answer with its 
   assert.equal(kaub.status, "ok");
   if (kaub.status !== "ok") return;
   assert.deepEqual([kaub.gauge.id, kaub.sameSite.map((g) => g.id)], ["HE_25100100", ["RP_25100100"]]);
+  assert.equal(kaub.notes.some((n) => n.includes("sameSiteAs")), false, "no count of all the border gauges searched");
   const byId = await findGauge(clientOf().client, { gauge: "by_10088003" });
   assert.equal(byId.status === "ok" ? byId.gauge.name : byId.status, "Regensburg Eiserne Brücke");
 });
