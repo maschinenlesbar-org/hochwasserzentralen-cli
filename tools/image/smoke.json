@@ -1,0 +1,163 @@
+{
+  "comment": "What tools/image/smoke.mjs needs that is particular to this repo: the bin (its log topic), a command that makes one request, the exit code of a network error, the mock's answer to that request (by path, under --base-url http://mock:8080; the live alerts of 2026-11-19, cut down), and a string the printed answer contains.",
+  "bin": "hochwasser",
+  "command": [
+    "alerts",
+    "--states",
+    "BY"
+  ],
+  "networkErrorExit": 6,
+  "answers": {
+    "/data/alerts": {
+      "apiVersion": "1.0 beta, 2025-02-04",
+      "status": "success",
+      "lang": "de",
+      "source": "https://www.hochwasserzentralen.de",
+      "sourceName": "Länderübergreifendes Hochwasserportal (LHP)",
+      "sourceLogo": "https://api.hochwasserzentralen.de/public/v1/images/logo",
+      "licence": "https://creativecommons.org/licenses/by/4.0/deed.de",
+      "licenceName": "CC BY 4.0 - Namensnennung",
+      "title": "Aktuelle Hochwasser-Warnungen",
+      "description": "Aktuelle regionale Hochwasser-Warnungen der deutschen Bundesländer",
+      "updated": "2026-11-19T16:11:47+01:00",
+      "lastModified": "2026-11-19T16:00:48+01:00",
+      "legend": {
+        "title": "Hochwasser-Warnungen",
+        "items": [
+          {
+            "lhpClass": 6,
+            "lhpClassName": "Sehr großes Hochwasser",
+            "color": "#765e9c"
+          },
+          {
+            "lhpClass": 5,
+            "lhpClassName": "Großes Hochwasser",
+            "color": "#e53935"
+          },
+          {
+            "lhpClass": 4,
+            "lhpClassName": "Hochwasser",
+            "color": "#fb8c00"
+          },
+          {
+            "lhpClass": 2,
+            "lhpClassName": "Vorwarnung",
+            "cssStyle": {
+              "background-image": "repeating-linear-gradient(135deg, #F0F0F0, #F0F0F0 12px, #e53935 12px, #e53935 18px)"
+            }
+          },
+          {
+            "lhpClass": 1,
+            "lhpClassName": "Entwarnung",
+            "color": "#60bf41"
+          }
+        ]
+      },
+      "bbox": [
+        5.839,
+        55.0933,
+        15.0916,
+        47.2318
+      ],
+      "data": [
+        {
+          "kind": "AlertArea",
+          "id": "BY_472",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [11.6327, 49.7615],
+                [11.9032, 49.9788],
+                [11.4662, 49.9833],
+                [11.195, 49.9089],
+                [11.3561, 49.7042],
+                [11.6327, 49.7615]
+              ]
+            ]
+          },
+          "areaDesc": "Stadt und Lkr. Bayreuth",
+          "areaType": "Region",
+          "alertHeadline": "Vorwarnung Hochwassergefahr",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "2",
+          "lhpClassName": "Vorwarnung"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "BY_471",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [10.885, 50.0928],
+                [10.5942, 49.8727],
+                [10.6542, 49.7212],
+                [11.0141, 49.7833],
+                [11.2147, 49.968],
+                [10.885, 50.0928]
+              ]
+            ]
+          },
+          "areaDesc": "Stadt und Lkr. Bamberg",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasserwarnung vor Ausuferungen und Überschwemmungen",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "4",
+          "lhpClassName": "Hochwasser"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "BY_473",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [10.7292, 50.2302],
+                [10.886, 50.108],
+                [11.0412, 50.216],
+                [11.1331, 50.3116],
+                [10.8998, 50.3848],
+                [10.7292, 50.2302]
+              ]
+            ]
+          },
+          "areaDesc": "Stadt und Lkr. Coburg",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasserwarnung vor Überschwemmungsgefahr für bebaute Gebiete",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "5",
+          "lhpClassName": "Großes Hochwasser"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "BY_476",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [11.3415, 50.16],
+                [11.5402, 50.2651],
+                [11.5204, 50.3803],
+                [11.3216, 50.4904],
+                [11.1976, 50.2924],
+                [11.3415, 50.16]
+              ]
+            ]
+          },
+          "areaDesc": "Lkr. Kronach",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasserwarnung vor Überschwemmungsgefahr für bebaute Gebiete",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "5",
+          "lhpClassName": "Großes Hochwasser"
+        }
+      ]
+    }
+  },
+  "expectStdout": "\"id\": \"BY_473\""
+}
