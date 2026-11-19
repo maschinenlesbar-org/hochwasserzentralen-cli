@@ -58,4 +58,38 @@ export {
   redactUrl,
 } from "./errors.js";
 
+export {
+  ALERT_CLASS_NAMES,
+  attributionOf,
+  decodeEntities,
+  findGauge,
+  getFloodAlerts,
+  getFloodMap,
+  getFloodSituation,
+  germanLocalTime,
+  listGauges,
+  MAP_LAYERS,
+  resolveStates,
+  STATE_NAMES,
+} from "./operations.js";
+export type {
+  Attribution,
+  FindGaugeInput,
+  FloodAlert,
+  FloodAlerts,
+  FloodAlertsInput,
+  FloodMap,
+  FloodMapInput,
+  FloodSituation,
+  FloodSituationInput,
+  Gauge,
+  GaugeList,
+  GaugeLookup,
+  GaugeSearch,
+  GaugesInput,
+  LeftOff,
+  MapLayer,
+  StateFloodSituation,
+} from "./operations.js";
+
 export * from "./types.js";
