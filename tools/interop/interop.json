@@ -1,0 +1,373 @@
+{
+  "comment": "What tools/interop/interop.mjs needs that is particular to this repo: the mock upstream's answer per path (under --base-url http://127.0.0.1:<port>; the live answers of 2026-11-19, cut down), how many tools the server lists, and the calls to make with what each must answer.",
+  "answers": {
+    "/data/alerts": {
+      "apiVersion": "1.0 beta, 2025-02-04",
+      "status": "success",
+      "lang": "de",
+      "source": "https://www.hochwasserzentralen.de",
+      "sourceName": "Länderübergreifendes Hochwasserportal (LHP)",
+      "sourceLogo": "https://api.hochwasserzentralen.de/public/v1/images/logo",
+      "licence": "https://creativecommons.org/licenses/by/4.0/deed.de",
+      "licenceName": "CC BY 4.0 - Namensnennung",
+      "title": "Aktuelle Hochwasser-Warnungen",
+      "description": "Aktuelle regionale Hochwasser-Warnungen der deutschen Bundesländer",
+      "updated": "2026-11-19T16:11:47+01:00",
+      "lastModified": "2026-11-19T16:00:48+01:00",
+      "legend": {
+        "title": "Hochwasser-Warnungen",
+        "items": [
+          {
+            "lhpClass": 6,
+            "lhpClassName": "Sehr großes Hochwasser",
+            "color": "#765e9c"
+          },
+          {
+            "lhpClass": 5,
+            "lhpClassName": "Großes Hochwasser",
+            "color": "#e53935"
+          },
+          {
+            "lhpClass": 4,
+            "lhpClassName": "Hochwasser",
+            "color": "#fb8c00"
+          },
+          {
+            "lhpClass": 2,
+            "lhpClassName": "Vorwarnung",
+            "cssStyle": {
+              "background-image": "repeating-linear-gradient(135deg, #F0F0F0, #F0F0F0 12px, #e53935 12px, #e53935 18px)"
+            }
+          },
+          {
+            "lhpClass": 1,
+            "lhpClassName": "Entwarnung",
+            "color": "#60bf41"
+          }
+        ]
+      },
+      "bbox": [
+        5.839,
+        55.0933,
+        15.0916,
+        47.2318
+      ],
+      "data": [
+        {
+          "kind": "AlertArea",
+          "id": "BY_471",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [10.885, 50.0928],
+                [10.5942, 49.8727],
+                [10.6542, 49.7212],
+                [11.0141, 49.7833],
+                [11.2147, 49.968],
+                [10.885, 50.0928]
+              ]
+            ]
+          },
+          "areaDesc": "Stadt und Lkr. Bamberg",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasserwarnung vor Ausuferungen und Überschwemmungen",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "4",
+          "lhpClassName": "Hochwasser"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "BY_473",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [10.7292, 50.2302],
+                [10.886, 50.108],
+                [11.0412, 50.216],
+                [11.1331, 50.3116],
+                [10.8998, 50.3848],
+                [10.7292, 50.2302]
+              ]
+            ]
+          },
+          "areaDesc": "Stadt und Lkr. Coburg",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasserwarnung vor Überschwemmungsgefahr für bebaute Gebiete",
+          "alertLink": "https://www.hnd.bayern.de",
+          "lhpClass": "5",
+          "lhpClassName": "Großes Hochwasser"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "RP_17",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [6.5622, 50.1424],
+                [6.4556, 50.3208],
+                [6.2088, 50.2535],
+                [6.1577, 49.9823],
+                [6.3934, 50.0348],
+                [6.5622, 50.1424]
+              ]
+            ]
+          },
+          "areaDesc": "Prüm- und Our-Einzugsgebiet",
+          "areaType": "Region",
+          "alertHeadline": "Amtliche HOCHWASSERINFO für Our, Prüm und Nims",
+          "alertLink": "https://www.hochwasser.rlp.de",
+          "lhpClass": "4",
+          "lhpClassName": "Hochwasser"
+        },
+        {
+          "kind": "AlertArea",
+          "id": "ST_568",
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [10.5793, 51.7853],
+                [11.1671, 51.6304],
+                [11.7882, 51.8231],
+                [11.352, 52.1387],
+                [10.9415, 52.1038],
+                [10.5793, 51.7853]
+              ]
+            ]
+          },
+          "areaDesc": "Flussgebiet Bode mit Nebenflüssen Holtemme, Selke, Großer Graben",
+          "areaType": "Region",
+          "alertHeadline": "Hochwasser Vorwarnung",
+          "alertLink": "https://hochwasservorhersage.sachsen-anhalt.de",
+          "lhpClass": "2",
+          "lhpClassName": "Vorwarnung"
+        }
+      ]
+    },
+    "/data/stations": {
+      "apiVersion": "1.0 beta, 2025-02-04",
+      "status": "success",
+      "lang": "de",
+      "source": "https://www.hochwasserzentralen.de",
+      "sourceName": "Länderübergreifendes Hochwasserportal (LHP)",
+      "sourceLogo": "https://api.hochwasserzentralen.de/public/v1/images/logo",
+      "licence": "https://creativecommons.org/licenses/by/4.0/deed.de",
+      "licenceName": "CC BY 4.0 - Namensnennung",
+      "title": "Aktuelle Hochwassersituation",
+      "description": "Aktuelle Hochwassersituation an den Pegeln in Deutschland",
+      "updated": "2026-11-19T16:11:47+01:00",
+      "lastModified": "2026-11-19T16:11:47+01:00",
+      "legend": {
+        "title": "Situation am Pegel",
+        "items": [
+          {
+            "lhpClass": 4,
+            "lhpClassName": "Sehr großes Hochwasser",
+            "color": "#941094"
+          },
+          {
+            "lhpClass": 3,
+            "lhpClassName": "Großes Hochwasser",
+            "color": "#de0000"
+          },
+          {
+            "lhpClass": 2,
+            "lhpClassName": "Mittleres Hochwasser",
+            "color": "#ffa500"
+          },
+          {
+            "lhpClass": 1,
+            "lhpClassName": "Kleines Hochwasser",
+            "color": "#ffff00"
+          },
+          {
+            "lhpClass": 0,
+            "lhpClassName": "Kein Hochwasser",
+            "color": "#7CBD5C"
+          },
+          {
+            "lhpClass": -1,
+            "lhpClassName": "Derzeit keine Daten",
+            "color": "#7b7b7b"
+          }
+        ]
+      },
+      "stateLinks": {
+        "DE-BB": "https://pegelportal.brandenburg.de/",
+        "DE-BE": "https://wasserportal.berlin.de",
+        "DE-BW": "https://www.hvz.baden-wuerttemberg.de",
+        "DE-BY": "https://www.hnd.bayern.de",
+        "DE-HB": "https://www.umwelt.bremen.de/sixcms/detail.php?gsid=bremen213.c.31626.de",
+        "DE-HE": "https://hochwasser.hessen.de",
+        "DE-HH": "https://www.wabiha.de/karte.html",
+        "DE-MV": "https://pegelportal-mv.de/pegel-mv",
+        "DE-NI": "https://www.pegelonline.nlwkn.niedersachsen.de/Start",
+        "DE-NW": "https://hochwasserportal.nrw.de/lanuv/webpublic/index.html#/Lageberichte",
+        "DE-RP": "https://www.hochwasser.rlp.de",
+        "DE-SH": "https://hsi-sh.de/",
+        "DE-SL": "https://www.saarland.de/muv/DE/portale/wasser/informationen/hochwassermeldedienst/wasserstaende_warnlage/wasserstaende_warnlage_node.html",
+        "DE-SN": "https://www.umwelt.sachsen.de/umwelt/infosysteme/hwims/portal/web/wasserstand-uebersicht",
+        "DE-ST": "https://hochwasservorhersage.sachsen-anhalt.de",
+        "DE-TH": "https://hnz.thueringen.de/hw-portal"
+      },
+      "bbox": [
+        5.839,
+        55.0933,
+        15.0916,
+        47.2318
+      ],
+      "data": [
+        {
+          "kind": "Station",
+          "id": "BY_24149208",
+          "coordinates": [11.1594, 50.2773],
+          "name": "Fürth am Berg",
+          "water": "Steinach",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 1,
+          "stateClassName": "Meldestufe 1",
+          "stationLink": "https://www.hnd.bayern.de/search/go?suche=pegel&id=24149208",
+          "stateId": "DE-BY"
+        },
+        {
+          "kind": "Station",
+          "id": "HE_25700100",
+          "coordinates": [7.765, 50.0854],
+          "name": "Kaub",
+          "water": "Rhein",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser",
+          "stationLink": "https://www.hlnug.de/static/pegel/wiskiweb3/webpublic/#/overview/Wasserstand/station/42109/Kaub?period=P7D",
+          "stateId": "DE-HE"
+        },
+        {
+          "kind": "Station",
+          "id": "RP_25700100",
+          "coordinates": [7.765, 50.0854],
+          "name": "Kaub",
+          "water": "Rhein",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser bzw. &#60; 2-jährliches Hochwasser",
+          "stationLink": "https://www.hochwasser.rlp.de/flussgebiet/mittelrhein/kaub",
+          "stateId": "DE-RP"
+        },
+        {
+          "kind": "Station",
+          "id": "BY_24070006",
+          "coordinates": [9.1291, 49.9338],
+          "name": "Obernau",
+          "water": "Main",
+          "timestamp": "2026-11-19 15:45:00",
+          "lhpClass": 0,
+          "stateClassName": "Keine Meldestufe",
+          "stationLink": "https://www.hnd.bayern.de/search/go?suche=pegel&id=24070006",
+          "stateId": "DE-BY"
+        },
+        {
+          "kind": "Station",
+          "id": "HE_24700302",
+          "coordinates": [9.1291, 49.9338],
+          "name": "Obernau",
+          "water": "Main",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser",
+          "stationLink": "https://www.hlnug.de/static/pegel/wiskiweb3/webpublic/#/overview/Wasserstand/station/41429/Obernau?period=P7D",
+          "stateId": "DE-HE"
+        },
+        {
+          "kind": "Station",
+          "id": "NW_2730010",
+          "coordinates": [6.9633, 50.937],
+          "name": "Köln",
+          "water": "Rhein",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser",
+          "stationLink": "https://www.hochwasser.rlp.de/flussgebiet/mittelrhein/koeln",
+          "stateId": "DE-NW"
+        },
+        {
+          "kind": "Station",
+          "id": "RP_23720305",
+          "coordinates": [7.8784, 49.049],
+          "name": "Bobenthal",
+          "water": "Wieslauter",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser bzw. &#60; 2-jährliches Hochwasser",
+          "stationLink": "https://www.hochwasser.rlp.de/flussgebiet/oberrhein/bobenthal",
+          "stateId": "DE-RP"
+        },
+        {
+          "kind": "Station",
+          "id": "SN_501060",
+          "coordinates": [13.7388, 51.0545],
+          "name": "Dresden",
+          "water": "Elbe",
+          "timestamp": "2026-11-19 16:00:00",
+          "lhpClass": 0,
+          "stateClassName": "Kein Hochwasser",
+          "stationLink": "https://www.umwelt.sachsen.de/umwelt/infosysteme/hwims/portal/web/wasserstand-pegel-501060",
+          "stateId": "DE-SN"
+        }
+      ]
+    }
+  },
+  "tools": 5,
+  "calls": [
+    {
+      "name": "getFloodAlerts",
+      "arguments": {},
+      "expect": {
+        "status": "ok",
+        "active.0.id": "BY_473",
+        "active.0.class": 5
+      }
+    },
+    {
+      "name": "getFloodSituation",
+      "arguments": {},
+      "expect": {
+        "status": "ok",
+        "worstClass": 1
+      }
+    },
+    {
+      "name": "findGauge",
+      "arguments": {
+        "gauge": "Kaub"
+      },
+      "expect": {
+        "status": "ok",
+        "sameSite.0.name": "Kaub"
+      }
+    },
+    {
+      "name": "getFloodMap",
+      "arguments": {
+        "layer": "alerts"
+      },
+      "expect": {
+        "type": "FeatureCollection",
+        "features.0.type": "Feature"
+      }
+    },
+    {
+      "name": "findGauge",
+      "arguments": {
+        "gauge": ""
+      },
+      "error": true
+    }
+  ]
+}
