@@ -6,7 +6,7 @@ import { CommanderError, type Command } from "commander";
 import { buildProgram, defaultDeps } from "./program.js";
 import { OutputError, logOf, type CliDeps } from "./io.js";
 import { DEFAULT_BASE_URL } from "@maschinenlesbar.org/hochwasserzentralen-client/internal/engine";
-import { DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
+import { LOG_PROGRAM, DEFAULT_LOG_FORMAT, createLogger, logFormatFromArgv, type LogFormat, type Logger } from "./log.js";
 import {
   HochwasserzentralenApiError,
   HochwasserzentralenError,
@@ -296,6 +296,10 @@ export function redirectHint(requestUrl: string): string {
 }
 
 export async function run(argv: string[], deps: CliDeps = defaultDeps): Promise<number> {
+  // In the container image the entrypoint is the program, so `docker run <image> data alerts`;
+  // people copy the npm form and type `docker run <image> hochwasser data alerts`. A leading
+  // program name is dropped, so both work (no command is named like the program).
+  if (argv[0] === LOG_PROGRAM) argv = argv.slice(1);
   // The log replaces the secrets of the run in every message, in either format.
   deps = withRedactedOutput(deps, argv);
   const program = buildProgram(deps);

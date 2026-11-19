@@ -13,6 +13,7 @@ import { MAX_TIMEOUT_MS } from "@maschinenlesbar.org/hochwasserzentralen-client/
 import { once, parseBaseUrl, parseBoundedInt, parseHeaderValue, parseIntArg, parseOutputPath } from "./shared.js";
 import { registerCommands } from "./commands/data.js";
 import { DEFAULT_LOG_FORMAT, logFormatProblem } from "./log.js";
+import { readContainerLimits } from "./limits.js";
 
 /**
  * Single source of truth for the version: read from package.json at runtime
@@ -36,6 +37,8 @@ export const VERSION = readVersion();
 export const defaultDeps: CliDeps = {
   io: defaultIO,
   createClient: (options) => new HochwasserzentralenClient(options),
+  // In a container: the memory and pids limits (cgroup), for action()'s checks.
+  limits: () => readContainerLimits(),
 };
 
 /** commander value-parser for `--log-format`. */
