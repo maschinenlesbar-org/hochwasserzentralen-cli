@@ -48,6 +48,51 @@ Check it works:
 hochwasser --help
 ```
 
+### Docker
+
+From 0.10.0 every release is also a container image for linux/amd64 and linux/arm64 on the
+GitHub Container Registry, made from the same tarball as the npm package. It needs no Node.js and no
+install:
+
+```bash
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges \
+  ghcr.io/maschinenlesbar-org/hochwasserzentralen-cli:latest alerts --states BY
+```
+
+The image's entrypoint is the program, so the command follows the image name directly;
+`… hochwasserzentralen-cli:latest hochwasser alerts` works too.
+
+In a container with a memory limit (`--memory`) the default `--max-response-bytes` is an eighth
+of that limit (at most the usual 100 MiB), so an oversized answer is refused with a clear
+error instead of the container being killed for memory.
+The CLI needs at least 12 processes and threads (`--pids-limit 12`): below that it refuses with
+an error, and with 4 or fewer Node.js itself hangs before the CLI can check.
+
+`latest` is the newest release. For scripts, name a release and pin its digest, which the
+[release notes](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/releases) give:
+`…/hochwasserzentralen-cli:0.10.0@sha256:<digest>`. Each image carries signed build provenance;
+check it with
+
+```bash
+gh attestation verify oci://ghcr.io/maschinenlesbar-org/hochwasserzentralen-cli:latest \
+  --repo maschinenlesbar-org/hochwasserzentralen-cli
+```
+
+### MCP server
+
+From 0.10.0 the same data is also an [MCP](https://modelcontextprotocol.io/) server for AI agents,
+`@maschinenlesbar.org/hochwasserzentralen-mcp` (command `hochwasser-mcp`, image
+`ghcr.io/maschinenlesbar-org/hochwasserzentralen-mcp`): five read-only tools, among them the
+official flood warnings ranked worst first, the flood situation at the gauges per state, one
+gauge by name and the warnings or gauges as GeoJSON, on stdio or Streamable HTTP. Setup for
+Claude Code, Claude Desktop and VS Code:
+[MCP.md](https://github.com/maschinenlesbar-org/hochwasserzentralen-cli/blob/main/MCP.md).
+
+```bash
+npm i -g @maschinenlesbar.org/hochwasserzentralen-mcp
+claude mcp add hochwasser -- hochwasser-mcp
+```
+
 ## Quickstart
 
 ```bash
