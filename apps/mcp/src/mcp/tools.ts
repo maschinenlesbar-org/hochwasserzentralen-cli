@@ -206,7 +206,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "One LHP gauge by id or name",
     description: [
       'One gauge with its flood class, by its id from these tools ("BY_10088003") or its name or a part of it. Use it for "wie ist die Lage am Pegel Kaub?", "Hochwasser in Dresden?", "flood class at the Regensburg gauge", "is the gauge at Passau flooding?".',
-      "A name matching several places is ambiguous with the candidates: ask which one (narrow with states or water), never pick. A border gauge reported by two states is one answer, its twin in sameSite. Empty says what was searched; not every Pegel is an LHP gauge. class: 4..1 flooding, 0 none, -1 no data, null unclassified; the LHP's class, not the state's Meldestufe. No water levels (PEGELONLINE has them). Close with attribution.text.",
+      "A name matching several places is ambiguous with the candidates, an exact name first (\"Passau\" also matches Passau Marienbrücke on the Inn): ask which one (narrow with states or water), never pick. A border gauge reported by two states is one answer, its twin in sameSite. Empty says what was searched; not every Pegel is an LHP gauge. class: 4..1 flooding, 0 none, -1 no data, null unclassified; the LHP's class, not the state's Meldestufe. No water levels (PEGELONLINE has them). Close with attribution.text.",
       RULES,
     ].join("\n\n"),
     inputSchema: input(

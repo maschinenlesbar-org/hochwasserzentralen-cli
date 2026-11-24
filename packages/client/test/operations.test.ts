@@ -151,16 +151,39 @@ test("findGauge: a border gauge's two entries are one site, the answer with its 
   assert.equal(byId.status === "ok" ? byId.gauge.name : byId.status, "Regensburg Eiserne Brücke");
 });
 
-test("findGauge: a name matching several places is ambiguous with the candidates, never one picked; an exact name wins", async () => {
+test("findGauge: a name matching several places is ambiguous with the candidates, never one picked; an exact name comes first", async () => {
   const stations = { ...liveStations(), data: [...liveStations().data, gauge("BY_1", "Frankfurt", "Main", 0, [8.68, 50.11]), gauge("HE_2", "Frankfurt Osthafen", "Main", 0, [8.7, 50.1])] };
   const several = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "Frankf" });
   assert.equal(several.status, "ambiguous");
   assert.deepEqual(several.status === "ambiguous" ? several.candidates.map((g) => g.id).sort() : [], ["BB_6030800", "BY_1", "HE_2"]);
   const exact = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "frankfurt" });
-  assert.equal(exact.status === "ok" ? exact.gauge.id : exact.status, "BY_1");
+  assert.equal(exact.status, "ambiguous", "Frankfurt Osthafen and Frankfurt (Oder) are places named Frankfurt too");
+  assert.deepEqual(exact.status === "ambiguous" ? exact.candidates.map((g) => g.id) : [], ["BY_1", "HE_2", "BB_6030800"]);
   const none = await findGauge(clientOf().client, { gauge: "Atlantis", states: ["BY"] });
   assert.equal(none.status, "empty");
   assert.match(none.status === "empty" ? none.reason : "", /No LHP gauge in Bayern has an id or name containing "Atlantis"/);
+});
+
+test("findGauge: one gauge named exactly as asked is picked only when no other place has that name as a word in its own", async () => {
+  const stations = {
+    ...liveStations(),
+    data: [
+      gauge("BW_213", "Gießen", "Argen", 0, [9.7, 47.6]),
+      gauge("HE_25800100", "Gießen-Klärwerk", "Lahn", 1, [8.66, 50.57]),
+      gauge("HE_25831933", "Gießen-Wieseck", "Wieseck", 0, [8.69, 50.59]),
+      gauge("BY_10091008", "Passau", "Donau", 0, [13.47, 48.57]),
+      gauge("BY_18008000", "Passau Marienbrücke", "Inn", 2, [13.46, 48.57]),
+      gauge("BY_1", "Kaub", "Rhein", 0, [7.76, 50.08]),
+      gauge("HE_2", "Kaubach", "Kaubach", 0, [8.0, 50.0]),
+    ],
+  };
+  const giessen = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "Gießen" });
+  assert.equal(giessen.status, "ambiguous");
+  assert.deepEqual(giessen.status === "ambiguous" ? giessen.candidates.map((g) => g.id) : [], ["BW_213", "HE_25800100", "HE_25831933"]);
+  const passau = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "passau" });
+  assert.deepEqual(passau.status === "ambiguous" ? passau.candidates.map((g) => g.id) : passau.status, ["BY_10091008", "BY_18008000"]);
+  const kaub = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "Kaub" });
+  assert.equal(kaub.status === "ok" ? kaub.gauge.id : kaub.status, "BY_1", "Kaubach is another word, not a place named Kaub");
 });
 
 test("getFloodMap: alert areas as features with the bbox; one without a geometry is named, not silently missing", async () => {

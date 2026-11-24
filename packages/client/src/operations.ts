@@ -474,9 +474,11 @@ export type GaugeLookup =
 
 /**
  * One gauge by its id or name, with its class: an id is matched exactly; a name as a part of the
- * gauge names (folded: case, umlauts, ß). One site, or exactly one name equal to the search, is
- * the answer, a border gauge's other entry beside it (`sameSite`); several sites are `ambiguous`,
- * with the candidates, never one picked; none is `empty`, saying what was searched.
+ * gauge names (folded: case, umlauts, ß). One site is the answer, a border gauge's other entry
+ * beside it (`sameSite`); so is one name equal to the search when no other site has the search as
+ * a word of its name ("Kaub" beside "Kaubach", not "Passau" beside "Passau Marienbrücke"). Several
+ * sites are `ambiguous`, with the candidates (exact names first), never one picked; none is
+ * `empty`, saying what was searched.
  */
 export async function findGauge(client: HochwasserzentralenClient, input: FindGaugeInput): Promise<GaugeLookup> {
   const wanted = normalizeText(assertValid("gauge", input.gauge, textProblem));
@@ -499,18 +501,31 @@ export async function findGauge(client: HochwasserzentralenClient, input: FindGa
       notes,
     };
   }
-  // One site (a border gauge's two entries), or one exact name: the answer.
+  // One site (a border gauge's two entries), or one exact name that no other place has as a word
+  // of its own name: the answer. "Kaub" beside "Kaubach" is Kaub; "Gießen" beside
+  // "Gießen-Klärwerk", or "Passau" beside "Passau Marienbrücke", are places of that name too.
   const siteOf = (g: Gauge): string => [g.id, ...(g.sameSiteAs ?? [])].sort()[0] as string;
   const sites = new Set(matches.map(siteOf));
   const exact = matches.filter((g) => g.name !== undefined && foldName(g.name) === folded);
   const exactSites = new Set(exact.map(siteOf));
-  const pick = sites.size === 1 ? matches[0] : exactSites.size === 1 ? exact[0] : undefined;
+  const exactSite = exact[0] === undefined ? undefined : siteOf(exact[0]);
+  const namedSoElsewhere = matches.some((g) => siteOf(g) !== exactSite && g.name !== undefined && hasWord(foldName(g.name), folded));
+  const pick = sites.size === 1 ? matches[0] : exactSites.size === 1 && !namedSoElsewhere ? exact[0] : undefined;
   if (pick !== undefined) {
     const sameSite = list.gauges.filter((g) => g.id !== pick.id && siteOf(g) === siteOf(pick));
     return { status: "ok", searched, gauge: pick, sameSite, attribution, notes };
   }
   const ranked = [...exact, ...matches.filter((g) => !exact.includes(g))];
   return { status: "ambiguous", searched, total: matches.length, candidates: ranked.slice(0, limit), complete: matches.length <= limit, attribution, notes };
+}
+
+/** True when `text` holds `word` with no letter or digit right before or after it. */
+function hasWord(text: string, word: string): boolean {
+  const wordChar = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
+  for (let at = text.indexOf(word); at >= 0; at = text.indexOf(word, at + 1)) {
+    if (!wordChar(text[at - 1]) && !wordChar(text[at + word.length])) return true;
+  }
+  return false;
 }
 
 // ---- situation ------------------------------------------------------------------------------
