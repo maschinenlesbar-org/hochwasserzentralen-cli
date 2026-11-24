@@ -67,7 +67,7 @@ For scripts and shared configs, pin a release and its digest from the
 
 | Tool | What it answers |
 |---|---|
-| `getFloodAlerts` | The states' official flood warnings for Germany or some states, worst first on the alerts scale (6 Sehr großes Hochwasser … 2 Vorwarnung), with a verdict; all-clears (1, Entwarnung) apart, never as a flood; with `cap`, the official instruction. No warning is the usual answer, said plainly. |
+| `getFloodAlerts` | The states' official flood warnings for Germany or some states, worst first on the alerts scale (6 Sehr großes Hochwasser … 2 Vorwarnung), with a verdict; all-clears (1, Entwarnung) apart, never as a flood; with `cap`, the official instruction, its texts whole (up to 10 000 characters each). The active warnings are paged (`offset`, `limit`, `nextOffset`), the verdict and counts cover all. No warning is the usual answer, said plainly. |
 | `getFloodSituation` | The flood class at the gauges per state and for Germany from one request: the worst class, the gauges per class, the no-data (-1) and unclassified (null) gauges apart, border gauges counted once as sites, the worst gauges by name, a verdict. |
 | `getFloodMap` | Warning areas (Polygons, river reaches as LineStrings) or gauges (Points) as a GeoJSON FeatureCollection, a page at a time, with what has no usable geometry named. |
 | `listGauges` | The gauges by state, water (a part of the name) and minimum class, worst first, a page at a time; a water search names the waters it matched. |

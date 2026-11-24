@@ -54,6 +54,41 @@ test("getFloodAlerts with cap gives the official instruction and asks the API fo
   await connection.close();
 });
 
+test("getFloodAlerts with cap pages the active warnings at the size cap, each CAP text whole, and every warning can be reached", async () => {
+  const info = (n: number) => ({ cap: { info: { severity: "Severe", description: `Beschreibung ${n} `.padEnd(1500, "x"), instruction: "Meiden Sie Ufernähe. ".padEnd(320, "y") } } });
+  const data = Array.from({ length: 30 }, (_, n) => alertArea(`BY_${100 + n}`, n < 3 ? "5" : "2", `Gebiet ${n}`, info(n)));
+  const connection = await connect({ transport: lhpApi({ alerts: { ...liveAlerts(), data } }) });
+  const seen: string[] = [];
+  let offset: number | undefined = 0;
+  for (let calls = 0; offset !== undefined && calls < 30; calls++) {
+    const content: Record<string, unknown> = (await connection.call("getFloodAlerts", { cap: true, offset })).structuredContent ?? {};
+    assert.equal(content["status"], "ok");
+    assert.equal(content["total"], 30);
+    assert.match(String(content["verdict"]), /^30 active official flood warnings/);
+    for (const a of content["active"] as { id: string; cap: { description: string; instruction: string } }[]) {
+      assert.equal(a.cap.description.length, 1500, "each CAP text whole");
+      assert.equal(a.cap.instruction.length, 320);
+      seen.push(a.id);
+    }
+    offset = content["nextOffset"] as number | undefined;
+  }
+  assert.deepEqual([...new Set(seen)].length, 30, "every warning reached by following nextOffset");
+  assert.equal(seen.length, 30, "none twice");
+  const long = (await connection.call("getFloodAlerts", { cap: true, limit: 1 })).structuredContent ?? {};
+  assert.deepEqual([(long["active"] as unknown[]).length, long["nextOffset"]], [1, 1]);
+  await connection.close();
+});
+
+test("getFloodAlerts with cap keeps a long official CAP text whole, not cut at the usual 2000 characters", async () => {
+  const description = `${"Hochwasser an der Donau, ".repeat(240)}Ende.`;
+  const connection = await connect({ transport: lhpApi({ alerts: { ...liveAlerts(), data: [alertArea("BY_577", "5", "Donau", { cap: { info: { description } } })] } }) });
+  const content = (await connection.call("getFloodAlerts", { cap: true })).structuredContent ?? {};
+  const kept = (content["active"] as { cap: { description: string } }[])[0]?.cap.description ?? "";
+  assert.deepEqual([kept.length, kept.endsWith("Ende.")], [description.length, true]);
+  assert.equal(content["truncated"], undefined);
+  await connection.close();
+});
+
 test("getFloodSituation: per state with no data and unclassified apart, border gauges as sites, a plain verdict", async () => {
   const connection = await connect({ transport: lhpApi() });
   const content = (await connection.call("getFloodSituation", { worstGauges: 1 })).structuredContent ?? {};
