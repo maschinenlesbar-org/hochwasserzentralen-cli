@@ -670,7 +670,7 @@ published app under `apps/` together, one version, one tag. Its npm README is th
 | `src/mcp/api.ts` | This repo's: how the kit reaches the client (`HochwasserzentralenClient` as `Client`, `HochwasserzentralenError` as `ClientError`, …, `apiBase`). A result's `source` is the request under the API's base (`…/public/v1/data/alerts?states=BY`). |
 | `src/mcp/server.ts` | The McpServer factory, the tool types, `callTool`: deadline (`--call-timeout`) plus the client's cancellation, cleaned and fitted answers, failures as `isError` results. |
 | `src/mcp/result.ts` | `cleanStrings` (control, bidi, zero-width characters dropped in the value), `fitResult` (whole list entries dropped under `--max-result-chars`, `nextOffset`). |
-| `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, pause on 429, a bounded queue. |
+| `src/mcp/limiter.ts` | One per process around the upstream transport: 2 in flight, 120 a minute, a pause of at most 30 s on 429, a bounded queue. |
 | `src/mcp/http.ts` | node:http adapter for the SDK's `createMcpHandler`: POST /mcp, /healthz, Host and Origin checks (the SDK does neither), 1 MiB body, 8 requests at once, timeouts. |
 | `src/mcp/config.ts`, `run.ts`, `index.ts` | Options (`node:util` parseArgs), argv -> exit code, the bin (console into log records, SIGINT/SIGTERM, stdin's end). |
 | `src/mcp/credentials.ts`, `auth.ts` | The credentials hook (api.ts's `findCredentials`; this API needs none) and the secrets redacted from results and records; the HTTP bearer token of `--auth-token-file`. |
