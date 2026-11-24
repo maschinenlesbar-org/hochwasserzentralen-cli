@@ -99,6 +99,19 @@ test("getFloodAlerts: the verdict names the worst class on the alerts scale, and
   assert.equal(onlyOdd.verdict, "1 active official flood warning for Germany, with a class off the alerts scale (BY_9): read its className and the state's page.");
 });
 
+test("a link that is not http(s) is dropped, never passed on as the state's page", async () => {
+  const data = [alertArea("BY_9", "4", "Donau", { alertLink: "javascript:alert(1)", cap: { info: { web: "data:text/html,hi" } } }), alertArea("BY_8", "4", "Inn", { alertLink: "https://www.hnd.bayern.de/x" })];
+  const alerts = await getFloodAlerts(clientOf(lhpApi({ alerts: { ...liveAlerts(), data } })).client, { cap: true });
+  assert.deepEqual(alerts.active.map((a) => [a.id, a.link, a.cap?.web]), [["BY_8", "https://www.hnd.bayern.de/x", undefined], ["BY_9", undefined, undefined]]);
+  const map = await getFloodMap(clientOf(lhpApi({ alerts: { ...liveAlerts(), data } })).client, { layer: "alerts" });
+  assert.deepEqual(map.features.map((f) => f.properties["alertLink"]), [undefined, "https://www.hnd.bayern.de/x"]);
+  const stations = { ...liveStations(), data: [gauge("BY_1", "Passau", "Donau", 0, [13.4, 48.6], { stationLink: "javascript:alert(1)" })] };
+  const found = await findGauge(clientOf(lhpApi({ stations })).client, { gauge: "Passau" });
+  assert.equal(found.status === "ok" ? "link" in found.gauge : found.status, false);
+  const points = await getFloodMap(clientOf(lhpApi({ stations })).client, { layer: "gauges" });
+  assert.equal("stationLink" in (points.features[0]?.properties ?? {}), false);
+});
+
 test("getFloodAlerts says when the API answered in another language than asked (its cache ignores it)", async () => {
   const alerts = await getFloodAlerts(clientOf().client, { lang: "en" });
   assert.match(alerts.notes.join(" "), /Asked for lang en, the API sent "de"/);

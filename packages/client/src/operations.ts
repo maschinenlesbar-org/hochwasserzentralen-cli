@@ -192,6 +192,27 @@ export function decodeEntities(text: string): string {
   });
 }
 
+/**
+ * A link as the answers pass it on: an http(s) URL, else undefined. A `javascript:` or `data:`
+ * link from upstream would be offered to the user as "the state's page".
+ */
+function webLink(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A map feature with its link property dropped when it is not an http(s) URL. */
+function withWebLink(feature: GeoJsonFeature, key: "alertLink" | "stationLink"): GeoJsonFeature {
+  if (!(key in feature.properties) || webLink(feature.properties[key]) !== undefined) return feature;
+  const { [key]: _dropped, ...properties } = feature.properties;
+  return { ...feature, properties };
+}
+
 /** A problem for a whole number in [min, max]. */
 const within = (min: number, max: number): Problem<number> => (value) =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max ? undefined : `Expected a whole number from ${min} to ${max}.`;
@@ -286,6 +307,7 @@ function briefAlert(alert: AlertArea, withCap: boolean): FloodAlert {
   const cls = alertClass(alert);
   const info = alert.cap?.info;
   const state = stateOfId(alert.id);
+  const link = webLink(alert.alertLink);
   return {
     id: alert.id,
     ...(state === undefined ? {} : { state }),
@@ -294,7 +316,7 @@ function briefAlert(alert: AlertArea, withCap: boolean): FloodAlert {
     class: cls,
     className: alert.lhpClassName ?? (cls === null ? "unknown class" : (ALERT_CLASS_NAMES[String(cls)] ?? `lhpClass ${cls}`)),
     ...(alert.alertHeadline === undefined ? {} : { headline: alert.alertHeadline }),
-    ...(alert.alertLink === undefined ? {} : { link: alert.alertLink }),
+    ...(link === undefined ? {} : { link }),
     ...(typeof alert.geometry?.type === "string" ? { geometryType: alert.geometry.type } : {}),
     ...(withCap && info !== undefined
       ? {
@@ -309,7 +331,7 @@ function briefAlert(alert: AlertArea, withCap: boolean): FloodAlert {
             headline: info.headline,
             description: info.description,
             instruction: info.instruction,
-            web: info.web,
+            web: webLink(info.web),
           }),
         }
       : {}),
@@ -441,13 +463,14 @@ function splitOffScale(res: StationsResponse): { res: StationsResponse; offScale
     } catch (err) {
       if (!(err instanceof HochwasserzentralenParseError)) throw err;
       const state = gaugeState(s);
+      const link = webLink(s.stationLink);
       offScale.push({
         id: s.id,
         ...(s.name === undefined ? {} : { name: s.name }),
         ...(s.water === undefined ? {} : { water: s.water }),
         ...(state === undefined ? {} : { state }),
         lhpClass: cutText(JSON.stringify(s.lhpClass) ?? String(s.lhpClass), 40),
-        ...(s.stationLink === undefined ? {} : { link: s.stationLink }),
+        ...(link === undefined ? {} : { link }),
       });
       return false;
     }
@@ -491,6 +514,7 @@ function toGauges(res: StationsResponse, scrub?: (text: string) => string): Gaug
     const state = gaugeState(s);
     const key = siteKey(s);
     const others = key === undefined ? [] : (bySite.get(key) ?? []).filter((id) => id !== s.id);
+    const link = webLink(s.stationLink);
     return {
       id: s.id,
       ...(s.name === undefined ? {} : { name: s.name }),
@@ -500,7 +524,7 @@ function toGauges(res: StationsResponse, scrub?: (text: string) => string): Gaug
       className: cls === null ? "Ohne Hochwasser-Einstufung (unclassified)" : nameOf(cls),
       ...(typeof s.stateClassName === "string" ? { stateClassName: decodeEntities(s.stateClassName) } : {}),
       ...(s.timestamp === undefined ? {} : { timestamp: s.timestamp }),
-      ...(s.stationLink === undefined ? {} : { link: s.stationLink }),
+      ...(link === undefined ? {} : { link }),
       ...(Array.isArray(s.coordinates) ? { coordinates: s.coordinates } : {}),
       ...(others.length > 0 ? { sameSiteAs: others } : {}),
     };
@@ -868,7 +892,7 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
       .map((a) => ({ id: a.id, class: alertClass(a), ...(a.lhpClassName === undefined ? {} : { className: a.lhpClassName }), ...(a.areaDesc === undefined ? {} : { area: a.areaDesc }) }))
       .sort((a, b) => (b.class ?? 99) - (a.class ?? 99));
     const notes = [...envelopeNotes(input.lang, res), "Alert lhpClass is the alerts scale as a string: \"6\" Sehr großes, \"5\" Großes Hochwasser, \"4\" Hochwasser, \"2\" Vorwarnung, \"1\" Entwarnung (all-clear). Style river reaches (LineString) as lines."];
-    return mapAnswer({ layer: "alerts", ...scope }, fc.features, leftOff, attributionOf(res), notes, `No alert area in ${scopeOf(states)}: no active official flood warning to map.`);
+    return mapAnswer({ layer: "alerts", ...scope }, fc.features.map((f) => withWebLink(f, "alertLink")), leftOff, attributionOf(res), notes, `No alert area in ${scopeOf(states)}: no active official flood warning to map.`);
   }
   const water = input.water === undefined ? undefined : normalizeText(assertValid("water", input.water, textProblem));
   const minClass = input.minClass === undefined ? undefined : assertValid("minClass", input.minClass, minClassProblem as Problem<number>);
@@ -888,7 +912,7 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
       : `No gauge in ${scopeOf(states)} matches${water === undefined ? "" : ` the water ${JSON.stringify(water)}`}${minClass === undefined ? "" : ` at class ${minClass} or above`}.`;
   const waters: Record<string, number> = {};
   for (const s of res.data) if (typeof s.water === "string") waters[s.water] = (waters[s.water] ?? 0) + 1;
-  const map = mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features, leftOff, attributionOf(res), notes, reason, water === undefined ? undefined : waters);
+  const map = mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features.map((f) => withWebLink(f, "stationLink")), leftOff, attributionOf(res), notes, reason, water === undefined ? undefined : waters);
   if (offScale.length === 0) return map;
   const told = `${offScale.length} gauge${offScale.length === 1 ? " with a class" : "s with classes"} off the station scale ${offScale.length === 1 ? "is" : "are"} named in offScale.`;
   return { ...map, offScale, ...(map.reason === undefined ? {} : { reason: `${map.reason} ${told}` }) };
