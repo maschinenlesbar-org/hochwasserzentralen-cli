@@ -85,8 +85,9 @@ export function resolveStates(states: readonly string[]): string[] {
 
 /** Where the data comes from, as CC BY 4.0 and the LHP ask it to be named. */
 export interface Attribution {
-  /** "Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de — Stand: 19.11.2026, 16:11 MEZ". */
+  /** "Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de — Stand: 19.11.2026, 16:11 MEZ": the source in a fixed text. */
   text: string;
+  /** The source's name as the API sent it. */
   sourceName: string;
   sourceUrl: string;
   licence: string;
@@ -126,16 +127,20 @@ function localTimeOf(res: ResponseEnvelope): string | undefined {
   return typeof res.updated === "string" && Number.isFinite(Date.parse(res.updated)) ? germanLocalTime(res.updated) : undefined;
 }
 
+/** The source the credit names: fixed, since a model is told to repeat the credit word for word. */
+const SOURCE_NAME = "Länderübergreifendes Hochwasserportal (LHP)";
+
 /**
- * The attribution of an answer, from its envelope. Without a time the API sent (`updated` missing
- * or not a time), the credit says "Stand: unbekannt" and `updatedLocal` is absent (see
- * {@link envelopeNotes}).
+ * The attribution of an answer, from its envelope. The credit (`text`) names the source in a fixed
+ * text, never the API's `sourceName`, which a model would otherwise repeat whatever it says (that
+ * stays in `sourceName`). Without a time the API sent (`updated` missing or not a time), the
+ * credit says "Stand: unbekannt" and `updatedLocal` is absent (see {@link envelopeNotes}).
  */
 export function attributionOf(res: ResponseEnvelope): Attribution {
   const updatedLocal = localTimeOf(res);
-  const sourceName = typeof res.sourceName === "string" && res.sourceName !== "" ? res.sourceName : "Länderübergreifendes Hochwasserportal (LHP)";
+  const sourceName = typeof res.sourceName === "string" && res.sourceName !== "" ? res.sourceName : SOURCE_NAME;
   return {
-    text: `Quelle: ${sourceName}, hochwasserzentralen.de — Stand: ${updatedLocal ?? "unbekannt"}`,
+    text: `Quelle: ${SOURCE_NAME}, hochwasserzentralen.de — Stand: ${updatedLocal ?? "unbekannt"}`,
     sourceName,
     sourceUrl: typeof res.source === "string" && res.source !== "" ? res.source : "https://www.hochwasserzentralen.de",
     licence: res.licence,
