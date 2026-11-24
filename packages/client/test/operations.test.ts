@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { HochwasserzentralenClient } from "../src/client.js";
 import { HochwasserzentralenValidationError } from "../src/errors.js";
 import { findGauge, getFloodAlerts, getFloodMap, getFloodSituation, germanLocalTime, listGauges, resolveStates, decodeEntities } from "../src/operations.js";
+import type { StationsResponse } from "../src/types.js";
 import { alertArea, gauge, lhpApi, liveAlerts, liveStations } from "./fixtures.js";
 
 const clientOf = (api = lhpApi()) => ({ api, client: new HochwasserzentralenClient({ transport: api.transport }) });
@@ -25,6 +26,19 @@ test("the API's +01:00 is read as an instant and given as German local time: sum
   assert.equal(germanLocalTime("2026-09-15T16:47:47+01:00"), "15.09.2026, 17:47 MESZ");
   assert.equal(germanLocalTime("2026-11-19T16:11:47+01:00"), "19.11.2026, 16:11 MEZ");
   assert.equal(germanLocalTime("soon"), "soon");
+});
+
+test("an answer without a usable time gives a credit with 'Stand: unbekannt' and a note, never 'Stand: undefined'", async () => {
+  const noTime: Record<string, unknown> = { ...liveStations() };
+  delete noTime["updated"];
+  const none = await listGauges(clientOf(lhpApi({ stations: noTime as unknown as StationsResponse })).client, { states: ["SN"] });
+  assert.equal(none.attribution.text, "Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de — Stand: unbekannt");
+  assert.deepEqual(["updated" in none.attribution, "updatedLocal" in none.attribution], [false, false]);
+  assert.match(none.notes.join(" "), /The API sent no time for this data.*Stand: unbekannt/);
+  const word = await getFloodSituation(clientOf(lhpApi({ stations: { ...liveStations(), updated: "gestern" } })).client);
+  assert.equal(word.attribution.text, "Quelle: Länderübergreifendes Hochwasserportal (LHP), hochwasserzentralen.de — Stand: unbekannt");
+  assert.deepEqual([word.attribution.updated, "updatedLocal" in word.attribution], ["gestern", false]);
+  assert.match(word.notes.join(" "), /The API sent "gestern" as the time of this data, which is no time/);
 });
 
 test("HTML entities in labels are decoded: Rheinland-Pfalz's &#60; is <", () => {

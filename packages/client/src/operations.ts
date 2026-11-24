@@ -91,10 +91,13 @@ export interface Attribution {
   sourceUrl: string;
   licence: string;
   licenceName: string;
-  /** The data's time as the API sent it (always with +01:00, also in summer). */
-  updated: string;
-  /** The same instant as German local time ("19.11.2026, 16:11 MEZ", "15.09.2026, 17:47 MESZ"). */
-  updatedLocal: string;
+  /** The data's time as the API sent it (always with +01:00, also in summer); absent when it sent none. */
+  updated?: string;
+  /**
+   * The same instant as German local time ("19.11.2026, 16:11 MEZ", "15.09.2026, 17:47 MESZ");
+   * absent when `updated` is missing or no time, and `text` then says "Stand: unbekannt".
+   */
+  updatedLocal?: string;
 }
 
 const BERLIN = new Intl.DateTimeFormat("de-DE", {
@@ -118,19 +121,40 @@ export function germanLocalTime(updated: string): string {
   return Number.isFinite(ms) ? BERLIN.format(new Date(ms)) : updated;
 }
 
-/** The attribution of an answer, from its envelope. */
+/** The data's time of an answer as German local time, or undefined when it sent none that is a time. */
+function localTimeOf(res: ResponseEnvelope): string | undefined {
+  return typeof res.updated === "string" && Number.isFinite(Date.parse(res.updated)) ? germanLocalTime(res.updated) : undefined;
+}
+
+/**
+ * The attribution of an answer, from its envelope. Without a time the API sent (`updated` missing
+ * or not a time), the credit says "Stand: unbekannt" and `updatedLocal` is absent (see
+ * {@link envelopeNotes}).
+ */
 export function attributionOf(res: ResponseEnvelope): Attribution {
-  const updatedLocal = germanLocalTime(res.updated);
+  const updatedLocal = localTimeOf(res);
   const sourceName = typeof res.sourceName === "string" && res.sourceName !== "" ? res.sourceName : "Länderübergreifendes Hochwasserportal (LHP)";
   return {
-    text: `Quelle: ${sourceName}, hochwasserzentralen.de — Stand: ${updatedLocal}`,
+    text: `Quelle: ${sourceName}, hochwasserzentralen.de — Stand: ${updatedLocal ?? "unbekannt"}`,
     sourceName,
     sourceUrl: typeof res.source === "string" && res.source !== "" ? res.source : "https://www.hochwasserzentralen.de",
     licence: res.licence,
     licenceName: res.licenceName,
-    updated: res.updated,
-    updatedLocal,
+    ...(typeof res.updated === "string" ? { updated: res.updated } : {}),
+    ...(updatedLocal === undefined ? {} : { updatedLocal }),
   };
+}
+
+/** A note when the answer carries no time for its data (the credit then says "Stand: unbekannt"). */
+function timeNote(res: ResponseEnvelope): string[] {
+  if (localTimeOf(res) !== undefined) return [];
+  const sent = typeof res.updated === "string" ? `The API sent ${JSON.stringify(res.updated)} as the time of this data, which is no time` : "The API sent no time for this data";
+  return [`${sent}: the credit says "Stand: unbekannt". Say that the data's time is unknown.`];
+}
+
+/** The notes every answer's envelope may need: another language than asked, no time. */
+function envelopeNotes(asked: Lang | undefined, res: ResponseEnvelope): string[] {
+  return [...languageNote(asked, res), ...timeNote(res)];
 }
 
 /** A note when the API answered in another language than asked (its cache ignores the language). */
@@ -290,7 +314,7 @@ export async function getFloodAlerts(client: HochwasserzentralenClient, input: F
   const active = all.filter((a) => a.class !== 1).sort((a, b) => (b.class ?? 99) - (a.class ?? 99) || a.id.localeCompare(b.id));
   const counts: Record<string, number> = {};
   for (const a of active) counts[a.className] = (counts[a.className] ?? 0) + 1;
-  const notes = languageNote(input.lang, res);
+  const notes = envelopeNotes(input.lang, res);
   const odd = active.filter((a) => a.class === null || ALERT_CLASS_NAMES[String(a.class)] === undefined);
   if (odd.length > 0) {
     notes.push(`${odd.map((a) => a.id).join(", ")}: a class off the alerts scale (6, 5, 4, 2, 1); read its className and the state's page.`);
@@ -436,7 +460,7 @@ export async function listGauges(client: HochwasserzentralenClient, input: Gauge
     ...(input.lang === undefined ? {} : { lang: input.lang }),
   });
   const attribution = attributionOf(res);
-  const notes = [...languageNote(input.lang, res), ...GAUGE_NOTES];
+  const notes = [...envelopeNotes(input.lang, res), ...GAUGE_NOTES];
   const gauges = toGauges(res);
   if (gauges.length === 0) {
     const scope = scopeOf(states);
@@ -646,7 +670,7 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
               .map((e) => e.name)
               .join(", ")}.${darkNote}`;
   const notes = [
-    ...languageNote(input.lang, res),
+    ...envelopeNotes(input.lang, res),
     ...GAUGE_NOTES,
     "The states' official flood warnings (the alerts) are separate: a warning can be in force while the gauges are calm, and the other way round. Report both.",
   ];
@@ -734,7 +758,7 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
     const leftOff = alertsWithoutGeometry(res)
       .map((a) => ({ id: a.id, class: alertClass(a), ...(a.lhpClassName === undefined ? {} : { className: a.lhpClassName }), ...(a.areaDesc === undefined ? {} : { area: a.areaDesc }) }))
       .sort((a, b) => (b.class ?? 99) - (a.class ?? 99));
-    const notes = [...languageNote(input.lang, res), "Alert lhpClass is the alerts scale as a string: \"6\" Sehr großes, \"5\" Großes Hochwasser, \"4\" Hochwasser, \"2\" Vorwarnung, \"1\" Entwarnung (all-clear). Style river reaches (LineString) as lines."];
+    const notes = [...envelopeNotes(input.lang, res), "Alert lhpClass is the alerts scale as a string: \"6\" Sehr großes, \"5\" Großes Hochwasser, \"4\" Hochwasser, \"2\" Vorwarnung, \"1\" Entwarnung (all-clear). Style river reaches (LineString) as lines."];
     return mapAnswer({ layer: "alerts", ...scope }, fc.features, leftOff, attributionOf(res), notes, `No alert area in ${scopeOf(states)}: no active official flood warning to map.`);
   }
   const water = input.water === undefined ? undefined : normalizeText(assertValid("water", input.water, textProblem));
@@ -743,7 +767,7 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
   const res = await client.stations({ ...scope, ...filters, ...lang });
   const fc = stationsToGeoJson(res);
   const leftOff = stationsWithoutCoordinates(res).map((s) => ({ id: s.id, class: s.lhpClass ?? null, ...(s.name === undefined ? {} : { area: s.name }) }));
-  const notes = [...languageNote(input.lang, res), "Gauge lhpClass is the station scale as a number: 4..1 flooding, 0 none, -1 no data; a gauge without a flood classification has no lhpClass. Never style both layers with one colour ramp."];
+  const notes = [...envelopeNotes(input.lang, res), "Gauge lhpClass is the station scale as a number: 4..1 flooding, 0 none, -1 no data; a gauge without a flood classification has no lhpClass. Never style both layers with one colour ramp."];
   if (res.data.some((s) => typeof s.stateClassName === "string" && /&#?\w+;/.test(s.stateClassName))) {
     notes.push("Some stateClassName labels carry HTML entities as the API sends them (Rheinland-Pfalz: \"&#60;\" is \"<\"); decode them for a label.");
   }
