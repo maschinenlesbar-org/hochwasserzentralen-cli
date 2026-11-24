@@ -74,7 +74,7 @@ test("getFloodSituation splits no data (-1) from unclassified (null), counts bor
   assert.equal(situation.totalGauges, 14);
   assert.equal(situation.sites, 12, "Kaub and Obernau are reported by two states each");
   assert.equal(situation.worstClass, 2);
-  assert.match(situation.verdict, /^2 gauge sites in Germany at class 1 or above; the worst is class 2 \(Mittleres Hochwasser\), in Hessen, Rheinland-Pfalz\.$/);
+  assert.match(situation.verdict, /^2 gauge sites in Germany at class 1 or above; the worst is class 2 \(Mittleres Hochwasser\), in Hessen, Rheinland-Pfalz\. No current data from any gauge in Brandenburg: a data gap, not calm\.$/);
   assert.deepEqual(situation.worstGauges.map((g) => g.id), ["HE_25100100", "BY_24149208"], "Kaub once");
   const mv = situation.states.find((s) => s.state === "MV");
   assert.deepEqual([mv?.gauges, mv?.noData, mv?.unclassified, mv?.worstClass], [2, 0, 2, null]);
@@ -95,6 +95,18 @@ test("getFloodSituation: worst class 0 is 'no flooding', said plainly; a state w
   assert.equal(situation.verdict, "No flooding at any reporting gauge in Sachsen, Bremen (worst class 0, Kein Hochwasser).");
   assert.deepEqual(situation.states.map((s) => [s.state, s.gauges, s.worstClass]), [["SN", 1, 0], ["HB", 0, null]]);
   assert.deepEqual(situation.worstGauges, []);
+});
+
+test("getFloodSituation: a state whose every gauge reports no data (-1) is a data gap in the verdict, never 'no flooding'", async () => {
+  const dark = { ...liveStations(), data: [gauge("SN_1", "Schöna", "Elbe", -1, [14.2, 50.9]), gauge("SN_2", "Dresden", "Elbe", -1, [13.7, 51.0]), gauge("BY_3", "Passau", "Donau", 0, [13.4, 48.6])] };
+  const sn = await getFloodSituation(clientOf(lhpApi({ stations: dark })).client, { states: ["SN"] });
+  assert.equal(sn.worstClass, -1);
+  assert.equal(sn.verdict, "No current data from any gauge in Sachsen (2 gauges at -1, Derzeit keine Daten): a data gap, not calm. Check the state's flood service.");
+  const all = await getFloodSituation(clientOf(lhpApi({ stations: dark })).client, { states: ["SN", "BY"] });
+  assert.equal(all.verdict, "No flooding at any reporting gauge in Sachsen, Bayern (worst class 0, Kein Hochwasser). No current data from any gauge in Sachsen: a data gap, not calm.");
+  const flooding = { ...dark, data: [...dark.data, gauge("BY_4", "Kelheim", "Donau", 2, [11.9, 48.9])] };
+  const worse = await getFloodSituation(clientOf(lhpApi({ stations: flooding })).client);
+  assert.match(worse.verdict, /^1 gauge site in Germany at class 1 or above; the worst is class 2 \(Mittleres Hochwasser\), in Bayern\. No current data from any gauge in Sachsen: a data gap, not calm\.$/);
 });
 
 test("listGauges: a water search matches parts of names and says which waters it hit; labels decoded; border gauges linked", async () => {

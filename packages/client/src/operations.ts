@@ -614,21 +614,28 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
   });
   const scope = scopeOf(states);
   const floodingStates = ranked.filter((e) => e.flooding > 0);
+  // A state whose gauges all report -1 is dark: a data gap, which is when gauges fail in a real
+  // flood, so the verdict says it and never reads it as calm.
+  const dark = ranked.filter((e) => e.gauges > 0 && e.worstClass === -1);
+  const darkNote = dark.length === 0 ? "" : ` No current data from any gauge in ${dark.map((e) => e.name).join(", ")}: a data gap, not calm.`;
+  const noDataGauges = ranked.reduce((n, e) => n + e.noData, 0);
   const verdict =
     worstClass === null
       ? `No LHP gauge with a class in ${scope}.`
-      : worstClass < 1
-        ? `No flooding at any reporting gauge in ${scope} (worst class ${worstClass}, ${nameOf(worstClass)}).`
-        : `${flooding.length} gauge site${flooding.length === 1 ? "" : "s"} in ${scope} at class 1 or above; the worst is class ${worstClass} (${nameOf(worstClass)}), in ${floodingStates
-            .filter((e) => e.worstClass === worstClass)
-            .map((e) => e.name)
-            .join(", ")}.`;
+      : worstClass === -1
+        ? `No current data from any gauge in ${scope} (${noDataGauges} gauge${noDataGauges === 1 ? "" : "s"} at -1, ${nameOf(-1)}): a data gap, not calm. Check the ${dark.length === 1 ? "state's flood service" : "states' flood services"}.`
+        : worstClass < 1
+          ? `No flooding at any reporting gauge in ${scope} (worst class ${worstClass}, ${nameOf(worstClass)}).${darkNote}`
+          : `${flooding.length} gauge site${flooding.length === 1 ? "" : "s"} in ${scope} at class 1 or above; the worst is class ${worstClass} (${nameOf(worstClass)}), in ${floodingStates
+              .filter((e) => e.worstClass === worstClass)
+              .map((e) => e.name)
+              .join(", ")}.${darkNote}`;
   const notes = [
     ...languageNote(input.lang, res),
     ...GAUGE_NOTES,
     "The states' official flood warnings (the alerts) are separate: a warning can be in force while the gauges are calm, and the other way round. Report both.",
   ];
-  const noData = ranked.reduce((n, e) => n + e.noData, 0);
+  const noData = noDataGauges;
   const unclassified = ranked.reduce((n, e) => n + e.unclassified, 0);
   if (noData > 0) notes.push(`${noData} gauge${noData === 1 ? " has" : "s have"} no current data (-1): a data gap, not calm.`);
   if (unclassified > 0) notes.push(`${unclassified} gauge${unclassified === 1 ? " has" : "s have"} no flood classification at all (unclassified): not a data gap.`);
