@@ -165,7 +165,7 @@ function envelopeNotes(asked: Lang | undefined, res: ResponseEnvelope): string[]
 /** A note when the API answered in another language than asked (its cache ignores the language). */
 function languageNote(asked: Lang | undefined, res: ResponseEnvelope): string[] {
   return asked !== undefined && res.lang !== asked
-    ? [`Asked for lang ${asked}, the API sent ${JSON.stringify(res.lang)}: its cache ignores the language at times. The data is the same.`]
+    ? [`Asked for lang ${asked}, the API sent ${typeof res.lang === "string" ? JSON.stringify(res.lang) : "no language"}: its cache ignores the language at times. The data is the same.`]
     : [];
 }
 

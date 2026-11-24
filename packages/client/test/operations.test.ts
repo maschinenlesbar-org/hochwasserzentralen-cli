@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { HochwasserzentralenClient } from "../src/client.js";
 import { HochwasserzentralenValidationError } from "../src/errors.js";
 import { findGauge, getFloodAlerts, getFloodMap, getFloodSituation, germanLocalTime, listGauges, resolveStates, decodeEntities } from "../src/operations.js";
-import type { StationsResponse } from "../src/types.js";
+import type { AlertsResponse, StationsResponse } from "../src/types.js";
 import { alertArea, gauge, lhpApi, liveAlerts, liveStations } from "./fixtures.js";
 
 const clientOf = (api = lhpApi()) => ({ api, client: new HochwasserzentralenClient({ transport: api.transport }) });
@@ -88,6 +88,11 @@ test("getFloodAlerts: states by name reach the API as codes; the CAP block gives
 test("getFloodAlerts says when the API answered in another language than asked (its cache ignores it)", async () => {
   const alerts = await getFloodAlerts(clientOf().client, { lang: "en" });
   assert.match(alerts.notes.join(" "), /Asked for lang en, the API sent "de"/);
+  const noLang: Record<string, unknown> = { ...liveAlerts() };
+  delete noLang["lang"];
+  const none = await getFloodAlerts(clientOf(lhpApi({ alerts: noLang as unknown as AlertsResponse })).client, { lang: "en" });
+  assert.equal(none.notes.join(" ").includes("undefined"), false);
+  assert.match(none.notes.join(" "), /Asked for lang en, the API sent no language: its cache ignores the language at times/);
 });
 
 test("getFloodSituation splits no data (-1) from unclassified (null), counts border gauges once as sites, and lists the worst gauges", async () => {
