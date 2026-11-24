@@ -44,7 +44,7 @@ function baseFold(text: string): string {
 }
 
 /** The second match form: {@link baseFold} with every diacritic dropped ("Müritz" -> "muritz"). */
-function plainFold(text: string): string {
+export function plainFold(text: string): string {
   return baseFold(text).normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
 }
 

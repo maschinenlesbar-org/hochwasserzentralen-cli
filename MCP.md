@@ -73,7 +73,8 @@ For scripts and shared configs, pin a release and its digest from the
 | `listGauges` | The gauges by state, water (a part of the name) and minimum class, worst first, a page at a time; a water search names the waters it matched. |
 | `findGauge` | One gauge by id or name; a border gauge's two entries are one answer, a name matching several places is ambiguous with the candidates. |
 
-States are taken as codes or names (`BY`, `Bayern`, `Bavaria`, `NRW`). Every result carries the
+States are taken as codes or names (`BY`, `Bayern`, `Bavaria`, `NRW`; umlauts written or not,
+a space for a hyphen: `Thuringen`, `Schleswig Holstein`). Every result carries the
 attribution CC BY 4.0 asks for, with the data's time as German local time (the API writes
 `+01:00` also in summer).
 

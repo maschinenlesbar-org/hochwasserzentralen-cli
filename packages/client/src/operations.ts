@@ -16,7 +16,7 @@
 import type { HochwasserzentralenClient } from "./client.js";
 import { HochwasserzentralenValidationError } from "./errors.js";
 import { alertsToGeoJson, alertsWithoutGeometry, featuresBbox, stationsToGeoJson, stationsWithoutCoordinates, type GeoJsonFeature } from "./geojson.js";
-import { foldName, stationClass } from "./stations.js";
+import { foldName, plainFold, stationClass } from "./stations.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type AlertArea, type Lang, type ResponseEnvelope, type Station, type StationsResponse } from "./types.js";
 import { assertValid, minClassProblem, normalizeText, textProblem, tokenProblem, type Problem } from "./validate.js";
 
@@ -42,24 +42,33 @@ export const STATE_NAMES: Readonly<Record<string, string>> = Object.freeze({
   TH: "Thüringen",
 });
 
-/** Other names a state goes by (English, short forms), folded as {@link foldName} folds them. */
+/** Other names a state goes by (English, short forms), folded as {@link stateKeys} folds them. */
 const STATE_ALIASES: Readonly<Record<string, string>> = Object.freeze({
   bavaria: "BY",
   hesse: "HE",
-  "mecklenburg-western pomerania": "MV",
+  "mecklenburg western pomerania": "MV",
   "lower saxony": "NI",
   nrw: "NW",
-  "north rhine-westphalia": "NW",
-  "rhineland-palatinate": "RP",
+  "north rhine westphalia": "NW",
+  "rhineland palatinate": "RP",
   saxony: "SN",
-  "saxony-anhalt": "ST",
+  "saxony anhalt": "ST",
   thuringia: "TH",
 });
 
 /**
+ * A state name's two match forms: umlauts transliterated ("Thueringen") or dropped ("Thuringen"),
+ * a hyphen as a space ("Schleswig Holstein").
+ */
+function stateKeys(name: string): string[] {
+  return [foldName(name), plainFold(name)].map((key) => key.replace(/-/g, " ").replace(/ +/g, " "));
+}
+
+/**
  * The state codes for states given as codes ("BY") or names ("Bayern", "Bavaria", "NRW", any
- * case, umlauts or not): de-duplicated, in the order given. An unknown one is a validation error
- * naming the 16 codes, never a dropped filter (which would answer for all of Germany).
+ * case, umlauts transliterated, dropped or kept, a space for a hyphen): de-duplicated, in the
+ * order given. An unknown one is a validation error naming the 16 codes, never a dropped filter
+ * (which would answer for all of Germany).
  */
 export function resolveStates(states: readonly string[]): string[] {
   if (!Array.isArray(states) || states.length === 0) {
@@ -68,10 +77,13 @@ export function resolveStates(states: readonly string[]): string[] {
   const codes: string[] = [];
   for (const raw of states) {
     const value = assertValid("states", raw, tokenProblem).trim();
-    const folded = foldName(value);
+    const [folded = "", plain = ""] = stateKeys(value);
     const code =
       (STATE_CODES as readonly string[]).find((c) => c === value.toUpperCase()) ??
-      Object.entries(STATE_NAMES).find(([, name]) => foldName(name) === folded)?.[0] ??
+      Object.entries(STATE_NAMES).find(([, name]) => {
+        const [nameFolded, namePlain] = stateKeys(name);
+        return nameFolded === folded || namePlain === plain;
+      })?.[0] ??
       STATE_ALIASES[folded];
     if (code === undefined) {
       throw new HochwasserzentralenValidationError(

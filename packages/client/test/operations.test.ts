@@ -17,6 +17,11 @@ const clientOf = (api = lhpApi()) => ({ api, client: new HochwasserzentralenClie
 test("states are taken as codes or names, German or English, any case, umlauts or not; an unknown one is refused, never dropped", () => {
   assert.deepEqual(resolveStates(["by", "Sachsen", "Thüringen", "Thueringen", "NRW", "Lower Saxony", "bavaria"]), ["BY", "SN", "TH", "NW", "NI"]);
   assert.deepEqual(resolveStates(["Baden-Wuerttemberg", "rheinland-pfalz"]), ["BW", "RP"]);
+  assert.deepEqual(
+    resolveStates(["Thuringen", "Baden Württemberg", "Mecklenburg Vorpommern", "Schleswig Holstein", "North Rhine Westphalia", "Saxony Anhalt", "Rhineland Palatinate", "Mecklenburg Western Pomerania", "Baden Wurttemberg"]),
+    ["TH", "BW", "MV", "SH", "NW", "ST", "RP"],
+    "an umlaut dropped, a space for the hyphen",
+  );
   assert.throws(() => resolveStates(["Bayer"]), (err: unknown) => err instanceof HochwasserzentralenValidationError && /unknown state "Bayer".*BY \(Bayern\)/.test(err.message));
   assert.throws(() => resolveStates([]), HochwasserzentralenValidationError);
   assert.throws(() => resolveStates(["BY", " "]), HochwasserzentralenValidationError);
