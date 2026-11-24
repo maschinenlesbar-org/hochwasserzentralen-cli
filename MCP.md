@@ -74,7 +74,9 @@ For scripts and shared configs, pin a release and its digest from the
 | `findGauge` | One gauge by id or name; a border gauge's two entries are one answer, a name matching several places is ambiguous with the candidates. |
 
 States are taken as codes or names (`BY`, `Bayern`, `Bavaria`, `NRW`; umlauts written or not,
-a space for a hyphen: `Thuringen`, `Schleswig Holstein`). Every result carries the
+a space for a hyphen: `Thuringen`, `Schleswig Holstein`). A gauge whose class is off the
+station scale (the API's scale may have changed) is named apart in `offScale`, never counted or
+read as calm, and the other gauges are answered for; the CLI refuses such an answer. Every result carries the
 attribution CC BY 4.0 asks for, with the data's time as German local time (the API writes
 `+01:00` also in summer).
 

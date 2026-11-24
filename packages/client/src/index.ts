@@ -89,6 +89,7 @@ export type {
   GaugesInput,
   LeftOff,
   MapLayer,
+  OffScaleGauge,
   StateFloodSituation,
 } from "./operations.js";
 

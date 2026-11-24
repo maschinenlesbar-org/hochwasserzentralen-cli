@@ -217,6 +217,27 @@ test("findGauge: one gauge named exactly as asked is picked only when no other p
   assert.equal(kaub.status === "ok" ? kaub.gauge.id : kaub.status, "BY_1", "Kaubach is another word, not a place named Kaub");
 });
 
+test("a gauge with a class off the station scale is named apart, never fails the answer for the other gauges", async () => {
+  const stations = { ...liveStations(), data: [...liveStations().data, gauge("SN_9", "Pirna", "Elbe", 5, [13.94, 50.96])] };
+  const api = () => clientOf(lhpApi({ stations })).client;
+  const situation = await getFloodSituation(api());
+  assert.equal(situation.totalGauges, 14, "SN_9 is not counted");
+  assert.deepEqual(situation.offScale, [{ id: "SN_9", name: "Pirna", water: "Elbe", state: "SN", lhpClass: "5", link: "https://example.org/pegel/SN_9" }]);
+  assert.match(situation.verdict, / 1 gauge reports a class off the station scale \(offScale\), not counted: read its state's page\.$/);
+  assert.match(situation.notes.join(" "), /SN_9 \(lhpClass 5\).*scale may have changed/);
+  const kaub = await findGauge(api(), { gauge: "Kaub" });
+  assert.equal(kaub.status, "ok");
+  assert.equal(kaub.notes.some((n) => n.includes("SN_9")), false, "not about this search");
+  const pirna = await findGauge(api(), { gauge: "Pirna" });
+  assert.equal(pirna.status, "empty");
+  assert.match(pirna.status === "empty" ? pirna.reason : "", /SN_9 \(Pirna\) reports a class off the station scale \(lhpClass 5\).*https:\/\/example\.org\/pegel\/SN_9/);
+  const flooding = await listGauges(api(), { minClass: 1 });
+  assert.equal(flooding.status, "ok");
+  assert.deepEqual(flooding.status === "ok" ? [flooding.gauges.map((g) => g.id), flooding.offScale?.map((g) => g.id)] : [], [["HE_25100100", "RP_25100100", "BY_24149208"], ["SN_9"]]);
+  const map = await getFloodMap(api(), { layer: "gauges", minClass: 1 });
+  assert.deepEqual([map.features.map((f) => f.properties["id"]), map.offScale?.map((g) => g.id)], [["BY_24149208", "HE_25100100", "RP_25100100"], ["SN_9"]]);
+});
+
 test("getFloodMap: alert areas as features with the bbox; one without a geometry is named, not silently missing", async () => {
   const data = [...liveAlerts().data, alertArea("BY_577", "6", "Donau", { geometry: { type: "Polygon", coordinates: [[[1, 2]]] } })];
   const map = await getFloodMap(clientOf(lhpApi({ alerts: { ...liveAlerts(), data } })).client, { layer: "alerts" });

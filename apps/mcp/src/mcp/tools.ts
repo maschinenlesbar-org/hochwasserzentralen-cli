@@ -77,6 +77,7 @@ const arr: JsonSchema = { type: "array" };
 const int: JsonSchema = { type: "integer" };
 const str_: JsonSchema = { type: "string" };
 const intOrNull: JsonSchema = { type: ["integer", "null"] };
+const offScale: JsonSchema = { type: "array", description: "Gauges whose class is off the station scale (the API's scale may have changed): not counted or listed, never calm; point to their state's page (link)." };
 const strOrNull: JsonSchema = { type: ["string", "null"] };
 
 const num = (args: Record<string, unknown>, key: string): number | undefined => (typeof args[key] === "number" ? (args[key] as number) : undefined);
@@ -154,7 +155,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       worstGauges: { type: "integer", minimum: 0, maximum: 50, description: "How many flooding gauges (class 1 or above) to list, worst first (0-50, default 10)." },
       lang,
     }),
-    outputSchema: output({ verdict: str_, totalGauges: int, sites: int, worstClass: intOrNull, worstClassName: strOrNull, states: arr, worstGauges: arr }),
+    outputSchema: output({ verdict: str_, totalGauges: int, sites: int, worstClass: intOrNull, worstClassName: strOrNull, states: arr, worstGauges: arr, offScale }),
     source: (args) => sourceOf("stations", args),
     async run(args, context) {
       return { ...(await getFloodSituation(context.client, { states: list(args, "states"), worstGauges: num(args, "worstGauges"), lang: langOf(args) })) };
@@ -180,7 +181,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       },
       ["layer"],
     ),
-    outputSchema: output({ type: str_, bbox: arr, features: arr, total: int, nextOffset: int, leftOff: arr, waters: obj }),
+    outputSchema: output({ type: str_, bbox: arr, features: arr, total: int, nextOffset: int, leftOff: arr, waters: obj, offScale }),
     source: (args) => sourceOf(str(args, "layer") === "alerts" ? "alerts" : "stations", args),
     paged: (args) => ({ list: "features", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
@@ -204,7 +205,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       RULES,
     ].join("\n\n"),
     inputSchema: input({ states, water, minClass, lang, offset: offset(5000), limit: limit(200, 50, "gauges") }),
-    outputSchema: output({ total: int, sites: int, gauges: arr, nextOffset: int, waters: obj }),
+    outputSchema: output({ total: int, sites: int, gauges: arr, nextOffset: int, waters: obj, offScale }),
     source: (args) => sourceOf("stations", args),
     paged: (args) => ({ list: "gauges", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
@@ -232,7 +233,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       },
       ["gauge"],
     ),
-    outputSchema: output({ gauge: obj, sameSite: arr, total: int, candidates: arr, complete: { type: "boolean" } }),
+    outputSchema: output({ gauge: obj, sameSite: arr, total: int, candidates: arr, complete: { type: "boolean" }, offScale }),
     source: (args) => sourceOf("stations", args),
     async run(args, context) {
       return { ...(await findGauge(context.client, { gauge: str(args, "gauge") ?? "", states: list(args, "states"), water: str(args, "water"), limit: num(args, "limit"), lang: langOf(args) })) };

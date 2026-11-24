@@ -14,9 +14,9 @@
 // says what was searched and why it is empty.
 
 import type { HochwasserzentralenClient } from "./client.js";
-import { HochwasserzentralenValidationError } from "./errors.js";
+import { cutText, HochwasserzentralenParseError, HochwasserzentralenValidationError } from "./errors.js";
 import { alertsToGeoJson, alertsWithoutGeometry, featuresBbox, stationsToGeoJson, stationsWithoutCoordinates, type GeoJsonFeature } from "./geojson.js";
-import { foldName, plainFold, stationClass } from "./stations.js";
+import { filterStations, foldName, plainFold, stationClass } from "./stations.js";
 import { STATE_CODES, STATION_CLASS_NAMES, type AlertArea, type Lang, type ResponseEnvelope, type Station, type StationsResponse } from "./types.js";
 import { assertValid, minClassProblem, normalizeText, textProblem, tokenProblem, type Problem } from "./validate.js";
 
@@ -394,10 +394,12 @@ export type GaugeList =
       gauges: Gauge[];
       /** With a water search: the waters it matched, with their counts (it matches parts of names). */
       waters?: Record<string, number>;
+      /** Gauges whose class is off the station scale, left out of `gauges`; absent when none. */
+      offScale?: OffScaleGauge[];
       attribution: Attribution;
       notes: string[];
     }
-  | { status: "empty"; searched: GaugeSearch; reason: string; attribution: Attribution; notes: string[] };
+  | { status: "empty"; searched: GaugeSearch; reason: string; offScale?: OffScaleGauge[]; attribution: Attribution; notes: string[] };
 
 /** What a gauge search asked for. */
 export interface GaugeSearch {
@@ -405,6 +407,68 @@ export interface GaugeSearch {
   water?: string;
   minClass?: number;
   gauge?: string;
+}
+
+/**
+ * A gauge whose class is off the station scale (4..-1, or null): the API's scale or type may have
+ * changed (a 5, a 2.5, the string "3"). Counting it as calm or as no data could hide a flood, so
+ * the use cases name it apart and leave it out of their lists, counts and maps.
+ */
+export interface OffScaleGauge {
+  id: string;
+  name?: string;
+  water?: string;
+  state?: string;
+  /** The class as the API sent it, as JSON text ("5", "\"3\"", "2.5"). */
+  lhpClass: string;
+  link?: string;
+}
+
+/** The answer without its gauges whose class is off the station scale, and those apart. */
+function splitOffScale(res: StationsResponse): { res: StationsResponse; offScale: OffScaleGauge[] } {
+  const offScale: OffScaleGauge[] = [];
+  const data = res.data.filter((s) => {
+    try {
+      stationClass(s);
+      return true;
+    } catch (err) {
+      if (!(err instanceof HochwasserzentralenParseError)) throw err;
+      const state = gaugeState(s);
+      offScale.push({
+        id: s.id,
+        ...(s.name === undefined ? {} : { name: s.name }),
+        ...(s.water === undefined ? {} : { water: s.water }),
+        ...(state === undefined ? {} : { state }),
+        lhpClass: cutText(JSON.stringify(s.lhpClass) ?? String(s.lhpClass), 40),
+        ...(s.stationLink === undefined ? {} : { link: s.stationLink }),
+      });
+      return false;
+    }
+  });
+  return { res: { ...res, data }, offScale };
+}
+
+/** The note naming the gauges off the station scale, or none. */
+function offScaleNotes(offScale: readonly OffScaleGauge[]): string[] {
+  if (offScale.length === 0) return [];
+  const named = offScale.slice(0, 10).map((g) => `${g.id} (lhpClass ${g.lhpClass})`).join(", ");
+  return [
+    `${offScale.length} gauge${offScale.length === 1 ? " reports" : "s report"} a class off the station scale (4..-1, null): ${named}${offScale.length > 10 ? ", …" : ""}. The API's scale may have changed; ${offScale.length === 1 ? "it is" : "they are"} left out of the lists and counts and named in offScale: read the state's page (link).`,
+  ];
+}
+
+/**
+ * The gauges of an answer, the ones off the station scale apart, `minClass` applied to the rest
+ * (the client's own minClass filter refuses the whole answer for one such gauge).
+ */
+async function fetchGauges(
+  client: HochwasserzentralenClient,
+  params: { states?: string[]; water?: string; minClass?: number; lang?: Lang },
+): Promise<{ res: StationsResponse; whole: StationsResponse; offScale: OffScaleGauge[] }> {
+  const { minClass, ...rest } = params;
+  const whole = await client.stations(rest);
+  const { res, offScale } = splitOffScale(whole);
+  return { res: minClass === undefined ? res : filterStations(res, { minClass }), whole, offScale };
 }
 
 /** The gauges of an answer as {@link Gauge}s, border gauges linked to each other, worst first. */
@@ -470,14 +534,15 @@ export async function listGauges(client: HochwasserzentralenClient, input: Gauge
   const water = input.water === undefined ? undefined : normalizeText(assertValid("water", input.water, textProblem));
   const minClass = input.minClass === undefined ? undefined : assertValid("minClass", input.minClass, minClassProblem as Problem<number>);
   const searched: GaugeSearch = { ...(states === undefined ? {} : { states }), ...(water === undefined ? {} : { water }), ...(minClass === undefined ? {} : { minClass }) };
-  const res = await client.stations({
+  const { res, offScale } = await fetchGauges(client, {
     ...(states === undefined ? {} : { states }),
     ...(water === undefined ? {} : { water }),
     ...(minClass === undefined ? {} : { minClass }),
     ...(input.lang === undefined ? {} : { lang: input.lang }),
   });
   const attribution = attributionOf(res);
-  const notes = [...envelopeNotes(input.lang, res), ...GAUGE_NOTES];
+  const notes = [...envelopeNotes(input.lang, res), ...GAUGE_NOTES, ...offScaleNotes(offScale)];
+  const odd = offScale.length === 0 ? {} : { offScale };
   const gauges = toGauges(res);
   if (gauges.length === 0) {
     const scope = scopeOf(states);
@@ -487,13 +552,13 @@ export async function listGauges(client: HochwasserzentralenClient, input: Gauge
         : minClass !== undefined
           ? `No gauge in ${scope} is at class ${minClass} or above${minClass >= 1 ? ": no reporting gauge is flooding (good news, not missing data)" : ""}.`
           : `The LHP lists no gauge in ${scope}.`;
-    return { status: "empty", searched, reason, attribution, notes };
+    return { status: "empty", searched, reason, ...odd, attribution, notes };
   }
   const waters: Record<string, number> = {};
   for (const g of gauges) if (g.water !== undefined) waters[g.water] = (waters[g.water] ?? 0) + 1;
   const sites = countSites(gauges);
   if (sites < gauges.length) notes.push(`${gauges.length - sites} border gauge entr${gauges.length - sites === 1 ? "y is" : "ies are"} the same site reported by two states (sameSiteAs): count sites, not entries.`);
-  return { status: "ok", searched, total: gauges.length, sites, gauges, ...(water === undefined ? {} : { waters }), attribution, notes };
+  return { status: "ok", searched, total: gauges.length, sites, gauges, ...(water === undefined ? {} : { waters }), ...odd, attribution, notes };
 }
 
 /** The input of {@link findGauge}. */
@@ -509,9 +574,9 @@ export interface FindGaugeInput {
 
 /** The answer of {@link findGauge}. */
 export type GaugeLookup =
-  | { status: "ok"; searched: GaugeSearch; gauge: Gauge; sameSite: Gauge[]; attribution: Attribution; notes: string[] }
-  | { status: "ambiguous"; searched: GaugeSearch; total: number; candidates: Gauge[]; complete: boolean; attribution: Attribution; notes: string[] }
-  | { status: "empty"; searched: GaugeSearch; reason: string; attribution: Attribution; notes: string[] };
+  | { status: "ok"; searched: GaugeSearch; gauge: Gauge; sameSite: Gauge[]; offScale?: OffScaleGauge[]; attribution: Attribution; notes: string[] }
+  | { status: "ambiguous"; searched: GaugeSearch; total: number; candidates: Gauge[]; complete: boolean; offScale?: OffScaleGauge[]; attribution: Attribution; notes: string[] }
+  | { status: "empty"; searched: GaugeSearch; reason: string; offScale?: OffScaleGauge[]; attribution: Attribution; notes: string[] };
 
 /**
  * One gauge by its id or name, with its class: an id is matched exactly; a name as a part of the
@@ -527,12 +592,22 @@ export async function findGauge(client: HochwasserzentralenClient, input: FindGa
   const list = await listGauges(client, { states: input.states, water: input.water, lang: input.lang });
   const searched: GaugeSearch = { ...list.searched, gauge: wanted };
   const { attribution } = list;
-  // The list's count of border gauges is about all the gauges searched, not this one.
-  const notes = list.notes.filter((note) => !note.includes("sameSiteAs"));
-  if (list.status === "empty") return { status: "empty", searched, reason: list.reason, attribution, notes };
-  const byId = list.gauges.filter((g) => g.id.toUpperCase() === wanted.toUpperCase());
+  // The list's count of border gauges and its gauges off the scale are about all the gauges
+  // searched, not this one: only the ones off the scale that match are named.
   const folded = foldName(wanted);
-  const matches = byId.length > 0 ? byId : list.gauges.filter((g) => g.name !== undefined && foldName(g.name).includes(folded));
+  const matching = <G extends { id: string; name?: string }>(gauges: readonly G[]): G[] => {
+    const byId = gauges.filter((g) => g.id.toUpperCase() === wanted.toUpperCase());
+    return byId.length > 0 ? byId : gauges.filter((g) => g.name !== undefined && foldName(g.name).includes(folded));
+  };
+  const offScale = matching(list.offScale ?? []);
+  const notes = [...list.notes.filter((note) => !note.includes("sameSiteAs") && !note.includes("off the station scale")), ...offScaleNotes(offScale)];
+  const odd = offScale.length === 0 ? {} : { offScale };
+  const matches = list.status === "empty" ? [] : matching(list.gauges);
+  if (matches.length === 0 && offScale.length > 0) {
+    const named = offScale.map((g) => `${g.id}${g.name === undefined ? "" : ` (${g.name})`} reports a class off the station scale (lhpClass ${g.lhpClass})${g.link === undefined ? "" : `; its state's page: ${g.link}`}`).join(". ");
+    return { status: "empty", searched, reason: `${named}. The API's class scale may have changed, so no class is given here: read the state's page.`, ...odd, attribution, notes };
+  }
+  if (list.status === "empty") return { status: "empty", searched, reason: list.reason, attribution, notes };
   if (matches.length === 0) {
     return {
       status: "empty",
@@ -554,10 +629,10 @@ export async function findGauge(client: HochwasserzentralenClient, input: FindGa
   const pick = sites.size === 1 ? matches[0] : exactSites.size === 1 && !namedSoElsewhere ? exact[0] : undefined;
   if (pick !== undefined) {
     const sameSite = list.gauges.filter((g) => g.id !== pick.id && siteOf(g) === siteOf(pick));
-    return { status: "ok", searched, gauge: pick, sameSite, attribution, notes };
+    return { status: "ok", searched, gauge: pick, sameSite, ...odd, attribution, notes };
   }
   const ranked = [...exact, ...matches.filter((g) => !exact.includes(g))];
-  return { status: "ambiguous", searched, total: matches.length, candidates: ranked.slice(0, limit), complete: matches.length <= limit, attribution, notes };
+  return { status: "ambiguous", searched, total: matches.length, candidates: ranked.slice(0, limit), complete: matches.length <= limit, ...odd, attribution, notes };
 }
 
 /** True when `text` holds `word` with no letter or digit right before or after it. */
@@ -612,6 +687,8 @@ export interface FloodSituation {
   states: StateFloodSituation[];
   /** The worst gauges, class 1 or above, a border gauge's second entry left out. */
   worstGauges: Gauge[];
+  /** Gauges whose class is off the station scale, not counted anywhere above; absent when none. */
+  offScale?: OffScaleGauge[];
   attribution: Attribution;
   notes: string[];
 }
@@ -626,7 +703,7 @@ export interface FloodSituation {
 export async function getFloodSituation(client: HochwasserzentralenClient, input: FloodSituationInput = {}): Promise<FloodSituation> {
   const states = input.states === undefined ? undefined : resolveStates(input.states);
   const top = assertValid("worstGauges", input.worstGauges ?? 10, within(0, 50));
-  const res = await client.stations({ ...(states === undefined ? {} : { states }), ...(input.lang === undefined ? {} : { lang: input.lang }) });
+  const { res, offScale } = await fetchGauges(client, { ...(states === undefined ? {} : { states }), ...(input.lang === undefined ? {} : { lang: input.lang }) });
   const nameOf = stationClassNamer(res);
   const gauges = toGauges(res);
   const byState = new Map<string, StateFloodSituation>();
@@ -675,8 +752,10 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
   const dark = ranked.filter((e) => e.gauges > 0 && e.worstClass === -1);
   const darkNote = dark.length === 0 ? "" : ` No current data from any gauge in ${dark.map((e) => e.name).join(", ")}: a data gap, not calm.`;
   const noDataGauges = ranked.reduce((n, e) => n + e.noData, 0);
+  const oddNote =
+    offScale.length === 0 ? "" : ` ${offScale.length} gauge${offScale.length === 1 ? " reports" : "s report"} a class off the station scale (offScale), not counted: read ${offScale.length === 1 ? "its state's page" : "their states' pages"}.`;
   const verdict =
-    worstClass === null
+    (worstClass === null
       ? `No LHP gauge with a class in ${scope}.`
       : worstClass === -1
         ? `No current data from any gauge in ${scope} (${noDataGauges} gauge${noDataGauges === 1 ? "" : "s"} at -1, ${nameOf(-1)}): a data gap, not calm. Check the ${dark.length === 1 ? "state's flood service" : "states' flood services"}.`
@@ -685,10 +764,11 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
           : `${flooding.length} gauge site${flooding.length === 1 ? "" : "s"} in ${scope} at class 1 or above; the worst is class ${worstClass} (${nameOf(worstClass)}), in ${floodingStates
               .filter((e) => e.worstClass === worstClass)
               .map((e) => e.name)
-              .join(", ")}.${darkNote}`;
+              .join(", ")}.${darkNote}`) + oddNote;
   const notes = [
     ...envelopeNotes(input.lang, res),
     ...GAUGE_NOTES,
+    ...offScaleNotes(offScale),
     "The states' official flood warnings (the alerts) are separate: a warning can be in force while the gauges are calm, and the other way round. Report both.",
   ];
   const noData = noDataGauges;
@@ -707,6 +787,7 @@ export async function getFloodSituation(client: HochwasserzentralenClient, input
     worstClassName: worstClass === null ? null : nameOf(worstClass),
     states: ranked,
     worstGauges: flooding.slice(0, top),
+    ...(offScale.length === 0 ? {} : { offScale }),
     attribution: attributionOf(res),
     notes,
   };
@@ -749,6 +830,8 @@ export interface FloodMap {
   leftOff: LeftOff[];
   /** Gauges with a water search: the waters it matched, with their counts (it matches parts of names). */
   waters?: Record<string, number>;
+  /** Gauges whose class is off the station scale, left off the map; absent when none. */
+  offScale?: OffScaleGauge[];
   reason?: string;
   attribution: Attribution;
   notes: string[];
@@ -783,10 +866,10 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
   const water = input.water === undefined ? undefined : normalizeText(assertValid("water", input.water, textProblem));
   const minClass = input.minClass === undefined ? undefined : assertValid("minClass", input.minClass, minClassProblem as Problem<number>);
   const filters = { ...(water === undefined ? {} : { water }), ...(minClass === undefined ? {} : { minClass }) };
-  const res = await client.stations({ ...scope, ...filters, ...lang });
+  const { res, offScale } = await fetchGauges(client, { ...scope, ...filters, ...lang });
   const fc = stationsToGeoJson(res);
   const leftOff = stationsWithoutCoordinates(res).map((s) => ({ id: s.id, class: s.lhpClass ?? null, ...(s.name === undefined ? {} : { area: s.name }) }));
-  const notes = [...envelopeNotes(input.lang, res), "Gauge lhpClass is the station scale as a number: 4..1 flooding, 0 none, -1 no data; a gauge without a flood classification has no lhpClass. Never style both layers with one colour ramp."];
+  const notes = [...envelopeNotes(input.lang, res), "Gauge lhpClass is the station scale as a number: 4..1 flooding, 0 none, -1 no data; a gauge without a flood classification has no lhpClass. Never style both layers with one colour ramp.", ...offScaleNotes(offScale)];
   if (res.data.some((s) => typeof s.stateClassName === "string" && /&#?\w+;/.test(s.stateClassName))) {
     notes.push("Some stateClassName labels carry HTML entities as the API sends them (Rheinland-Pfalz: \"&#60;\" is \"<\"); decode them for a label.");
   }
@@ -798,7 +881,10 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
       : `No gauge in ${scopeOf(states)} matches${water === undefined ? "" : ` the water ${JSON.stringify(water)}`}${minClass === undefined ? "" : ` at class ${minClass} or above`}.`;
   const waters: Record<string, number> = {};
   for (const s of res.data) if (typeof s.water === "string") waters[s.water] = (waters[s.water] ?? 0) + 1;
-  return mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features, leftOff, attributionOf(res), notes, reason, water === undefined ? undefined : waters);
+  const map = mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features, leftOff, attributionOf(res), notes, reason, water === undefined ? undefined : waters);
+  if (offScale.length === 0) return map;
+  const told = `${offScale.length} gauge${offScale.length === 1 ? " with a class" : "s with classes"} off the station scale ${offScale.length === 1 ? "is" : "are"} named in offScale.`;
+  return { ...map, offScale, ...(map.reason === undefined ? {} : { reason: `${map.reason} ${told}` }) };
 }
 
 function mapAnswer(searched: FloodMap["searched"], features: GeoJsonFeature[], leftOff: LeftOff[], attribution: Attribution, notes: string[], emptyReason: string, waters?: Record<string, number>): FloodMap {

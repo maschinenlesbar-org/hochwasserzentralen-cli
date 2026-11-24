@@ -133,6 +133,17 @@ test("findGauge: a border gauge is one answer with its twin; several places are 
   await connection.close();
 });
 
+test("a gauge with a class off the station scale is named apart: the gauge tools still answer for the others", async () => {
+  const stations = { ...liveStations(), data: [...liveStations().data, gauge("SN_9", "Pirna", "Elbe", 5, [13.94, 50.96])] };
+  const connection = await connect({ transport: lhpApi({ stations }) });
+  for (const [tool, args] of [["getFloodSituation", {}], ["listGauges", { minClass: 1 }], ["getFloodMap", { layer: "gauges" }], ["findGauge", { gauge: "Pirna" }]] as const) {
+    const result = await connection.call(tool, args);
+    assert.equal(result.isError, undefined, `${tool}: ${result.content[0]?.text}`);
+    assert.deepEqual((result.structuredContent?.["offScale"] as { id: string }[]).map((g) => g.id), ["SN_9"], tool);
+  }
+  await connection.close();
+});
+
 test("getFloodMap: alert features with what is left off named; gauges paged; water on the alerts layer is refused, not ignored", async () => {
   const data = [...liveAlerts().data, alertArea("BY_577", "6", "Donau", { geometry: undefined })];
   const connection = await connect({ transport: lhpApi({ alerts: { ...liveAlerts(), data } }) });
