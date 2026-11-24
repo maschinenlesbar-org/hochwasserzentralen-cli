@@ -235,6 +235,9 @@ test("getFloodMap: gauges as points in [lon, lat], an unclassified gauge without
   assert.match(map.notes.join(" "), /two points on one spot: 6 features, 5 sites/);
   assert.match(map.notes.join(" "), /&#60;/);
   await assert.rejects(getFloodMap(clientOf().client, { layer: "alerts", minClass: 1 }), /gauges layer only/);
+  const oder = await getFloodMap(clientOf().client, { layer: "gauges", water: "oder" });
+  assert.deepEqual(oder.waters, { "Spree-Oder-Wasserstrasse": 1, Oder: 1 }, "a water search says which waters it matched");
+  assert.equal("waters" in map, false, "no water search, no waters");
   const calm = await getFloodMap(clientOf().client, { layer: "gauges", states: ["SN"], minClass: 1 });
   assert.deepEqual([calm.status, calm.reason], ["empty", "No gauge in Sachsen at class 1 or above: nothing flooding to map."]);
 });

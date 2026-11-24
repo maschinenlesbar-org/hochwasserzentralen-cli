@@ -747,6 +747,8 @@ export interface FloodMap {
   features: GeoJsonFeature[];
   /** Left off the map: no usable geometry. A map without them reads as complete; say so. */
   leftOff: LeftOff[];
+  /** Gauges with a water search: the waters it matched, with their counts (it matches parts of names). */
+  waters?: Record<string, number>;
   reason?: string;
   attribution: Attribution;
   notes: string[];
@@ -757,7 +759,7 @@ export interface FloodMap {
  * gauges (Points; `lhpClass` the station scale, a number, absent when unclassified) as GeoJSON
  * features in [longitude, latitude], with the bbox and the attribution, and the items without a
  * usable geometry named (worst first). `water` and `minClass` filter gauges only; on the alerts
- * layer they are refused, never ignored.
+ * layer they are refused, never ignored. A water search names the waters it matched (`waters`).
  */
 export async function getFloodMap(client: HochwasserzentralenClient, input: FloodMapInput): Promise<FloodMap> {
   if (!(MAP_LAYERS as readonly unknown[]).includes(input.layer)) {
@@ -794,10 +796,12 @@ export async function getFloodMap(client: HochwasserzentralenClient, input: Floo
     minClass !== undefined && minClass >= 1 && water === undefined
       ? `No gauge in ${scopeOf(states)} at class ${minClass} or above: nothing flooding to map.`
       : `No gauge in ${scopeOf(states)} matches${water === undefined ? "" : ` the water ${JSON.stringify(water)}`}${minClass === undefined ? "" : ` at class ${minClass} or above`}.`;
-  return mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features, leftOff, attributionOf(res), notes, reason);
+  const waters: Record<string, number> = {};
+  for (const s of res.data) if (typeof s.water === "string") waters[s.water] = (waters[s.water] ?? 0) + 1;
+  return mapAnswer({ layer: "gauges", ...scope, ...filters }, fc.features, leftOff, attributionOf(res), notes, reason, water === undefined ? undefined : waters);
 }
 
-function mapAnswer(searched: FloodMap["searched"], features: GeoJsonFeature[], leftOff: LeftOff[], attribution: Attribution, notes: string[], emptyReason: string): FloodMap {
+function mapAnswer(searched: FloodMap["searched"], features: GeoJsonFeature[], leftOff: LeftOff[], attribution: Attribution, notes: string[], emptyReason: string, waters?: Record<string, number>): FloodMap {
   const bbox = featuresBbox(features);
   return {
     status: features.length === 0 && leftOff.length === 0 ? "empty" : "ok",
@@ -806,6 +810,7 @@ function mapAnswer(searched: FloodMap["searched"], features: GeoJsonFeature[], l
     ...(bbox === undefined ? {} : { bbox }),
     features,
     leftOff,
+    ...(waters === undefined ? {} : { waters }),
     ...(features.length === 0 && leftOff.length === 0 ? { reason: emptyReason } : {}),
     attribution,
     notes,

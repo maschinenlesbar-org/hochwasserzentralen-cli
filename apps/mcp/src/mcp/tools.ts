@@ -165,7 +165,7 @@ export const TOOLS: readonly ToolDefinition[] = [
     title: "Flood warnings or gauges as GeoJSON",
     description: [
       'Flood warning areas or gauges as a GeoJSON FeatureCollection for a map ([longitude, latitude]). Use it for "Hochwasserkarte für Bayern", "map the flood warnings", "export the Hochwasser areas as GeoJSON", "plot the flooding gauges on a map", "show the alert polygons in QGIS / geojson.io / Leaflet".',
-      "layer alerts: warning areas as Polygons, river reaches as LineStrings (style them as lines); lhpClass the alerts scale as a string (\"6\"..\"1\", \"1\" an all-clear). layer gauges: Points; lhpClass the station scale as a number (4..-1), absent on an unclassified gauge (style it as unclassified, not 0 or -1). Never one colour ramp for both. Filter first: water and minClass (gauges only; refused on alerts); all gauges are about 1300 points, paged. leftOff names what has no usable geometry: tell the user which warnings the map lacks. Border gauges are two points on one spot. No feature can be the answer (no active warning): say so. For a file, join the pages' features and keep the attribution members; put attribution.text on the map.",
+      "layer alerts: warning areas as Polygons, river reaches as LineStrings (style them as lines); lhpClass the alerts scale as a string (\"6\"..\"1\", \"1\" an all-clear). layer gauges: Points; lhpClass the station scale as a number (4..-1), absent on an unclassified gauge (style it as unclassified, not 0 or -1). Never one colour ramp for both. Filter first: water and minClass (gauges only; refused on alerts); all gauges are about 1300 points, paged. water matches parts of names (\"inn\" also finds Pinnau): check waters, the names it matched, before mapping them as one river. leftOff names what has no usable geometry: tell the user which warnings the map lacks. Border gauges are two points on one spot. No feature can be the answer (no active warning): say so. For a file, join the pages' features and keep the attribution members; put attribution.text on the map.",
       RULES,
     ].join("\n\n"),
     inputSchema: input(
@@ -180,7 +180,7 @@ export const TOOLS: readonly ToolDefinition[] = [
       },
       ["layer"],
     ),
-    outputSchema: output({ type: str_, bbox: arr, features: arr, total: int, nextOffset: int, leftOff: arr }),
+    outputSchema: output({ type: str_, bbox: arr, features: arr, total: int, nextOffset: int, leftOff: arr, waters: obj }),
     source: (args) => sourceOf(str(args, "layer") === "alerts" ? "alerts" : "stations", args),
     paged: (args) => ({ list: "features", offset: num(args, "offset") ?? 0 }),
     async run(args, context) {
