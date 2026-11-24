@@ -332,18 +332,25 @@ export async function getFloodAlerts(client: HochwasserzentralenClient, input: F
   const counts: Record<string, number> = {};
   for (const a of active) counts[a.className] = (counts[a.className] ?? 0) + 1;
   const notes = envelopeNotes(input.lang, res);
-  const odd = active.filter((a) => a.class === null || ALERT_CLASS_NAMES[String(a.class)] === undefined);
+  const isOdd = (a: FloodAlert): boolean => a.class === null || ALERT_CLASS_NAMES[String(a.class)] === undefined;
+  const odd = active.filter(isOdd);
   if (odd.length > 0) {
     notes.push(`${odd.map((a) => a.id).join(", ")}: a class off the alerts scale (6, 5, 4, 2, 1); read its className and the state's page.`);
   }
   const scope = scopeOf(states);
+  // The verdict names the worst class on the scale; warnings off it (listed first in active, so
+  // they are seen) are counted apart, never named as "the worst" with a class nobody can read.
+  const oddIds = `${odd.slice(0, 5).map((a) => a.id).join(", ")}${odd.length > 5 ? ", …" : ""}`;
+  const worst = active.find((a) => !isOdd(a));
   let verdict: string;
   if (active.length === 0) {
     verdict = `No active official flood warning for ${scope}${cleared.length > 0 ? ` (${cleared.length} all-clear${cleared.length === 1 ? "" : "s"}, Entwarnung)` : ""}.`;
+  } else if (worst === undefined) {
+    verdict = `${active.length} active official flood warning${active.length === 1 ? "" : "s"} for ${scope}, with a class off the alerts scale (${oddIds}): read ${odd.length === 1 ? "its" : "their"} className and the state's page.`;
   } else {
-    const worst = active[0] as FloodAlert;
     const where = [...new Set(active.filter((a) => a.class === worst.class).map((a) => a.area ?? a.id))].slice(0, 5).join("; ");
-    verdict = `${active.length} active official flood warning${active.length === 1 ? "" : "s"} for ${scope}; the worst is class ${worst.class ?? "?"} (${worst.className}) at ${where}.`;
+    const more = odd.length === 0 ? "" : ` ${odd.length} more ${odd.length === 1 ? "has" : "have"} a class off the alerts scale (${oddIds}): read ${odd.length === 1 ? "its" : "their"} className and the state's page.`;
+    verdict = `${active.length} active official flood warning${active.length === 1 ? "" : "s"} for ${scope}; the worst is class ${worst.class} (${worst.className}) at ${where}.${more}`;
   }
   return { status: "ok", searched: states === undefined ? {} : { states }, verdict, active, cleared, counts, lang: res.lang, attribution: attributionOf(res), notes };
 }

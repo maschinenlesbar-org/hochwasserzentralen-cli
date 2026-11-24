@@ -90,6 +90,15 @@ test("getFloodAlerts: states by name reach the API as codes; the CAP block gives
   assert.match(withCap.notes.join(" "), /BY_9: a class off the alerts scale/);
 });
 
+test("getFloodAlerts: the verdict names the worst class on the alerts scale, and counts the warnings off it apart", async () => {
+  const data = [alertArea("BY_9", "x", "Odd"), alertArea("BY_8", "7", "Seven"), alertArea("BY_577", "5", "Donau"), alertArea("BY_1", "2", "Inn")];
+  const mixed = await getFloodAlerts(clientOf(lhpApi({ alerts: { ...liveAlerts(), data } })).client);
+  assert.equal(mixed.verdict, "4 active official flood warnings for Germany; the worst is class 5 (Großes Hochwasser) at Donau. 2 more have a class off the alerts scale (BY_9, BY_8): read their className and the state's page.");
+  assert.deepEqual(mixed.active.slice(0, 2).map((a) => a.id), ["BY_9", "BY_8"], "still listed first, so they are seen");
+  const onlyOdd = await getFloodAlerts(clientOf(lhpApi({ alerts: { ...liveAlerts(), data: [alertArea("BY_9", "x", "Odd")] } })).client);
+  assert.equal(onlyOdd.verdict, "1 active official flood warning for Germany, with a class off the alerts scale (BY_9): read its className and the state's page.");
+});
+
 test("getFloodAlerts says when the API answered in another language than asked (its cache ignores it)", async () => {
   const alerts = await getFloodAlerts(clientOf().client, { lang: "en" });
   assert.match(alerts.notes.join(" "), /Asked for lang en, the API sent "de"/);
