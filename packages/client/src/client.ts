@@ -238,12 +238,13 @@ export class HochwasserzentralenClient {
       ...(params.lang !== undefined ? { language: params.lang } : {}),
     });
     this.checkEnvelope(res, ENDPOINTS.stations, query, true);
-    // About 1600 gauges report nationwide; an answer for all of Germany without a single
+    // Well over a thousand gauges report nationwide (1573 on 2026-09-15, 1315 on 2026-11-22); an
+    // answer for all of Germany without a single
     // station is an upstream fault, not the "no gauges" verdict `situation` would print.
     if (params.states === undefined && res.data.length === 0) {
       throw new HochwasserzentralenParseError(
         `GET ${this.engine.describeUrl(ENDPOINTS.stations, query)}: the answer for all of Germany holds no station ` +
-          `at all; the LHP lists about 1600 gauges, so this is an upstream fault. Try again later.`,
+          `at all; the LHP lists well over a thousand gauges, so this is an upstream fault. Try again later.`,
       );
     }
     // The API filters by `states` itself, but nothing checked that it did: a server that

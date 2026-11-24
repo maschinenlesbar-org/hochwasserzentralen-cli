@@ -625,7 +625,7 @@ test("a nationwide /data/stations answer without any station is an error, not an
   for (const argv of [["situation"], ["stations"], ["stations", "--min-class", "1"]]) {
     const cli = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
     assert.equal(await run(argv, cli.deps), 1, argv.join(" "));
-    assert.match(cli.err.join("\n"), / ERROR \[hochwasser\.api\] GET https:\/\/\S+\/data\/stations: the answer for all of Germany holds no station at all; /);
+    assert.match(cli.err.join("\n"), / ERROR \[hochwasser\.api\] GET https:\/\/\S+\/data\/stations: the answer for all of Germany holds no station at all; the LHP lists well over a thousand gauges, /);
   }
   // A requested state without gauges (HH) stays a valid, empty answer.
   const hh = makeCli(() => jsonResponse({ ...fx.stationsJson, data: [] }));
