@@ -8,11 +8,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { listTools } from "../src/mcp/server.js";
+import { DEADLINE_HINT, SIZE_HINT, TOOLS } from "../src/mcp/tools.js";
 import { connect } from "./harness.js";
 import { alertArea, gauge, lhpApi, liveAlerts, liveStations } from "./helpers.js";
 
 test("five tools: the three use cases first, then the generic ones", () => {
   assert.deepEqual(listTools().map((t) => t.name), ["getFloodAlerts", "getFloodSituation", "getFloodMap", "listGauges", "findGauge"]);
+});
+
+test("the size cap's and the deadline's advice fit every tool: each option named with its tools takes it", () => {
+  const schemas = new Map(TOOLS.map((tool) => [tool.name, Object.keys((tool.inputSchema as { properties: Record<string, unknown> }).properties)]));
+  const pairs = [...SIZE_HINT.matchAll(/(\w+(?: or \w+)*) \((\w+(?:, \w+)*)\)/g)];
+  assert.ok(pairs.length >= 4, SIZE_HINT);
+  for (const [, options, tools] of pairs) {
+    for (const tool of (tools as string).split(", ")) {
+      for (const option of (options as string).split(" or ")) assert.ok(schemas.get(tool)?.includes(option), `${tool} takes no ${option}: ${SIZE_HINT}`);
+    }
+  }
+  const named = new Set(pairs.flatMap(([, options]) => (options as string).split(" or ")));
+  for (const option of ["water", "minClass", "limit", "worstGauges", "offset"]) {
+    assert.ok(!new RegExp(`\\b${option}\\b`).test(SIZE_HINT) || named.has(option), `${option} named without its tools: ${SIZE_HINT}`);
+  }
+  // "fewer states" holds for every tool, as both texts say.
+  assert.match(SIZE_HINT + DEADLINE_HINT, /states/);
+  for (const [tool, options] of schemas) assert.ok(options.includes("states"), `${tool} takes no states`);
 });
 
 test("getFloodAlerts: worst first on the alerts scale, the all-clear apart; states by name reach the API as codes; the source names them", async () => {

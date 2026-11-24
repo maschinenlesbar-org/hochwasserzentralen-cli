@@ -40,8 +40,12 @@ export const INSTRUCTIONS = [
 /** The deadline's error says what to ask instead. */
 export const DEADLINE_HINT = "The flood portal is slow at times; try again in a minute, or ask for fewer states.";
 
-/** An answer over the size cap says what to ask instead. */
-export const SIZE_HINT = "Ask for fewer states, a water or a minClass, or a smaller page (limit).";
+/**
+ * An answer over the size cap says what to ask instead. One text serves every tool (the kit takes
+ * one), so each option it names comes with the tools that take it.
+ */
+export const SIZE_HINT =
+  "Ask for less: fewer states (any tool); a water (getFloodMap, listGauges, findGauge) or minClass (getFloodMap, listGauges); a smaller limit (getFloodAlerts, getFloodMap, listGauges, findGauge) or worstGauges (getFloodSituation); getFloodAlerts without cap.";
 
 /**
  * The longest CAP text getFloodAlerts keeps whole (description, instruction): the official
