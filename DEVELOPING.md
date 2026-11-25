@@ -482,7 +482,10 @@ one-byte chunk held about 210 bytes of heap each.
 
 **Transport contract.** The engine enforces its limits for *every* transport, not only the
 built-in one: each call races a deadline (`timeoutMs`, passed to the transport as
-`HttpRequest.signal`, which the default transport honours), the body it gets back is checked
+`HttpRequest.signal`, aborted with the timeout error as its reason, which the default transport
+honours: it stops with the signal's reason, and for a signal some other caller aborted (the MCP
+server's tool call: its deadline, a cancellation) it says "Request aborted by its caller before it
+finished", never a timeout it didn't have), the body it gets back is checked
 against `maxResponseBytes`, headers are read from a plain object in any key case, a fetch
 `Headers` or a `Map`, the body may be any ArrayBuffer view or an `ArrayBuffer` (from any
 realm), a reset connection (`ECONNRESET`, `EPIPE`, `ECONNABORTED`, undici's
